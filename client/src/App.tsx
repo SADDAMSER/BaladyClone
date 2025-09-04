@@ -11,6 +11,9 @@ import LegalSystem from "@/pages/LegalSystem";
 import OrganizationalStructure from "@/pages/OrganizationalStructure";
 import AdvancedOrganizationalStructure from "@/pages/AdvancedOrganizationalStructure";
 import AdvancedAnalytics from "@/pages/AdvancedAnalytics";
+import UserManagement from "@/pages/UserManagement";
+import DocumentArchive from "@/pages/DocumentArchive";
+import SmartSearch from "@/pages/SmartSearch";
 import TaskManagement from "@/pages/TaskManagement";
 import ServiceBuilder from "@/pages/ServiceBuilder";
 import NotFound from "@/pages/not-found";
@@ -26,6 +29,9 @@ function Router() {
       <Route path="/organizational-structure" component={OrganizationalStructure} />
       <Route path="/advanced-organizational-structure" component={AdvancedOrganizationalStructure} />
       <Route path="/advanced-analytics" component={AdvancedAnalytics} />
+      <Route path="/user-management" component={UserManagement} />
+      <Route path="/document-archive" component={DocumentArchive} />
+      <Route path="/smart-search" component={SmartSearch} />
       <Route path="/task-management" component={TaskManagement} />
       <Route path="/service-builder" component={ServiceBuilder} />
       <Route component={NotFound} />

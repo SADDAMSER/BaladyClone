@@ -4,9 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Building, Bell, User, Menu, Home, FileText, BarChart3, Settings } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import NotificationSystem, { useNotifications } from "@/components/NotificationSystem";
 
 export default function Header() {
   const [location] = useLocation();
+  const [showNotifications, setShowNotifications] = useState(false);
+  const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification } = useNotifications();
 
   const navigationItems = [
     { href: "/", label: "الرئيسية", icon: Home },
@@ -57,13 +60,16 @@ export default function Header() {
                   variant="ghost" 
                   size="icon"
                   className="text-primary-foreground hover:text-accent transition-colors"
+                  onClick={() => setShowNotifications(true)}
                   data-testid="button-notifications"
                 >
                   <Bell size={20} />
                 </Button>
-                <Badge className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full text-xs w-5 h-5 flex items-center justify-center p-0">
-                  3
-                </Badge>
+                {unreadCount > 0 && (
+                  <Badge className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full text-xs w-5 h-5 flex items-center justify-center p-0">
+                    {unreadCount}
+                  </Badge>
+                )}
               </div>
               
               <Button
@@ -109,11 +115,14 @@ export default function Header() {
                     <Button 
                       variant="ghost" 
                       className="w-full justify-start text-right"
+                      onClick={() => setShowNotifications(true)}
                       data-testid="mobile-notifications"
                     >
                       <Bell className="h-4 w-4 ml-2" />
                       الإشعارات
-                      <Badge className="mr-auto bg-destructive">3</Badge>
+                      {unreadCount > 0 && (
+                        <Badge className="mr-auto bg-destructive">{unreadCount}</Badge>
+                      )}
                     </Button>
                     <Button 
                       variant="ghost" 
@@ -130,6 +139,15 @@ export default function Header() {
           </div>
         </div>
       </div>
+      
+      <NotificationSystem
+        isOpen={showNotifications}
+        onClose={() => setShowNotifications(false)}
+        notifications={notifications}
+        onMarkAsRead={markAsRead}
+        onMarkAllAsRead={markAllAsRead}
+        onDeleteNotification={deleteNotification}
+      />
     </header>
   );
 }

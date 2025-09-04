@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Search, Building, Map, Cog, Scale, Table, ListTodo, Zap, BarChart3 } from "lucide-react";
+import { Search, Building, Map, Cog, Scale, Table, ListTodo, Zap, BarChart3, Users, FileText, Brain, Shield } from "lucide-react";
 
 export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useQuery({
@@ -83,6 +83,33 @@ export default function Dashboard() {
       color: "primary",
       badgeText: "مؤشرات مباشرة",
       href: "/advanced-analytics"
+    },
+    {
+      id: "user-management",
+      title: "إدارة المستخدمين",
+      description: "إدارة المستخدمين والصلاحيات",
+      icon: Users,
+      color: "secondary",
+      badgeText: "نظام متقدم",
+      href: "/user-management"
+    },
+    {
+      id: "document-archive",
+      title: "الأرشفة الإلكترونية",
+      description: "إدارة المستندات والتوقيع",
+      icon: FileText,
+      color: "accent",
+      badgeText: "آمن ومشفر",
+      href: "/document-archive"
+    },
+    {
+      id: "smart-search",
+      title: "البحث الذكي",
+      description: "بحث ذكي بالذكاء الاصطناعي",
+      icon: Brain,
+      color: "primary",
+      badgeText: "AI مدعوم",
+      href: "/smart-search"
     },
     {
       id: "service-builder",
