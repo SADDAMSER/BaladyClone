@@ -7,7 +7,8 @@ import {
   insertLawRegulationSchema, insertLawSectionSchema, insertLawArticleSchema,
   insertRequirementCategorySchema, insertRequirementSchema, insertServiceSchema,
   insertApplicationSchema, insertSurveyingDecisionSchema, insertTaskSchema,
-  insertSystemSettingSchema
+  insertSystemSettingSchema, insertServiceTemplateSchema, insertDynamicFormSchema,
+  insertWorkflowDefinitionSchema, insertServiceBuilderSchema
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
@@ -616,6 +617,183 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { value } = req.body;
       const setting = await storage.updateSystemSetting(req.params.key, value);
       res.json(setting);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Service Automation System Routes
+
+  // Service Templates
+  app.get("/api/service-templates", async (req, res) => {
+    try {
+      const templates = await storage.getServiceTemplates();
+      res.json(templates);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/service-templates/:id", async (req, res) => {
+    try {
+      const template = await storage.getServiceTemplate(req.params.id);
+      if (!template) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+      res.json(template);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/service-templates", authenticateToken, async (req, res) => {
+    try {
+      const data = insertServiceTemplateSchema.parse(req.body);
+      const authReq = req as AuthenticatedRequest;
+      const template = await storage.createServiceTemplate({
+        ...data,
+        createdById: authReq.user?.id
+      });
+      res.status(201).json(template);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Service Builder
+  app.get("/api/service-builder/:id", authenticateToken, async (req, res) => {
+    try {
+      const serviceBuilder = await storage.getServiceBuilder(req.params.id);
+      if (!serviceBuilder) {
+        return res.status(404).json({ message: "Service builder not found" });
+      }
+      res.json(serviceBuilder);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/service-builder", authenticateToken, async (req, res) => {
+    try {
+      const authReq = req as AuthenticatedRequest;
+      const data = {
+        builderData: req.body,
+        builderId: authReq.user?.id,
+        lastModifiedById: authReq.user?.id,
+        publicationStatus: "draft"
+      };
+      
+      const serviceBuilder = await storage.createServiceBuilder(data);
+      res.status(201).json(serviceBuilder);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/service-builder/:id", authenticateToken, async (req, res) => {
+    try {
+      const authReq = req as AuthenticatedRequest;
+      const updates = {
+        builderData: req.body,
+        lastModifiedById: authReq.user?.id
+      };
+      
+      const serviceBuilder = await storage.updateServiceBuilder(req.params.id, updates);
+      res.json(serviceBuilder);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/service-builder/:id/publish", authenticateToken, async (req, res) => {
+    try {
+      const authReq = req as AuthenticatedRequest;
+      const serviceBuilder = await storage.publishService(req.params.id, authReq.user?.id || "");
+      res.json(serviceBuilder);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Dynamic Forms
+  app.get("/api/forms/:serviceId", async (req, res) => {
+    try {
+      const form = await storage.getServiceForm(req.params.serviceId);
+      if (!form) {
+        return res.status(404).json({ message: "Form not found" });
+      }
+      res.json(form);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/forms", authenticateToken, async (req, res) => {
+    try {
+      const data = insertDynamicFormSchema.parse(req.body);
+      const form = await storage.createDynamicForm(data);
+      res.status(201).json(form);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Workflow Definitions
+  app.get("/api/workflows/:serviceId", async (req, res) => {
+    try {
+      const workflow = await storage.getServiceWorkflow(req.params.serviceId);
+      if (!workflow) {
+        return res.status(404).json({ message: "Workflow not found" });
+      }
+      res.json(workflow);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/workflows", authenticateToken, async (req, res) => {
+    try {
+      const data = insertWorkflowDefinitionSchema.parse(req.body);
+      const workflow = await storage.createWorkflowDefinition(data);
+      res.status(201).json(workflow);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Analytics and Reports
+  app.get("/api/analytics/service-usage", authenticateToken, async (req, res) => {
+    try {
+      const analytics = await storage.getServiceUsageAnalytics();
+      res.json(analytics);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/analytics/workflow-performance", authenticateToken, async (req, res) => {
+    try {
+      const analytics = await storage.getWorkflowPerformanceAnalytics();
+      res.json(analytics);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // System Health and Monitoring
+  app.get("/api/system/health", async (req, res) => {
+    try {
+      const health = await storage.getSystemHealth();
+      res.json(health);
     } catch (error) {
       res.status(500).json({ message: "Internal server error" });
     }

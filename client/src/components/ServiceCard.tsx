@@ -7,7 +7,7 @@ interface ServiceCardProps {
   title: string;
   description: string;
   icon: LucideIcon;
-  color: "primary" | "secondary" | "accent";
+  color: "primary" | "secondary" | "accent" | "destructive";
   badgeText: string;
   href: string;
   className?: string;
@@ -27,7 +27,8 @@ export default function ServiceCard({
   const colorClasses = {
     primary: "bg-primary/20 text-primary bg-primary/10",
     secondary: "bg-secondary/20 text-secondary bg-secondary/10",
-    accent: "bg-accent/20 text-accent bg-accent/10"
+    accent: "bg-accent/20 text-accent bg-accent/10",
+    destructive: "bg-red-100 text-red-600 bg-red-50"
   };
 
   return (

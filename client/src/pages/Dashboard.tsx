@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Search, Building, Map, Cog, Scale, Table, ListTodo } from "lucide-react";
+import { Search, Building, Map, Cog, Scale, Table, ListTodo, Zap, BarChart3 } from "lucide-react";
 
 export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useQuery({
@@ -67,13 +67,31 @@ export default function Dashboard() {
       href: "/organizational-structure"
     },
     {
-      id: "task-management",
+      id: "task-management", 
       title: "إدارة المهام",
       description: "متابعة سير العمل",
       icon: ListTodo,
       color: "accent",
       badgeText: "127 مهمة",
       href: "/task-management"
+    },
+    {
+      id: "advanced-analytics",
+      title: "التحليلات المتقدمة",
+      description: "تقارير وإحصائيات شاملة",
+      icon: BarChart3,
+      color: "primary",
+      badgeText: "مؤشرات مباشرة",
+      href: "/advanced-analytics"
+    },
+    {
+      id: "service-builder",
+      title: "منشئ الخدمات الذكي",
+      description: "إنشاء خدمات جديدة بدون كود",
+      icon: Zap,
+      color: "destructive", 
+      badgeText: "جديد",
+      href: "/service-builder"
     }
   ];
 

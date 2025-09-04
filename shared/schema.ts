@@ -195,6 +195,141 @@ export const tasks = pgTable("tasks", {
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
+// Service Automation System
+export const serviceTemplates = pgTable("service_templates", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  nameEn: text("name_en"),
+  description: text("description"),
+  category: text("category").notNull(), // government, municipal, educational, health
+  subcategory: text("subcategory"),
+  templateType: text("template_type").notNull(), // form, workflow, complete_service
+  templateData: jsonb("template_data").notNull(),
+  icon: text("icon"),
+  tags: text("tags").array(),
+  version: text("version").default("1.0"),
+  isPublic: boolean("is_public").default(true),
+  usageCount: integer("usage_count").default(0),
+  rating: decimal("rating", { precision: 3, scale: 2 }),
+  createdById: uuid("created_by_id"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const formFields = pgTable("form_fields", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  fieldType: text("field_type").notNull(), // text, number, date, select, file, map, signature
+  label: text("label").notNull(),
+  labelEn: text("label_en"),
+  placeholder: text("placeholder"),
+  helpText: text("help_text"),
+  validation: jsonb("validation"), // rules, messages
+  options: jsonb("options"), // for select fields
+  properties: jsonb("properties"), // styling, layout
+  isRequired: boolean("is_required").default(false),
+  isVisible: boolean("is_visible").default(true),
+  orderIndex: integer("order_index").default(1),
+});
+
+export const dynamicForms = pgTable("dynamic_forms", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  serviceId: uuid("service_id"),
+  name: text("name").notNull(),
+  description: text("description"),
+  formSchema: jsonb("form_schema").notNull(),
+  validationRules: jsonb("validation_rules"),
+  uiConfig: jsonb("ui_config"),
+  isActive: boolean("is_active").default(true),
+  version: text("version").default("1.0"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const workflowDefinitions = pgTable("workflow_definitions", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  serviceId: uuid("service_id"),
+  name: text("name").notNull(),
+  description: text("description"),
+  workflowData: jsonb("workflow_data").notNull(), // BPMN 2.0 compatible
+  stages: jsonb("stages").notNull(),
+  transitions: jsonb("transitions").notNull(),
+  businessRules: jsonb("business_rules"),
+  isActive: boolean("is_active").default(true),
+  version: text("version").default("1.0"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const workflowInstances = pgTable("workflow_instances", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  workflowDefinitionId: uuid("workflow_definition_id").notNull(),
+  applicationId: uuid("application_id").notNull(),
+  currentStage: text("current_stage").notNull(),
+  status: text("status").default("active"), // active, completed, cancelled, suspended
+  stageHistory: jsonb("stage_history").default(sql`'[]'`),
+  variables: jsonb("variables"),
+  startedAt: timestamp("started_at").default(sql`CURRENT_TIMESTAMP`),
+  completedAt: timestamp("completed_at"),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const organizationStructures = pgTable("organization_structures", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: uuid("organization_id"),
+  name: text("name").notNull(),
+  structureType: text("structure_type").notNull(), // ministry, municipality, university, hospital
+  hierarchyLevels: jsonb("hierarchy_levels").notNull(),
+  roleDefinitions: jsonb("role_definitions").notNull(),
+  permissionMatrix: jsonb("permission_matrix").notNull(),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const serviceBuilder = pgTable("service_builder", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  serviceId: uuid("service_id"),
+  builderData: jsonb("builder_data").notNull(),
+  formConfig: jsonb("form_config"),
+  workflowConfig: jsonb("workflow_config"),
+  organizationConfig: jsonb("organization_config"),
+  publicationStatus: text("publication_status").default("draft"), // draft, published, archived
+  builderId: uuid("builder_id"),
+  lastModifiedById: uuid("last_modified_by_id"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const reportTemplates = pgTable("report_templates", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  reportType: text("report_type").notNull(), // dashboard, analytics, compliance, performance
+  dataSource: jsonb("data_source").notNull(),
+  chartConfig: jsonb("chart_config"),
+  filterConfig: jsonb("filter_config"),
+  scheduleConfig: jsonb("schedule_config"),
+  recipients: jsonb("recipients"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const auditLogs = pgTable("audit_logs", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  entityType: text("entity_type").notNull(),
+  entityId: uuid("entity_id").notNull(),
+  action: text("action").notNull(), // create, update, delete, approve, reject
+  oldValues: jsonb("old_values"),
+  newValues: jsonb("new_values"),
+  userId: uuid("user_id"),
+  sessionId: text("session_id"),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  timestamp: timestamp("timestamp").default(sql`CURRENT_TIMESTAMP`),
+});
+
 // System Configuration
 export const systemSettings = pgTable("system_settings", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -345,6 +480,63 @@ export const tasksRelations = relations(tasks, ({ one }) => ({
   }),
 }));
 
+// Service Automation Relations
+export const serviceTemplatesRelations = relations(serviceTemplates, ({ one, many }) => ({
+  createdBy: one(users, {
+    fields: [serviceTemplates.createdById],
+    references: [users.id],
+  }),
+  services: many(services),
+}));
+
+export const dynamicFormsRelations = relations(dynamicForms, ({ one }) => ({
+  service: one(services, {
+    fields: [dynamicForms.serviceId],
+    references: [services.id],
+  }),
+}));
+
+export const workflowDefinitionsRelations = relations(workflowDefinitions, ({ one, many }) => ({
+  service: one(services, {
+    fields: [workflowDefinitions.serviceId],
+    references: [services.id],
+  }),
+  instances: many(workflowInstances),
+}));
+
+export const workflowInstancesRelations = relations(workflowInstances, ({ one }) => ({
+  workflowDefinition: one(workflowDefinitions, {
+    fields: [workflowInstances.workflowDefinitionId],
+    references: [workflowDefinitions.id],
+  }),
+  application: one(applications, {
+    fields: [workflowInstances.applicationId],
+    references: [applications.id],
+  }),
+}));
+
+export const serviceBuilderRelations = relations(serviceBuilder, ({ one }) => ({
+  service: one(services, {
+    fields: [serviceBuilder.serviceId],
+    references: [services.id],
+  }),
+  builder: one(users, {
+    fields: [serviceBuilder.builderId],
+    references: [users.id],
+  }),
+  lastModifiedBy: one(users, {
+    fields: [serviceBuilder.lastModifiedById],
+    references: [users.id],
+  }),
+}));
+
+export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
+  user: one(users, {
+    fields: [auditLogs.userId],
+    references: [users.id],
+  }),
+}));
+
 // Insert Schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -418,6 +610,60 @@ export const insertSystemSettingSchema = createInsertSchema(systemSettings).omit
   updatedAt: true,
 });
 
+// Service Automation Insert Schemas
+export const insertServiceTemplateSchema = createInsertSchema(serviceTemplates).omit({
+  id: true,
+  usageCount: true,
+  rating: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertFormFieldSchema = createInsertSchema(formFields).omit({
+  id: true,
+});
+
+export const insertDynamicFormSchema = createInsertSchema(dynamicForms).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertWorkflowDefinitionSchema = createInsertSchema(workflowDefinitions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertWorkflowInstanceSchema = createInsertSchema(workflowInstances).omit({
+  id: true,
+  startedAt: true,
+  updatedAt: true,
+});
+
+export const insertOrganizationStructureSchema = createInsertSchema(organizationStructures).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertServiceBuilderSchema = createInsertSchema(serviceBuilder).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertReportTemplateSchema = createInsertSchema(reportTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
+  id: true,
+  timestamp: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -459,3 +705,192 @@ export type InsertTask = z.infer<typeof insertTaskSchema>;
 
 export type SystemSetting = typeof systemSettings.$inferSelect;
 export type InsertSystemSetting = z.infer<typeof insertSystemSettingSchema>;
+
+// Service Automation Types
+export type ServiceTemplate = typeof serviceTemplates.$inferSelect;
+export type InsertServiceTemplate = z.infer<typeof insertServiceTemplateSchema>;
+
+export type FormField = typeof formFields.$inferSelect;
+export type InsertFormField = z.infer<typeof insertFormFieldSchema>;
+
+export type DynamicForm = typeof dynamicForms.$inferSelect;
+export type InsertDynamicForm = z.infer<typeof insertDynamicFormSchema>;
+
+export type WorkflowDefinition = typeof workflowDefinitions.$inferSelect;
+export type InsertWorkflowDefinition = z.infer<typeof insertWorkflowDefinitionSchema>;
+
+export type WorkflowInstance = typeof workflowInstances.$inferSelect;
+export type InsertWorkflowInstance = z.infer<typeof insertWorkflowInstanceSchema>;
+
+export type OrganizationStructure = typeof organizationStructures.$inferSelect;
+export type InsertOrganizationStructure = z.infer<typeof insertOrganizationStructureSchema>;
+
+export type ServiceBuilder = typeof serviceBuilder.$inferSelect;
+export type InsertServiceBuilder = z.infer<typeof insertServiceBuilderSchema>;
+
+export type ReportTemplate = typeof reportTemplates.$inferSelect;
+export type InsertReportTemplate = z.infer<typeof insertReportTemplateSchema>;
+
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+
+// Extended Service Types for Service Builder
+export interface ServiceBuilderConfig {
+  basicInfo: {
+    name: string;
+    nameEn?: string;
+    description: string;
+    category: string;
+    subcategory?: string;
+    icon?: string;
+    estimatedTime: number;
+    fees?: number;
+  };
+  formConfig: {
+    fields: FormFieldConfig[];
+    layout: FormLayoutConfig;
+    validation: FormValidationConfig;
+  };
+  workflowConfig: {
+    stages: WorkflowStageConfig[];
+    transitions: WorkflowTransitionConfig[];
+    rules: BusinessRuleConfig[];
+  };
+  organizationConfig: {
+    departments: string[];
+    roles: string[];
+    permissions: PermissionConfig[];
+  };
+}
+
+export interface FormFieldConfig {
+  id: string;
+  type: 'text' | 'number' | 'email' | 'phone' | 'date' | 'time' | 'datetime' | 
+        'select' | 'radio' | 'checkbox' | 'file' | 'image' | 'signature' | 
+        'map' | 'barcode' | 'qr' | 'textarea' | 'url' | 'password';
+  label: string;
+  labelEn?: string;
+  placeholder?: string;
+  helpText?: string;
+  required: boolean;
+  visible: boolean;
+  readonly?: boolean;
+  validation?: {
+    min?: number;
+    max?: number;
+    pattern?: string;
+    customRule?: string;
+    errorMessage?: string;
+  };
+  options?: Array<{
+    value: string;
+    label: string;
+    labelEn?: string;
+  }>;
+  layout?: {
+    width: number;
+    order: number;
+    section?: string;
+  };
+  conditional?: {
+    field: string;
+    operator: 'equals' | 'not_equals' | 'contains' | 'greater_than' | 'less_than';
+    value: any;
+  };
+}
+
+export interface FormLayoutConfig {
+  columns: number;
+  sections: Array<{
+    id: string;
+    title: string;
+    titleEn?: string;
+    description?: string;
+    collapsible?: boolean;
+    defaultExpanded?: boolean;
+  }>;
+  theme: {
+    primaryColor: string;
+    secondaryColor: string;
+    fontFamily: string;
+    spacing: 'compact' | 'normal' | 'spacious';
+  };
+}
+
+export interface FormValidationConfig {
+  validateOnSubmit: boolean;
+  validateOnBlur: boolean;
+  showErrorSummary: boolean;
+  customValidators: Array<{
+    name: string;
+    script: string;
+    errorMessage: string;
+  }>;
+}
+
+export interface WorkflowStageConfig {
+  id: string;
+  name: string;
+  nameEn?: string;
+  description?: string;
+  type: 'start' | 'user_task' | 'service_task' | 'decision' | 'parallel' | 'end';
+  assignee?: {
+    type: 'role' | 'department' | 'specific_user' | 'dynamic';
+    value: string;
+    rule?: string;
+  };
+  formFields?: string[];
+  timeLimits?: {
+    expected: number;
+    maximum: number;
+    unit: 'hours' | 'days' | 'weeks';
+  };
+  notifications?: {
+    onEntry: boolean;
+    onOverdue: boolean;
+    recipients: string[];
+  };
+  position?: {
+    x: number;
+    y: number;
+  };
+}
+
+export interface WorkflowTransitionConfig {
+  id: string;
+  from: string;
+  to: string;
+  condition?: {
+    field?: string;
+    operator: 'equals' | 'not_equals' | 'contains' | 'greater_than' | 'less_than' | 'always';
+    value?: any;
+  };
+  actions?: Array<{
+    type: 'send_notification' | 'update_field' | 'call_service' | 'generate_document';
+    config: any;
+  }>;
+}
+
+export interface BusinessRuleConfig {
+  id: string;
+  name: string;
+  description?: string;
+  trigger: 'on_submit' | 'on_field_change' | 'on_stage_enter' | 'on_stage_exit';
+  condition: string;
+  actions: Array<{
+    type: 'set_field_value' | 'show_hide_field' | 'validate_field' | 'calculate_fee' | 'route_to_stage';
+    target: string;
+    value: any;
+  }>;
+}
+
+export interface PermissionConfig {
+  action: string;
+  roles: string[];
+  departments?: string[];
+  conditions?: Array<{
+    field: string;
+    operator: string;
+    value: any;
+  }>;
+}

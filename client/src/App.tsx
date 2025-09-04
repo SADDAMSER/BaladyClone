@@ -9,7 +9,10 @@ import SurveyingDecision from "@/pages/SurveyingDecision";
 import TechnicalRequirements from "@/pages/TechnicalRequirements";
 import LegalSystem from "@/pages/LegalSystem";
 import OrganizationalStructure from "@/pages/OrganizationalStructure";
+import AdvancedOrganizationalStructure from "@/pages/AdvancedOrganizationalStructure";
+import AdvancedAnalytics from "@/pages/AdvancedAnalytics";
 import TaskManagement from "@/pages/TaskManagement";
+import ServiceBuilder from "@/pages/ServiceBuilder";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -21,7 +24,10 @@ function Router() {
       <Route path="/technical-requirements" component={TechnicalRequirements} />
       <Route path="/legal-system" component={LegalSystem} />
       <Route path="/organizational-structure" component={OrganizationalStructure} />
+      <Route path="/advanced-organizational-structure" component={AdvancedOrganizationalStructure} />
+      <Route path="/advanced-analytics" component={AdvancedAnalytics} />
       <Route path="/task-management" component={TaskManagement} />
+      <Route path="/service-builder" component={ServiceBuilder} />
       <Route component={NotFound} />
     </Switch>
   );
