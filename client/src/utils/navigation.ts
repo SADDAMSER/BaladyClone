@@ -58,6 +58,7 @@ export const navigationConfig: NavigationItem[] = [
     icon: FileText,
     badge: { text: '12', variant: 'info' },
     children: [
+      { id: 'apps-track', label: 'تتبع الطلبات', icon: Search, path: '/applications/track' },
       { id: 'apps-pending', label: 'الطلبات المعلقة', icon: FileText, path: '/applications/pending' },
       { id: 'apps-approved', label: 'الطلبات المعتمدة', icon: FileText, path: '/applications/approved' },
       { id: 'apps-history', label: 'سجل الطلبات', icon: Archive, path: '/applications/history' }

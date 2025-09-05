@@ -20,6 +20,8 @@ import TaskManagement from "@/pages/TaskManagement";
 import ServiceBuilder from "@/pages/ServiceBuilder";
 import ServiceCatalog from "@/services/pages/ServiceCatalog";
 import ServiceDetails from "@/services/pages/ServiceDetails";
+import ServiceApplication from "@/services/pages/ServiceApplication";
+import ApplicationTracking from "@/applications/pages/ApplicationTracking";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -41,6 +43,8 @@ function Router() {
         <Route path="/service-builder" component={ServiceBuilder} />
         <Route path="/services" component={ServiceCatalog} />
         <Route path="/services/:id" component={ServiceDetails} />
+        <Route path="/services/:id/apply" component={ServiceApplication} />
+        <Route path="/applications/track" component={ApplicationTracking} />
         <Route component={NotFound} />
       </Switch>
     </AdminLayout>
