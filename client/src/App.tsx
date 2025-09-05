@@ -23,6 +23,7 @@ import ServiceDetails from "@/services/pages/ServiceDetails";
 import ServiceApplication from "@/services/pages/ServiceApplication";
 import ApplicationTracking from "@/applications/pages/ApplicationTracking";
 import PendingApplications from "@/applications/pages/PendingApplications";
+import SurveyingDecisionForm from "@/services/pages/SurveyingDecisionForm";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -47,6 +48,7 @@ function Router() {
         <Route path="/services/:id/apply" component={ServiceApplication} />
         <Route path="/applications/track" component={ApplicationTracking} />
         <Route path="/applications/pending" component={PendingApplications} />
+        <Route path="/services/surveying-decision" component={SurveyingDecisionForm} />
         <Route component={NotFound} />
       </Switch>
     </AdminLayout>
