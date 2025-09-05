@@ -18,6 +18,8 @@ import DocumentArchive from "@/pages/DocumentArchive";
 import SmartSearch from "@/pages/SmartSearch";
 import TaskManagement from "@/pages/TaskManagement";
 import ServiceBuilder from "@/pages/ServiceBuilder";
+import ServiceCatalog from "@/services/pages/ServiceCatalog";
+import ServiceDetails from "@/services/pages/ServiceDetails";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -37,6 +39,8 @@ function Router() {
         <Route path="/smart-search" component={SmartSearch} />
         <Route path="/task-management" component={TaskManagement} />
         <Route path="/service-builder" component={ServiceBuilder} />
+        <Route path="/services" component={ServiceCatalog} />
+        <Route path="/services/:id" component={ServiceDetails} />
         <Route component={NotFound} />
       </Switch>
     </AdminLayout>

@@ -195,6 +195,60 @@ export const tasks = pgTable("tasks", {
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
+// Service Categories and Enhanced Service Management
+export const serviceCategories = pgTable("service_categories", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  nameEn: text("name_en"),
+  description: text("description"),
+  icon: text("icon"),
+  color: text("color").default("#3b82f6"),
+  targetAudience: text("target_audience").array(), // ["individuals", "companies", "organizations"]
+  orderIndex: integer("order_index").default(1),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const serviceAttachments = pgTable("service_attachments", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  serviceId: uuid("service_id").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  fileType: text("file_type"), // pdf, image, document
+  isRequired: boolean("is_required").default(true),
+  maxFileSize: integer("max_file_size"), // in bytes
+  orderIndex: integer("order_index").default(1),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const applicationAttachments = pgTable("application_attachments", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  applicationId: uuid("application_id").notNull(),
+  serviceAttachmentId: uuid("service_attachment_id"),
+  fileName: text("file_name").notNull(),
+  fileUrl: text("file_url").notNull(),
+  fileSize: integer("file_size"),
+  fileType: text("file_type"),
+  uploadedAt: timestamp("uploaded_at").default(sql`CURRENT_TIMESTAMP`),
+  status: text("status").default("uploaded"), // uploaded, verified, rejected
+  notes: text("notes"),
+});
+
+export const paymentInvoices = pgTable("payment_invoices", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  applicationId: uuid("application_id").notNull(),
+  invoiceNumber: text("invoice_number").notNull().unique(),
+  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
+  status: text("status").default("pending"), // pending, paid, cancelled, expired
+  items: jsonb("items").notNull(), // invoice line items
+  paymentMethod: text("payment_method"), // cash, bank_transfer, card
+  receiptNumber: text("receipt_number"),
+  cashierNotes: text("cashier_notes"),
+  issuedAt: timestamp("issued_at").default(sql`CURRENT_TIMESTAMP`),
+  paidAt: timestamp("paid_at"),
+  qrCode: text("qr_code"),
+});
+
 // Service Automation System
 export const serviceTemplates = pgTable("service_templates", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -417,9 +471,46 @@ export const requirementsRelations = relations(requirements, ({ one, many }) => 
   serviceRequirements: many(serviceRequirements),
 }));
 
-export const servicesRelations = relations(services, ({ many }) => ({
+export const servicesRelations = relations(services, ({ one, many }) => ({
   applications: many(applications),
   serviceRequirements: many(serviceRequirements),
+  category: one(serviceCategories, {
+    fields: [services.category],
+    references: [serviceCategories.id],
+  }),
+  attachments: many(serviceAttachments),
+  dynamicForm: one(dynamicForms),
+  workflowDefinition: one(workflowDefinitions),
+}));
+
+export const serviceCategoriesRelations = relations(serviceCategories, ({ many }) => ({
+  services: many(services),
+}));
+
+export const serviceAttachmentsRelations = relations(serviceAttachments, ({ one, many }) => ({
+  service: one(services, {
+    fields: [serviceAttachments.serviceId],
+    references: [services.id],
+  }),
+  applicationAttachments: many(applicationAttachments),
+}));
+
+export const applicationAttachmentsRelations = relations(applicationAttachments, ({ one }) => ({
+  application: one(applications, {
+    fields: [applicationAttachments.applicationId],
+    references: [applications.id],
+  }),
+  serviceAttachment: one(serviceAttachments, {
+    fields: [applicationAttachments.serviceAttachmentId],
+    references: [serviceAttachments.id],
+  }),
+}));
+
+export const paymentInvoicesRelations = relations(paymentInvoices, ({ one }) => ({
+  application: one(applications, {
+    fields: [paymentInvoices.applicationId],
+    references: [applications.id],
+  }),
 }));
 
 export const serviceRequirementsRelations = relations(serviceRequirements, ({ one }) => ({
@@ -610,6 +701,28 @@ export const insertSystemSettingSchema = createInsertSchema(systemSettings).omit
   updatedAt: true,
 });
 
+// New Service Management Insert Schemas
+export const insertServiceCategorySchema = createInsertSchema(serviceCategories).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertServiceAttachmentSchema = createInsertSchema(serviceAttachments).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertApplicationAttachmentSchema = createInsertSchema(applicationAttachments).omit({
+  id: true,
+  uploadedAt: true,
+});
+
+export const insertPaymentInvoiceSchema = createInsertSchema(paymentInvoices).omit({
+  id: true,
+  invoiceNumber: true,
+  issuedAt: true,
+});
+
 // Service Automation Insert Schemas
 export const insertServiceTemplateSchema = createInsertSchema(serviceTemplates).omit({
   id: true,
@@ -733,6 +846,19 @@ export type InsertReportTemplate = z.infer<typeof insertReportTemplateSchema>;
 
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+
+// New Service Management Types
+export type ServiceCategory = typeof serviceCategories.$inferSelect;
+export type InsertServiceCategory = z.infer<typeof insertServiceCategorySchema>;
+
+export type ServiceAttachment = typeof serviceAttachments.$inferSelect;
+export type InsertServiceAttachment = z.infer<typeof insertServiceAttachmentSchema>;
+
+export type ApplicationAttachment = typeof applicationAttachments.$inferSelect;
+export type InsertApplicationAttachment = z.infer<typeof insertApplicationAttachmentSchema>;
+
+export type PaymentInvoice = typeof paymentInvoices.$inferSelect;
+export type InsertPaymentInvoice = z.infer<typeof insertPaymentInvoiceSchema>;
 
 // Extended Service Types for Service Builder
 export interface ServiceBuilderConfig {

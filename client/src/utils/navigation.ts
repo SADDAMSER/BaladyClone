@@ -44,6 +44,7 @@ export const navigationConfig: NavigationItem[] = [
     label: 'إدارة الخدمات',
     icon: Settings,
     children: [
+      { id: 'services-catalog', label: 'دليل الخدمات', icon: FileText, path: '/services' },
       { id: 'building-licenses', label: 'تراخيص البناء', icon: Building, path: '/building-licenses' },
       { id: 'surveying-decision', label: 'القرار المساحي', icon: Map, path: '/surveying-decision' },
       { id: 'technical-requirements', label: 'الاشتراطات الفنية', icon: Cog, path: '/technical-requirements' },
