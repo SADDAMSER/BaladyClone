@@ -225,8 +225,15 @@ export default function ServiceApplication() {
   // Fetch service data
   const { data: service, isLoading, error } = useQuery({
     queryKey: ["/api/services", serviceId, "application"],
-    queryFn: () => Promise.resolve(mockServiceApplicationData[serviceId]),
-    enabled: !!serviceId
+    queryFn: () => {
+      const serviceData = mockServiceApplicationData[serviceId];
+      if (!serviceData) {
+        throw new Error("Service not found");
+      }
+      return Promise.resolve(serviceData);
+    },
+    enabled: !!serviceId,
+    retry: false
   });
 
   const form = useForm<ApplicationFormData>({
