@@ -1,7 +1,9 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { db } from "./db";
 import { z } from "zod";
+import { sql } from "drizzle-orm";
 import {
   insertUserSchema, insertDepartmentSchema, insertPositionSchema,
   insertLawRegulationSchema, insertLawSectionSchema, insertLawArticleSchema,
@@ -796,6 +798,147 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(health);
     } catch (error) {
       res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // =========================================================
+  // Enhanced APIs for New Features
+  // =========================================================
+
+  // Service Categories
+  app.get("/api/service-categories", async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT * FROM service_categories 
+        WHERE is_active = true 
+        ORDER BY sort_order, name
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error("Error fetching service categories:", error);
+      res.status(500).json({ message: "خطأ في استرجاع فئات الخدمات" });
+    }
+  });
+
+  // Government Services
+  app.get("/api/government-services", async (req, res) => {
+    try {
+      const { categoryId, ministryId, featured } = req.query;
+      
+      let whereClause = 'WHERE gs.is_active = true';
+      const params: any[] = [];
+
+      if (categoryId) {
+        whereClause += ` AND gs.category_id = $${params.length + 1}`;
+        params.push(categoryId);
+      }
+      if (ministryId) {
+        whereClause += ` AND gs.ministry_id = $${params.length + 1}`;
+        params.push(ministryId);
+      }
+      if (featured === 'true') {
+        whereClause += ` AND gs.is_featured = true`;
+      }
+
+      const result = await db.execute(sql.raw(`
+        SELECT 
+          gs.*,
+          sc.name as category_name,
+          m.name as ministry_name
+        FROM government_services gs
+        LEFT JOIN service_categories sc ON gs.category_id = sc.id
+        LEFT JOIN ministries m ON gs.ministry_id = m.id
+        ${whereClause}
+        ORDER BY gs.is_featured DESC, gs.name
+        ${featured === 'true' ? 'LIMIT 6' : ''}
+      `, params));
+
+      res.json(result.rows);
+    } catch (error) {
+      console.error("Error fetching government services:", error);
+      res.status(500).json({ message: "خطأ في استرجاع الخدمات الحكومية" });
+    }
+  });
+
+  // Citizen Applications
+  app.get("/api/citizen-applications", async (req, res) => {
+    try {
+      const { status, applicantId, serviceId, page = '1', limit = '20' } = req.query;
+      
+      let whereClause = 'WHERE 1=1';
+      const params: any[] = [];
+
+      if (status) {
+        whereClause += ` AND ca.status = $${params.length + 1}`;
+        params.push(status);
+      }
+      if (applicantId) {
+        whereClause += ` AND ca.applicant_id = $${params.length + 1}`;
+        params.push(applicantId);
+      }
+      if (serviceId) {
+        whereClause += ` AND ca.service_id = $${params.length + 1}`;
+        params.push(serviceId);
+      }
+
+      const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
+
+      const result = await db.execute(sql.raw(`
+        SELECT 
+          ca.*,
+          gs.name as service_name,
+          u.full_name as applicant_name
+        FROM citizen_applications ca
+        LEFT JOIN government_services gs ON ca.service_id = gs.id
+        LEFT JOIN users u ON ca.applicant_id = u.id
+        ${whereClause}
+        ORDER BY ca.submitted_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `, params));
+
+      res.json(result.rows);
+    } catch (error) {
+      console.error("Error fetching citizen applications:", error);
+      res.status(500).json({ message: "خطأ في استرجاع الطلبات" });
+    }
+  });
+
+  // Enhanced Dashboard Stats
+  app.get("/api/enhanced-dashboard/stats", async (req, res) => {
+    try {
+      const stats = await Promise.all([
+        db.execute(sql`SELECT COUNT(*) as count FROM citizen_applications`),
+        db.execute(sql`SELECT COUNT(*) as count FROM citizen_applications WHERE status IN ('submitted', 'under_review')`),
+        db.execute(sql`SELECT COUNT(*) as count FROM citizen_applications WHERE status = 'approved'`),
+        db.execute(sql`SELECT COUNT(*) as count FROM land_survey_requests WHERE status = 'pending'`),
+        db.execute(sql`SELECT COUNT(*) as count FROM government_services WHERE is_active = true`),
+      ]);
+
+      res.json({
+        totalApplications: parseInt(stats[0].rows[0].count),
+        pendingApplications: parseInt(stats[1].rows[0].count),
+        approvedApplications: parseInt(stats[2].rows[0].count),
+        pendingSurveys: parseInt(stats[3].rows[0].count),
+        totalServices: parseInt(stats[4].rows[0].count),
+      });
+    } catch (error) {
+      console.error("Error fetching enhanced dashboard stats:", error);
+      res.status(500).json({ message: "خطأ في استرجاع الإحصائيات" });
+    }
+  });
+
+  // Ministries
+  app.get("/api/ministries", async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT * FROM ministries 
+        WHERE is_active = true 
+        ORDER BY name
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error("Error fetching ministries:", error);
+      res.status(500).json({ message: "خطأ في استرجاع الوزارات" });
     }
   });
 

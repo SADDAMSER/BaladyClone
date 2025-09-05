@@ -1,0 +1,3380 @@
+-- PostgreSQL schema converted from MariaDB
+
+-- Enable PostGIS extension (run once per database)
+CREATE EXTENSION IF NOT EXISTS postgis;
+
+
+
+
+
+--
+-- Table structure for table `account_currencies`
+--
+
+DROP TABLE IF EXISTS account_currencies;
+CREATE TABLE account_currencies (
+  id BIGSERIAL PRIMARY KEY,
+  status SMALLINT DEFAULT NULL,
+  chart_of_account_id BIGINT DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  currency_id BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+-- Add foreign keys after all tables are created to avoid dependency issues
+
+
+
+
+--
+-- Table structure for table `account_document_types`
+--
+
+DROP TABLE IF EXISTS account_document_types;
+CREATE TABLE account_document_types (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  is_active SMALLINT DEFAULT NULL,
+  is_featured SMALLINT DEFAULT NULL,
+  image VARCHAR(255) DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  ative_4providers SMALLINT NOT NULL DEFAULT 1,
+  ative_4agents SMALLINT NOT NULL DEFAULT 1,
+  active_4customers SMALLINT NOT NULL DEFAULT 1
+);
+
+
+
+
+
+--
+-- Table structure for table `account_groups`
+--
+
+DROP TABLE IF EXISTS account_groups;
+CREATE TABLE account_groups (
+  id BIGSERIAL PRIMARY KEY,
+  parent_id BIGINT DEFAULT NULL,
+  name VARCHAR(255) NOT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  status SMALLINT DEFAULT NULL,
+  group_key VARCHAR(255) DEFAULT NULL,
+  user_type_id VARCHAR(255) DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `account_types`
+--
+
+DROP TABLE IF EXISTS account_types;
+CREATE TABLE account_types (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  user_type_id BIGINT DEFAULT NULL,
+  is_active SMALLINT DEFAULT NULL,
+  parrent_id BIGINT DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `activity_log`
+--
+
+DROP TABLE IF EXISTS activity_log;
+CREATE TABLE activity_log (
+  id BIGSERIAL PRIMARY KEY,
+  log_name VARCHAR(255) DEFAULT NULL,
+  description TEXT NOT NULL,
+  subject_type VARCHAR(255) DEFAULT NULL,
+  event VARCHAR(255) DEFAULT NULL,
+  subject_id BIGINT DEFAULT NULL,
+  causer_type VARCHAR(255) DEFAULT NULL,
+  causer_id BIGINT DEFAULT NULL,
+  properties JSONB DEFAULT NULL,
+  batch_uuid CHAR(36) DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `agents_settings`
+--
+
+DROP TABLE IF EXISTS agents_settings;
+CREATE TABLE agents_settings (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  option_key VARCHAR(255) NOT NULL UNIQUE,
+  value TEXT DEFAULT NULL,
+  default_value TEXT DEFAULT NULL,
+  order_id INTEGER NOT NULL DEFAULT 0,
+  option_type VARCHAR(255) NOT NULL,
+  user_type_id INTEGER DEFAULT NULL,
+  icon VARCHAR(255) DEFAULT NULL,
+  is_hidden BOOLEAN NOT NULL DEFAULT FALSE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  hint_text_en VARCHAR(255) DEFAULT NULL,
+  hint_text VARCHAR(255) DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `app_services`
+--
+
+DROP TABLE IF EXISTS app_services;
+CREATE TABLE app_services (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  service_subtile TEXT DEFAULT NULL,
+  service_icon VARCHAR(255) DEFAULT NULL,
+  is_active SMALLINT NOT NULL DEFAULT 1,
+  is_featured SMALLINT DEFAULT 0,
+  agnest_comossion VARCHAR(255) DEFAULT NULL,
+  platform_commosion VARCHAR(255) DEFAULT NULL,
+  service_setting_json TEXT DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `app_taxes`
+--
+
+DROP TABLE IF EXISTS app_taxes;
+CREATE TYPE tax_type AS ENUM (
+    'fixed',
+    'percentage'
+);
+CREATE TABLE app_taxes (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  service_id BIGINT DEFAULT NULL,
+  rate VARCHAR(255) DEFAULT NULL,
+  taxs_type tax_type DEFAULT 'percentage',
+  is_active VARCHAR(255) DEFAULT NULL,
+  note_txt TEXT DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `audits`
+--
+
+DROP TABLE IF EXISTS audits;
+CREATE TABLE audits (
+  id BIGSERIAL PRIMARY KEY,
+  user_type VARCHAR(255) DEFAULT NULL,
+  user_id BIGINT DEFAULT NULL,
+  event VARCHAR(255) NOT NULL,
+  auditable_type VARCHAR(255) NOT NULL,
+  auditable_id BIGINT DEFAULT NULL,
+  old_values TEXT DEFAULT NULL,
+  new_values TEXT DEFAULT NULL,
+  url TEXT DEFAULT NULL,
+  ip_address VARCHAR(45) DEFAULT NULL,
+  user_agent VARCHAR(1023) DEFAULT NULL,
+  tags VARCHAR(255) DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `azal`
+--
+
+DROP TABLE IF EXISTS azal;
+CREATE TABLE azal (
+  id BIGSERIAL PRIMARY KEY,
+  object_id INTEGER NOT NULL,
+  district_id INTEGER NOT NULL,
+  azal_name_en VARCHAR(255) DEFAULT NULL,
+  azal_name_ar VARCHAR(255) DEFAULT NULL,
+  azal_code VARCHAR(50) DEFAULT NULL,
+  date_ DATE DEFAULT NULL,
+  valid_on DATE DEFAULT NULL,
+  valid_to DATE DEFAULT NULL,
+  lang VARCHAR(255) DEFAULT NULL,
+  lat VARCHAR(255) DEFAULT NULL,
+  geometry GEOMETRY(Geometry, 4326) NOT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `bank_accounts`
+--
+
+DROP TABLE IF EXISTS bank_accounts;
+CREATE TABLE bank_accounts (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  bank_name VARCHAR(255) DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  holder_name VARCHAR(255) NOT NULL,
+  account_number VARCHAR(255) NOT NULL,
+  user_type_id BIGINT DEFAULT NULL,
+  owner_id BIGINT DEFAULT NULL,
+  bank_logo VARCHAR(255) DEFAULT NULL,
+  account_currency BIGINT DEFAULT NULL,
+  gl_code VARCHAR(255) DEFAULT NULL,
+  ative_4agents SMALLINT NOT NULL DEFAULT 1,
+  ative_4providers SMALLINT NOT NULL DEFAULT 0,
+  image VARCHAR(255) DEFAULT NULL,
+  active_4customers SMALLINT DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `blocks`
+--
+
+DROP TABLE IF EXISTS blocks;
+CREATE TABLE blocks (
+  id BIGSERIAL PRIMARY KEY,
+  governorateid BIGINT DEFAULT NULL,
+  districtsid BIGINT DEFAULT NULL,
+  unitid BIGINT DEFAULT NULL,
+  sectorid BIGINT DEFAULT NULL,
+  blockname VARCHAR(255) NOT NULL,
+  blockname_en VARCHAR(255) NOT NULL,
+  blocktype VARCHAR(255) DEFAULT NULL,
+  code VARCHAR(255) DEFAULT NULL,
+  code_genrated VARCHAR(255) DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  translation_key VARCHAR(255) NOT NULL,
+  status SMALLINT NOT NULL DEFAULT 1,
+  rank INTEGER NOT NULL DEFAULT 0,
+  map_lang VARCHAR(255) DEFAULT NULL,
+  map_lat VARCHAR(255) DEFAULT NULL,
+  geom GEOMETRY(Geometry, 4326) DEFAULT NULL,
+  geometry GEOMETRY(Geometry, 4326) DEFAULT NULL,
+  zone VARCHAR(255) DEFAULT NULL,
+  admin1pcod VARCHAR(255) DEFAULT NULL,
+  admin2pcod VARCHAR(255) DEFAULT NULL,
+  show_in_filters SMALLINT NOT NULL DEFAULT 0,
+  image VARCHAR(255) DEFAULT NULL,
+  population BIGINT DEFAULT NULL,
+  area BIGINT DEFAULT NULL,
+  admin3pcod VARCHAR(255) DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `blog_categories`
+--
+
+DROP TABLE IF EXISTS blog_categories;
+CREATE TYPE blog_category_status AS ENUM (
+    'draft',
+    'published',
+    'hidden',
+    'trash'
+);
+CREATE TABLE blog_categories (
+  id BIGSERIAL PRIMARY KEY,
+  slug VARCHAR(255) NOT NULL,
+  lang VARCHAR(255) DEFAULT '1',
+  name VARCHAR(255) NOT NULL,
+  description TEXT DEFAULT NULL,
+  image VARCHAR(255) DEFAULT NULL,
+  order_id INTEGER NOT NULL,
+  parent_id BIGINT DEFAULT NULL,
+  is_active BOOLEAN DEFAULT NULL,
+  status blog_category_status NOT NULL DEFAULT 'draft',
+  is_featured BOOLEAN DEFAULT NULL,
+  user_type_id BIGINT DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `blogs`
+--
+
+DROP TABLE IF EXISTS blogs;
+CREATE TYPE blog_content_type AS ENUM (
+    'blog',
+    'video',
+    'gallary',
+    'docs'
+);
+CREATE TYPE blog_post_status AS ENUM (
+    'draft',
+    'publish',
+    'private',
+    'trash'
+);
+CREATE TYPE blog_comment_status AS ENUM (
+    'open',
+    'closed'
+);
+CREATE TABLE blogs (
+  id BIGSERIAL PRIMARY KEY,
+  languages_id BIGINT DEFAULT NULL,
+  blog_categorie_id BIGINT DEFAULT NULL,
+  slug VARCHAR(255) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  post_excerpt VARCHAR(255) DEFAULT NULL,
+  content TEXT DEFAULT NULL,
+  author VARCHAR(255) DEFAULT NULL,
+  tags TEXT DEFAULT NULL,
+  image VARCHAR(255) DEFAULT NULL,
+  gallery TEXT DEFAULT NULL,
+  banner_image VARCHAR(255) DEFAULT NULL,
+  content_type blog_content_type NOT NULL DEFAULT 'blog',
+  views BIGINT DEFAULT NULL,
+  meta_title VARCHAR(255) DEFAULT NULL,
+  keywords TEXT DEFAULT NULL,
+  meta_description TEXT DEFAULT NULL,
+  rank INTEGER DEFAULT NULL,
+  post_status blog_post_status NOT NULL DEFAULT 'draft',
+  comment_status blog_comment_status NOT NULL DEFAULT 'closed',
+  post_password VARCHAR(255) DEFAULT NULL,
+  is_featured SMALLINT DEFAULT NULL,
+  guid VARCHAR(255) DEFAULT NULL,
+  comment_count BIGINT DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `booking_payment_types`
+--
+
+DROP TABLE IF EXISTS booking_payment_types;
+CREATE TABLE booking_payment_types (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  gl_code VARCHAR(255) DEFAULT NULL,
+  has_otp SMALLINT DEFAULT NULL,
+  path VARCHAR(255) DEFAULT NULL,
+  is_active SMALLINT DEFAULT NULL,
+  key VARCHAR(255) DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `bookings_settings`
+--
+
+DROP TABLE IF EXISTS bookings_settings;
+CREATE TABLE bookings_settings (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  transalation_key VARCHAR(255) DEFAULT NULL,
+  option_key VARCHAR(255) NOT NULL UNIQUE,
+  value TEXT DEFAULT NULL,
+  default_value TEXT DEFAULT NULL,
+  order_id INTEGER NOT NULL DEFAULT 0,
+  option_type VARCHAR(255) NOT NULL,
+  user_type_id INTEGER DEFAULT NULL,
+  icon VARCHAR(255) DEFAULT NULL,
+  is_hidden BOOLEAN NOT NULL DEFAULT FALSE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  hint_text_en VARCHAR(255) DEFAULT NULL,
+  hint_text VARCHAR(255) DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `branch_contact_list`
+--
+
+DROP TABLE IF EXISTS branch_contact_list;
+CREATE TYPE contact_type_enum AS ENUM (
+    'mobile',
+    'phone',
+    'email',
+    'fax',
+    'website',
+    'social'
+);
+CREATE TABLE branch_contact_list (
+  id BIGSERIAL PRIMARY KEY,
+  branch_id BIGINT DEFAULT NULL,
+  contact_type contact_type_enum NOT NULL DEFAULT 'phone',
+  contact_value VARCHAR(255) NOT NULL,
+  is_primary SMALLINT NOT NULL DEFAULT 0,
+  contact_label VARCHAR(255) DEFAULT NULL,
+  extension VARCHAR(255) DEFAULT NULL,
+  metadata TEXT DEFAULT NULL,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  is_active SMALLINT NOT NULL DEFAULT 0,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `branches`
+--
+
+DROP TABLE IF EXISTS branches;
+CREATE TYPE branch_status AS ENUM (
+    'active',
+    'closed',
+    'under_construction'
+);
+CREATE TABLE branches (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  name_en VARCHAR(255) NOT NULL,
+  code VARCHAR(255) DEFAULT NULL,
+  district_id BIGINT DEFAULT NULL,
+  governorate_id BIGINT DEFAULT NULL,
+  districts_offices_id BIGINT DEFAULT NULL,
+  governorate_office_id BIGINT DEFAULT NULL,
+  parent_branch_id BIGINT DEFAULT NULL,
+  address VARCHAR(255) DEFAULT NULL,
+  type SMALLINT NOT NULL DEFAULT 1,
+  status branch_status NOT NULL DEFAULT 'active',
+  creation_date DATE NOT NULL,
+  manager_user_id BIGINT DEFAULT NULL,
+  is_main SMALLINT NOT NULL DEFAULT 0,
+  deactivation_date DATE DEFAULT NULL,
+  notes TEXT DEFAULT NULL,
+  latitude DECIMAL(10,7) DEFAULT NULL,
+  longitude DECIMAL(10,7) DEFAULT NULL,
+  icon_path VARCHAR(255) DEFAULT NULL,
+  is_active SMALLINT NOT NULL DEFAULT 0,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  ministry_id BIGINT DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `branches_users`
+--
+
+DROP TABLE IF EXISTS branches_users;
+CREATE TABLE branches_users (
+  id BIGSERIAL PRIMARY KEY,
+  branch_id BIGINT DEFAULT NULL,
+  user_id BIGINT NOT NULL,
+  roles VARCHAR(255) DEFAULT NULL,
+  role VARCHAR(255) DEFAULT NULL,
+  is_active SMALLINT NOT NULL DEFAULT 1,
+  assigned_date DATE DEFAULT NULL,
+  revoked_date DATE DEFAULT NULL,
+  is_blocked SMALLINT NOT NULL DEFAULT 1,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `business_settings`
+--
+
+DROP TABLE IF EXISTS business_settings;
+CREATE TABLE business_settings (
+  id SERIAL PRIMARY KEY,
+  type VARCHAR(30) NOT NULL,
+  value TEXT DEFAULT NULL,
+  lang VARCHAR(30) DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+);
+
+
+
+
+
+--
+-- Table structure for table `cache`
+--
+
+DROP TABLE IF EXISTS cache;
+CREATE TABLE cache (
+  key VARCHAR(255) NOT NULL PRIMARY KEY,
+  value TEXT NOT NULL,
+  expiration INTEGER NOT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `cache_locks`
+--
+
+DROP TABLE IF EXISTS cache_locks;
+CREATE TABLE cache_locks (
+  key VARCHAR(255) NOT NULL PRIMARY KEY,
+  owner VARCHAR(255) NOT NULL,
+  expiration INTEGER NOT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `cancellations`
+--
+
+DROP TABLE IF EXISTS cancellations;
+CREATE TABLE cancellations (
+  id BIGSERIAL PRIMARY KEY,
+  uuid CHAR(36) NOT NULL,
+  total_cost DECIMAL(8,3) DEFAULT NULL,
+  status_id BIGINT DEFAULT NULL,
+  cancellation_fee DECIMAL(8,2) DEFAULT NULL,
+  platform_rate DECIMAL(8,2) DEFAULT NULL,
+  platform_fee DECIMAL(8,3) DEFAULT NULL,
+  agent_rate DECIMAL(3,3) DEFAULT NULL,
+  agent_fee DECIMAL(8,2) DEFAULT NULL,
+  propertie_id BIGINT DEFAULT NULL,
+  booking_id BIGINT DEFAULT NULL,
+  user_type_id BIGINT DEFAULT NULL,
+  reason_tarmiz_id BIGINT DEFAULT NULL,
+  refund_amount VARCHAR(255) DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `chart_of_accounts`
+--
+
+DROP TABLE IF EXISTS chart_of_accounts;
+CREATE TYPE account_nature_enum AS ENUM (
+    'credit',
+    'debit'
+);
+CREATE TYPE report_enum AS ENUM (
+    'BS',
+    'PL'
+);
+CREATE TYPE account_gl_family_enum AS ENUM (
+    'Asset',
+    'Income',
+    'Expense',
+    'Liabilities'
+);
+CREATE TABLE chart_of_accounts (
+  id BIGSERIAL PRIMARY KEY,
+  gl_code VARCHAR(255) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  parent_id BIGINT DEFAULT NULL,
+  "order" INTEGER NOT NULL,
+  account_nature account_nature_enum DEFAULT 'credit',
+  type VARCHAR(255) NOT NULL,
+  Report report_enum DEFAULT 'BS',
+  HeadLevel VARCHAR(255) DEFAULT NULL,
+  IsTransaction SMALLINT DEFAULT NULL,
+  IsGL SMALLINT DEFAULT NULL,
+  account_type VARCHAR(255) DEFAULT NULL,
+  IsBudget SMALLINT DEFAULT NULL,
+  IsDepreciation INTEGER DEFAULT NULL,
+  DepreciationRate DOUBLE PRECISION DEFAULT NULL,
+  allow_manual SMALLINT DEFAULT NULL,
+  active SMALLINT DEFAULT NULL,
+  CashORBank VARCHAR(255) DEFAULT NULL,
+  accuont_level INTEGER DEFAULT NULL,
+  account_gl_family account_gl_family_enum NOT NULL DEFAULT 'Asset',
+  is_locaked SMALLINT DEFAULT 0,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  account_group_id BIGINT DEFAULT NULL,
+  account_type_id BIGINT DEFAULT NULL,
+  user_type_id BIGINT DEFAULT NULL,
+  owner_id BIGINT DEFAULT NULL,
+  min_ammount_limit DOUBLE PRECISION DEFAULT NULL,
+  max_ammount_limit DOUBLE PRECISION DEFAULT NULL,
+  unlimited_blance SMALLINT NOT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `coordinates`
+--
+
+DROP TABLE IF EXISTS coordinates;
+CREATE TYPE coordinate_type_enum AS ENUM (
+    'E',
+    'W',
+    'N',
+    'S'
+);
+CREATE TABLE coordinates (
+  id BIGSERIAL PRIMARY KEY,
+  decision_id BIGINT NOT NULL,
+  sequence INTEGER DEFAULT NULL,
+  coordinate_type coordinate_type_enum DEFAULT NULL,
+  latitude DECIMAL(10,6) DEFAULT NULL,
+  longitude DECIMAL(10,6) DEFAULT NULL,
+  added_date DATE DEFAULT NULL,
+  source VARCHAR(255) DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `countries`
+--
+
+DROP TABLE IF EXISTS countries;
+CREATE TABLE countries (
+  id BIGSERIAL PRIMARY KEY,
+  code VARCHAR(255) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  translation_key VARCHAR(255) NOT NULL,
+  phonecode VARCHAR(255) NOT NULL,
+  flag VARCHAR(255) NOT NULL,
+  status SMALLINT NOT NULL,
+  image VARCHAR(255) DEFAULT NULL,
+  total_proverties BIGINT DEFAULT NULL,
+  is_featured SMALLINT DEFAULT 0,
+  map_lat VARCHAR(255) DEFAULT NULL,
+  map_lang VARCHAR(255) DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `currencies`
+--
+
+DROP TABLE IF EXISTS currencies;
+CREATE TYPE currency_position AS ENUM (
+    'left',
+    'right'
+);
+CREATE TABLE currencies (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  translation_key VARCHAR(255) NOT NULL,
+  code VARCHAR(255) NOT NULL UNIQUE,
+  status SMALLINT NOT NULL,
+  convert_rate DOUBLE PRECISION NOT NULL,
+  symbol VARCHAR(255) NOT NULL,
+  Is_defualt SMALLINT NOT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  rate DECIMAL(12,4) DEFAULT NULL,
+  position currency_position NOT NULL DEFAULT 'left',
+  default_currency INTEGER DEFAULT 0,
+  sell_at DECIMAL(28,4) DEFAULT NULL,
+  buy_at DECIMAL(28,4) DEFAULT NULL,
+  fixed_charge DECIMAL(28,4) DEFAULT NULL,
+  percent_charge DECIMAL(28,4) DEFAULT NULL,
+  min_exchange DECIMAL(28,4) DEFAULT NULL,
+  max_exchange DECIMAL(28,4) DEFAULT NULL,
+  receving_details TEXT DEFAULT NULL,
+  borrower_input VARCHAR(255) DEFAULT NULL,
+  image VARCHAR(255) DEFAULT NULL,
+  available_for_sell SMALLINT DEFAULT NULL,
+  available_for_buy SMALLINT DEFAULT NULL,
+  payment_type_sell SMALLINT DEFAULT NULL,
+  show_rate SMALLINT DEFAULT NULL,
+  payment_type_buy SMALLINT DEFAULT NULL,
+  borrower_proof TEXT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `customer_target_categories`
+--
+
+DROP TABLE IF EXISTS customer_target_categories;
+CREATE TABLE customer_target_categories (
+  id BIGSERIAL PRIMARY KEY,
+  parent_id BIGINT DEFAULT NULL,
+  name VARCHAR(255) NOT NULL,
+  name_en VARCHAR(255) DEFAULT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  status SMALLINT NOT NULL DEFAULT 1,
+  group_key VARCHAR(255) DEFAULT NULL,
+  icon_path VARCHAR(255) DEFAULT NULL,
+  code VARCHAR(255) DEFAULT NULL,
+  show_in_filters SMALLINT NOT NULL DEFAULT 0,
+  is_featured SMALLINT NOT NULL DEFAULT 0,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `customers`
+--
+
+DROP TABLE IF EXISTS customers;
+CREATE TABLE customers (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  name_en VARCHAR(255) DEFAULT NULL,
+  card_id VARCHAR(255) DEFAULT NULL,
+  birthdate VARCHAR(255) DEFAULT NULL,
+  id_type_id VARCHAR(255) DEFAULT NULL,
+  code VARCHAR(255) DEFAULT NULL,
+  user_name VARCHAR(255) NOT NULL UNIQUE,
+  email_verified_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  password VARCHAR(255) NOT NULL,
+  remember_token VARCHAR(100) DEFAULT NULL,
+  two_factor_secret TEXT DEFAULT NULL,
+  two_factor_recovery_codes TEXT DEFAULT NULL,
+  two_factor_confirmed_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  country_id BIGINT DEFAULT NULL,
+  district_id BIGINT DEFAULT NULL,
+  governorate_id BIGINT DEFAULT NULL,
+  address VARCHAR(255) DEFAULT NULL,
+  profile_photo_path TEXT DEFAULT NULL,
+  first_name VARCHAR(255) DEFAULT NULL,
+  father_name VARCHAR(255) DEFAULT NULL,
+  grand_father_name VARCHAR(255) DEFAULT NULL,
+  last_name VARCHAR(255) DEFAULT NULL,
+  phone VARCHAR(255) DEFAULT NULL,
+  email VARCHAR(255) DEFAULT NULL,
+  issuing_authority VARCHAR(300) DEFAULT NULL,
+  card_front_photo VARCHAR(255) DEFAULT NULL,
+  card_back_photo VARCHAR(255) DEFAULT NULL,
+  card_front_photo64based TEXT DEFAULT NULL,
+  card_back_photo64based TEXT DEFAULT NULL,
+  issue_date DATE DEFAULT NULL,
+  phone_verified_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  whatsapp VARCHAR(255) DEFAULT NULL,
+  gender SMALLINT NOT NULL DEFAULT 1,
+  is_active SMALLINT NOT NULL DEFAULT 1,
+  is_comerical BOOLEAN NOT NULL DEFAULT FALSE,
+  approved SMALLINT NOT NULL DEFAULT 0,
+  otp_code VARCHAR(255) DEFAULT NULL,
+  otp_date TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  approved_by BIGINT DEFAULT NULL,
+  last_login_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  avatar VARCHAR(255) DEFAULT NULL,
+  locale VARCHAR(10) DEFAULT NULL,
+  channel_id BIGINT DEFAULT 10,
+  bio TEXT DEFAULT NULL,
+  device_token TEXT DEFAULT NULL,
+  is_verified SMALLINT DEFAULT NULL,
+  active_status BOOLEAN NOT NULL DEFAULT FALSE,
+  nationality_id BIGINT DEFAULT NULL,
+  commercial_name VARCHAR(255) DEFAULT NULL,
+  commercial_type_id BIGINT DEFAULT NULL,
+  wallet_id BIGINT DEFAULT NULL,
+  user_role_id BIGINT DEFAULT NULL,
+  social_status_id BIGINT DEFAULT NULL,
+  is_epmployee SMALLINT DEFAULT NULL,
+  code4what VARCHAR(255) DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `customers_documents`
+--
+
+DROP TABLE IF EXISTS customers_documents;
+CREATE TABLE customers_documents (
+  id BIGSERIAL PRIMARY KEY,
+  owner_type_id BIGINT NOT NULL,
+  owner_id BIGINT NOT NULL,
+  doc_sub_cat_id BIGINT DEFAULT NULL,
+  document_type_id BIGINT DEFAULT NULL,
+  tameed_type_id BIGINT DEFAULT NULL,
+  name VARCHAR(255) DEFAULT NULL,
+  doc_side_1 VARCHAR(255) DEFAULT NULL,
+  doc_side_2 VARCHAR(255) DEFAULT NULL,
+  document_no VARCHAR(255) DEFAULT NULL,
+  document_issued_at DATE DEFAULT NULL,
+  document_expires_at DATE DEFAULT NULL,
+  issus_from VARCHAR(255) DEFAULT NULL,
+  verified SMALLINT DEFAULT 0,
+  review_status SMALLINT DEFAULT 0,
+  comment VARCHAR(255) DEFAULT NULL,
+  review_notes VARCHAR(255) DEFAULT NULL,
+  status SMALLINT DEFAULT 1,
+  is_expired SMALLINT DEFAULT NULL,
+  notes TEXT DEFAULT NULL,
+  unlock_edit SMALLINT DEFAULT 0,
+  approved_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  created_by BIGINT NOT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  approved_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `customers_orders`
+--
+
+DROP TABLE IF EXISTS customers_orders;
+CREATE TYPE order_type_enum AS ENUM (
+    'service',
+    'cancellation',
+    'authrity',
+    'none'
+);
+CREATE TABLE customers_orders (
+  id BIGSERIAL PRIMARY KEY,
+  owner_id BIGINT DEFAULT NULL,
+  product_id BIGINT DEFAULT NULL,
+  district_id BIGINT DEFAULT NULL,
+  governorate_id BIGINT DEFAULT NULL,
+  product_cat_id BIGINT DEFAULT NULL,
+  order_no VARCHAR(255) DEFAULT NULL,
+  barcode VARCHAR(255) DEFAULT NULL,
+  order_type order_type_enum DEFAULT 'service',
+  owner_cid VARCHAR(255) DEFAULT NULL,
+  owner_name VARCHAR(255) DEFAULT NULL,
+  owner_email VARCHAR(255) DEFAULT NULL,
+  owner_mobile VARCHAR(255) DEFAULT NULL,
+  owner_type VARCHAR(255) DEFAULT NULL,
+  owner_sub_type VARCHAR(255) DEFAULT NULL,
+  order_status_id BIGINT DEFAULT NULL,
+  service_channel VARCHAR(255) DEFAULT NULL,
+  office_id BIGINT DEFAULT NULL,
+  dept_aprroved_by BIGINT DEFAULT NULL,
+  branch_aprroved_by BIGINT DEFAULT NULL,
+  dept_aprroved_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  branch_aprroved_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  establishment_name VARCHAR(500) DEFAULT NULL,
+  issus_by_id BIGINT DEFAULT NULL,
+  manged_by_type BIGINT DEFAULT NULL,
+  branche_id BIGINT DEFAULT NULL,
+  declaration_id BIGINT DEFAULT NULL,
+  referance_no VARCHAR(255) DEFAULT NULL,
+  referance_type VARCHAR(255) DEFAULT NULL,
+  declaration_no VARCHAR(255) DEFAULT NULL,
+  creating_date TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  office_accept_date TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  issues_date TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  tootl_fee VARCHAR(255) DEFAULT NULL,
+  document_total_area VARCHAR(20) DEFAULT NULL,
+  purpose_id BIGINT DEFAULT NULL,
+  document_type VARCHAR(255) DEFAULT NULL,
+  document_status BIGINT DEFAULT NULL,
+  invoice_id VARCHAR(255) DEFAULT NULL,
+  currency_id BIGINT DEFAULT NULL,
+  paid_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  payment_status SMALLINT DEFAULT 0,
+  is_rated SMALLINT DEFAULT 0,
+  current_step SMALLINT NOT NULL DEFAULT 1,
+  user_notes VARCHAR(255) DEFAULT NULL,
+  office_notes TEXT DEFAULT NULL,
+  dep_manager_note TEXT DEFAULT NULL,
+  branch_manger_note TEXT DEFAULT NULL,
+  reject_resons TEXT DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `datafeeds`
+--
+
+DROP TABLE IF EXISTS datafeeds;
+CREATE TABLE datafeeds (
+  id BIGSERIAL PRIMARY KEY,
+  label VARCHAR(255) DEFAULT NULL,
+  data DOUBLE PRECISION DEFAULT NULL,
+  dataset_name SMALLINT DEFAULT NULL,
+  data_type SMALLINT NOT NULL DEFAULT 1,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `departments`
+--
+
+DROP TABLE IF EXISTS departments;
+CREATE TABLE departments (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  name_en VARCHAR(255) NOT NULL,
+  code VARCHAR(255) DEFAULT NULL,
+  ministry_id BIGINT NOT NULL DEFAULT 1,
+  sector_id BIGINT DEFAULT NULL,
+  parent_id BIGINT DEFAULT NULL,
+  type SMALLINT NOT NULL DEFAULT 1,
+  is_main SMALLINT NOT NULL DEFAULT 1,
+  notes TEXT DEFAULT NULL,
+  is_active SMALLINT NOT NULL DEFAULT 0,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `districts`
+--
+
+DROP TABLE IF EXISTS districts;
+CREATE TABLE districts (
+  id BIGSERIAL PRIMARY KEY,
+  governorateid BIGINT DEFAULT NULL,
+  districtsname VARCHAR(255) NOT NULL,
+  districtsname_en VARCHAR(255) NOT NULL,
+  code VARCHAR(255) DEFAULT NULL,
+  translation_key VARCHAR(255) NOT NULL,
+  status SMALLINT NOT NULL DEFAULT 1,
+  rank INTEGER NOT NULL DEFAULT 0,
+  map_lang VARCHAR(255) DEFAULT NULL,
+  map_lat VARCHAR(255) DEFAULT NULL,
+  geometry GEOMETRY(Geometry, 4326) DEFAULT NULL,
+  geom GEOMETRY(Geometry, 4326) DEFAULT NULL,
+  show_in_filters SMALLINT NOT NULL DEFAULT 0,
+  is_featured SMALLINT NOT NULL DEFAULT 0,
+  image VARCHAR(255) DEFAULT NULL,
+  population BIGINT DEFAULT NULL,
+  area BIGINT DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `districts2`
+--
+
+DROP TABLE IF EXISTS districts2;
+CREATE TABLE districts2 (
+  id SERIAL PRIMARY KEY,
+  object_id INTEGER NOT NULL,
+  governorate_id INTEGER DEFAULT NULL,
+  district_name_en VARCHAR(255) DEFAULT NULL,
+  district_name_ar VARCHAR(255) DEFAULT NULL,
+  district_code VARCHAR(50) DEFAULT NULL,
+  old_district_code VARCHAR(50) DEFAULT NULL,
+  date_ DATE DEFAULT NULL,
+  valid_on DATE DEFAULT NULL,
+  valid_to DATE DEFAULT NULL,
+  lang VARCHAR(255) DEFAULT NULL,
+  lat VARCHAR(255) DEFAULT NULL,
+  geometry GEOMETRY(Geometry, 4326) DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `districts_offices`
+--
+
+DROP TABLE IF EXISTS districts_offices;
+CREATE TYPE districts_offices_status AS ENUM (
+    'active',
+    'closed',
+    'under_construction'
+);
+CREATE TABLE districts_offices (
+  id BIGSERIAL PRIMARY KEY,
+  governorate_id BIGINT DEFAULT NULL,
+  districts_id BIGINT DEFAULT NULL,
+  governorate_office_id BIGINT DEFAULT NULL,
+  ministry_id BIGINT DEFAULT NULL,
+  name VARCHAR(255) NOT NULL,
+  name_en VARCHAR(255) NOT NULL,
+  code VARCHAR(255) DEFAULT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  status districts_offices_status NOT NULL DEFAULT 'active',
+  establishment_date DATE DEFAULT NULL,
+  deactivation_date DATE DEFAULT NULL,
+  notes TEXT DEFAULT NULL,
+  latitude DECIMAL(10,7) DEFAULT NULL,
+  longitude DECIMAL(10,7) DEFAULT NULL,
+  logo VARCHAR(255) DEFAULT NULL,
+  is_active SMALLINT NOT NULL DEFAULT 0,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `document_types`
+--
+
+DROP TABLE IF EXISTS document_types;
+CREATE TABLE document_types (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  translation_key VARCHAR(255) NOT NULL,
+  image VARCHAR(255) DEFAULT NULL,
+  max_file_size_kb INTEGER NOT NULL DEFAULT 4048,
+  user_type_id BIGINT DEFAULT NULL,
+  allowed_file_types TEXT DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  is_active SMALLINT NOT NULL DEFAULT 1,
+  will_approved_by_roles VARCHAR(500) DEFAULT NULL,
+  is_required SMALLINT NOT NULL DEFAULT 0,
+  need_verify SMALLINT NOT NULL DEFAULT 1,
+  valdtion_rules TEXT DEFAULT NULL,
+  owner_verify_notification_id BIGINT DEFAULT NULL,
+  admin_upload_notification_id BIGINT DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `electron_icmunicipal`
+--
+
+DROP TABLE IF EXISTS electron_icmunicipal;
+CREATE TYPE authorization_status_enum AS ENUM (
+    'approved',
+    'expired'
+);
+CREATE TABLE electron_icmunicipal (
+  id BIGSERIAL PRIMARY KEY,
+  owner_id BIGINT DEFAULT NULL,
+  order_id BIGINT DEFAULT NULL,
+  customer_id BIGINT DEFAULT NULL,
+  customer_type VARCHAR(255) NOT NULL DEFAULT 'customer',
+  product_id BIGINT DEFAULT NULL,
+  authorization_status authorization_status_enum NOT NULL DEFAULT 'approved',
+  attatchment_path VARCHAR(255) DEFAULT NULL,
+  attatchment_type VARCHAR(255) NOT NULL DEFAULT 'image',
+  comment VARCHAR(255) DEFAULT NULL,
+  status SMALLINT NOT NULL DEFAULT 1,
+  authorization_start_date TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+  authorization_end_date TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  canceld_by BIGINT DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  multi_services BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `employee_departments`
+--
+
+DROP TABLE IF EXISTS employee_departments;
+CREATE TABLE employee_departments (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(100) NOT NULL UNIQUE,
+  name_en VARCHAR(255) DEFAULT NULL,
+  code VARCHAR(50) DEFAULT NULL UNIQUE,
+  manager_name VARCHAR(150) DEFAULT NULL,
+  manager_email VARCHAR(255) DEFAULT NULL,
+  phone VARCHAR(20) DEFAULT NULL,
+  mobile VARCHAR(20) DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  ministry_sector_id BIGINT DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `employee_positions`
+--
+
+DROP TABLE IF EXISTS employee_positions;
+CREATE TABLE employee_positions (
+  id BIGSERIAL PRIMARY KEY,
+  ministry_id BIGINT NOT NULL DEFAULT 1,
+  role_id BIGINT DEFAULT NULL,
+  name VARCHAR(255) NOT NULL,
+  name_en VARCHAR(255) DEFAULT NULL,
+  code VARCHAR(255) NOT NULL,
+  description VARCHAR(255) NOT NULL,
+  min_year_exp_required INTEGER NOT NULL,
+  salary INTEGER NOT NULL,
+  open_for_recruitment BOOLEAN DEFAULT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `employees`
+--
+
+DROP TABLE IF EXISTS employees;
+CREATE TABLE employees (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  name_en VARCHAR(255) NOT NULL,
+  card_id VARCHAR(255) DEFAULT NULL,
+  birthdate VARCHAR(255) DEFAULT NULL,
+  id_type_id VARCHAR(255) DEFAULT NULL,
+  code VARCHAR(255) DEFAULT NULL,
+  country_id BIGINT DEFAULT NULL,
+  governorate_id BIGINT DEFAULT NULL,
+  district_id BIGINT DEFAULT NULL,
+  sub_district_id BIGINT DEFAULT NULL,
+  branche_id BIGINT DEFAULT NULL,
+  department_id BIGINT DEFAULT NULL,
+  ministry_id BIGINT DEFAULT NULL,
+  position_id BIGINT DEFAULT NULL,
+  mistry_sector_id BIGINT DEFAULT NULL,
+  address VARCHAR(255) DEFAULT NULL,
+  gender SMALLINT NOT NULL DEFAULT 1,
+  phone VARCHAR(255) DEFAULT NULL,
+  email VARCHAR(255) DEFAULT NULL,
+  whatsapp VARCHAR(255) DEFAULT NULL,
+  is_active SMALLINT NOT NULL DEFAULT 1,
+  employee_staus_id BIGINT DEFAULT 33,
+  avatar VARCHAR(255) DEFAULT NULL,
+  locale VARCHAR(10) DEFAULT NULL,
+  bio TEXT DEFAULT NULL,
+  emplyee_type_id BIGINT DEFAULT NULL,
+  nationality_id BIGINT DEFAULT NULL,
+  last_qualification_id BIGINT DEFAULT NULL,
+  wallet_id BIGINT DEFAULT NULL,
+  user_id BIGINT DEFAULT NULL,
+  social_status_id BIGINT DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `engineering_offices`
+--
+
+DROP TABLE IF EXISTS engineering_offices;
+CREATE TABLE engineering_offices (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  license_number VARCHAR(255) NOT NULL UNIQUE,
+  classification_status VARCHAR(255) NOT NULL,
+  classification_grade VARCHAR(255) DEFAULT NULL,
+  governorate_id BIGINT DEFAULT NULL,
+  district_id BIGINT DEFAULT NULL,
+  region VARCHAR(255) NOT NULL,
+  city VARCHAR(255) NOT NULL,
+  address VARCHAR(255) NOT NULL,
+  contact_number VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  website VARCHAR(255) DEFAULT NULL,
+  working_hours VARCHAR(255) DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `engneering_office`
+--
+
+DROP TABLE IF EXISTS engneering_office;
+CREATE TABLE engneering_office (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  name_en VARCHAR(255) NOT NULL,
+  card_id VARCHAR(255) DEFAULT NULL,
+  birthdate VARCHAR(255) DEFAULT NULL,
+  id_type_id VARCHAR(255) DEFAULT NULL,
+  code VARCHAR(255) DEFAULT NULL,
+  user_name VARCHAR(255) NOT NULL UNIQUE,
+  email_verified_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  password VARCHAR(255) NOT NULL,
+  remember_token VARCHAR(100) DEFAULT NULL,
+  two_factor_secret TEXT DEFAULT NULL,
+  two_factor_recovery_codes TEXT DEFAULT NULL,
+  two_factor_confirmed_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  country_id BIGINT DEFAULT NULL,
+  district_id BIGINT DEFAULT NULL,
+  governorate_id BIGINT DEFAULT NULL,
+  address VARCHAR(255) DEFAULT NULL,
+  rank VARCHAR(255) NOT NULL,
+  profile_photo_path TEXT DEFAULT NULL,
+  first_name VARCHAR(255) DEFAULT NULL,
+  father_name VARCHAR(255) DEFAULT NULL,
+  grand_father_name VARCHAR(255) DEFAULT NULL,
+  last_name VARCHAR(255) DEFAULT NULL,
+  phone VARCHAR(255) DEFAULT NULL,
+  email VARCHAR(255) DEFAULT NULL,
+  oofice_name VARCHAR(255) DEFAULT NULL,
+  phone_verified_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  whatsapp VARCHAR(255) DEFAULT NULL,
+  gender SMALLINT NOT NULL DEFAULT 1,
+  is_active SMALLINT NOT NULL DEFAULT 1,
+  approved SMALLINT NOT NULL DEFAULT 0,
+  otp_code VARCHAR(255) DEFAULT NULL,
+  otp_date TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  approved_by BIGINT DEFAULT NULL,
+  last_login_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  avatar VARCHAR(255) DEFAULT NULL,
+  locale VARCHAR(10) DEFAULT NULL,
+  bio TEXT DEFAULT NULL,
+  notes TEXT DEFAULT NULL,
+  latitude DECIMAL(10,7) DEFAULT NULL,
+  longitude DECIMAL(10,7) DEFAULT NULL,
+  service_radius INTEGER DEFAULT NULL,
+  geo_polygon GEOMETRY(Polygon, 4326) DEFAULT NULL,
+  device_token TEXT DEFAULT NULL,
+  is_verified SMALLINT DEFAULT NULL,
+  active_status BOOLEAN NOT NULL DEFAULT FALSE,
+  nationality_id BIGINT DEFAULT NULL,
+  commercial_name VARCHAR(255) DEFAULT NULL,
+  commercial_type_id BIGINT DEFAULT NULL,
+  wallet_id BIGINT DEFAULT NULL,
+  job_id BIGINT DEFAULT NULL,
+  social_status_id BIGINT DEFAULT NULL,
+  is_epmployee SMALLINT DEFAULT NULL,
+  code4what VARCHAR(255) DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `exchange_companies`
+--
+
+DROP TABLE IF EXISTS exchange_companies;
+CREATE TABLE exchange_companies (
+  id BIGSERIAL PRIMARY KEY,
+  payment_types_categorie_id BIGINT DEFAULT NULL,
+  name VARCHAR(255) NOT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  reciver_name VARCHAR(255) NOT NULL,
+  active_4customers SMALLINT DEFAULT 1,
+  description TEXT DEFAULT NULL,
+  company_name VARCHAR(255) DEFAULT NULL,
+  recive_mobileno VARCHAR(255) DEFAULT NULL,
+  instructions TEXT DEFAULT NULL,
+  image VARCHAR(255) DEFAULT NULL,
+  gl_code VARCHAR(255) DEFAULT NULL,
+  owner_id BIGINT DEFAULT NULL,
+  user_type_id BIGINT DEFAULT NULL,
+  account_currency VARCHAR(255) DEFAULT NULL,
+  ative_4agents SMALLINT DEFAULT 1,
+  ative_4providers SMALLINT DEFAULT 0,
+  active_on_pay SMALLINT DEFAULT 0,
+  active_on_charge SMALLINT DEFAULT 1,
+  active_on_payout SMALLINT DEFAULT 1,
+  fee_prcentage VARCHAR(255) DEFAULT '0',
+  order_id INTEGER DEFAULT 1,
+  is_active SMALLINT NOT NULL DEFAULT 1,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `failed_jobs`
+--
+
+DROP TABLE IF EXISTS failed_jobs;
+CREATE TABLE failed_jobs (
+  id BIGSERIAL PRIMARY KEY,
+  uuid VARCHAR(255) NOT NULL UNIQUE,
+  connection TEXT NOT NULL,
+  queue TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  exception TEXT NOT NULL,
+  failed_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+
+
+
+
+--
+-- Table structure for table `faqs`
+--
+
+DROP TABLE IF EXISTS faqs;
+CREATE TABLE faqs (
+  id BIGSERIAL PRIMARY KEY,
+  faqs_categorie_id BIGINT DEFAULT NULL,
+  languages_id BIGINT DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  question TEXT NOT NULL,
+  answer TEXT DEFAULT NULL,
+  sort_id INTEGER DEFAULT NULL,
+  is_active SMALLINT DEFAULT NULL,
+  is_opend SMALLINT DEFAULT NULL,
+  icon VARCHAR(255) DEFAULT NULL,
+  image VARCHAR(255) DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `faqs_categories`
+--
+
+DROP TABLE IF EXISTS faqs_categories;
+CREATE TABLE faqs_categories (
+  id BIGSERIAL PRIMARY KEY,
+  slug VARCHAR(255) NOT NULL UNIQUE,
+  languages_id BIGINT DEFAULT NULL,
+  parent_id BIGINT DEFAULT NULL,
+  name VARCHAR(255) NOT NULL,
+  description TEXT DEFAULT NULL,
+  icon VARCHAR(255) DEFAULT NULL,
+  image VARCHAR(255) DEFAULT NULL,
+  is_active SMALLINT DEFAULT NULL,
+  is_featured SMALLINT DEFAULT NULL,
+  order_id VARCHAR(255) DEFAULT NULL,
+  user_type_id BIGINT DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `firebase_notifications`
+--
+
+DROP TABLE IF EXISTS firebase_notifications;
+CREATE TABLE firebase_notifications (
+  id SERIAL PRIMARY KEY,
+  title VARCHAR(255) DEFAULT NULL,
+  text TEXT DEFAULT NULL,
+  item_type VARCHAR(255) NOT NULL,
+  item_type_id INTEGER NOT NULL,
+  receiver_id INTEGER NOT NULL,
+  is_read BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+
+
+
+
+--
+-- Table structure for table `funds`
+--
+
+DROP TABLE IF EXISTS funds;
+CREATE TABLE funds (
+  id BIGSERIAL PRIMARY KEY,
+  parent_id VARCHAR(255) DEFAULT NULL,
+  name VARCHAR(255) DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  min DECIMAL(20,4) DEFAULT NULL,
+  max DECIMAL(20,4) DEFAULT NULL,
+  status SMALLINT DEFAULT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  is_main_fund SMALLINT DEFAULT NULL,
+  type_id SMALLINT DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  fund_account_id BIGINT DEFAULT NULL,
+  user_id BIGINT DEFAULT NULL,
+  branch_id VARCHAR(255) DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `funds_users`
+--
+
+DROP TABLE IF EXISTS funds_users;
+CREATE TABLE funds_users (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT DEFAULT NULL,
+  fund_id BIGINT DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `general_settings`
+--
+
+DROP TABLE IF EXISTS general_settings;
+CREATE TABLE general_settings (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  option_key VARCHAR(255) NOT NULL UNIQUE,
+  value TEXT DEFAULT NULL,
+  default_value TEXT DEFAULT NULL,
+  order_id INTEGER NOT NULL DEFAULT 0,
+  option_type VARCHAR(255) NOT NULL,
+  user_type_id INTEGER DEFAULT NULL,
+  icon VARCHAR(255) DEFAULT NULL,
+  is_hidden BOOLEAN NOT NULL DEFAULT FALSE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  hint_text_en VARCHAR(255) DEFAULT NULL,
+  hint_text VARCHAR(255) DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `geometry_data_files`
+--
+
+DROP TABLE IF EXISTS geometry_data_files;
+CREATE TABLE geometry_data_files (
+  id BIGSERIAL PRIMARY KEY,
+  file_original_name VARCHAR(255) DEFAULT NULL,
+  file_name VARCHAR(255) NOT NULL,
+  file_path VARCHAR(255) DEFAULT NULL,
+  file_type_Cat_id BIGINT DEFAULT NULL,
+  file_cat_id BIGINT DEFAULT NULL,
+  code VARCHAR(255) DEFAULT NULL,
+  order_id BIGINT DEFAULT NULL,
+  user_id BIGINT DEFAULT NULL,
+  extension VARCHAR(255) NOT NULL,
+  type VARCHAR(255) DEFAULT NULL,
+  model_name VARCHAR(255) DEFAULT NULL,
+  file_size BIGINT DEFAULT NULL,
+  field_name VARCHAR(255) DEFAULT NULL,
+  title VARCHAR(255) DEFAULT NULL,
+  can_be_deleted BOOLEAN NOT NULL DEFAULT TRUE,
+  metadata JSONB DEFAULT NULL,
+  tags JSONB DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `governorate_offices`
+--
+
+DROP TABLE IF EXISTS governorate_offices;
+CREATE TYPE governorate_office_status AS ENUM (
+    'active',
+    'closed',
+    'under_construction'
+);
+CREATE TABLE governorate_offices (
+  id BIGSERIAL PRIMARY KEY,
+  governorate_id BIGINT NOT NULL,
+  ministry_id BIGINT NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  name_en VARCHAR(255) NOT NULL,
+  code VARCHAR(255) DEFAULT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  status governorate_office_status NOT NULL DEFAULT 'active',
+  establishment_date DATE DEFAULT NULL,
+  deactivation_date DATE DEFAULT NULL,
+  notes TEXT DEFAULT NULL,
+  latitude DECIMAL(10,7) DEFAULT NULL,
+  longitude DECIMAL(10,7) DEFAULT NULL,
+  logo VARCHAR(255) DEFAULT NULL,
+  is_active SMALLINT NOT NULL DEFAULT 0,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `governorates`
+--
+
+DROP TABLE IF EXISTS governorates;
+CREATE TABLE governorates (
+  id BIGSERIAL PRIMARY KEY,
+  governoratename VARCHAR(255) NOT NULL,
+  translation_key VARCHAR(255) NOT NULL,
+  code VARCHAR(255) DEFAULT NULL,
+  status SMALLINT NOT NULL,
+  rank INTEGER NOT NULL DEFAULT 0,
+  population BIGINT DEFAULT NULL,
+  area BIGINT DEFAULT NULL,
+  capital VARCHAR(255) DEFAULT NULL,
+  region VARCHAR(255) DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  image VARCHAR(255) DEFAULT NULL,
+  map_lang VARCHAR(255) DEFAULT NULL,
+  map_lat VARCHAR(255) DEFAULT NULL,
+  geometry GEOMETRY(Geometry, 4326) DEFAULT NULL,
+  show_in_filters SMALLINT NOT NULL DEFAULT 0,
+  is_featured SMALLINT NOT NULL DEFAULT 0,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `governorates2`
+--
+
+DROP TABLE IF EXISTS governorates2;
+CREATE TABLE governorates2 (
+  id SERIAL PRIMARY KEY,
+  object_id INTEGER NOT NULL,
+  country_name_en VARCHAR(255) DEFAULT NULL,
+  country_name_ar VARCHAR(255) DEFAULT NULL,
+  governorate_name_en VARCHAR(255) DEFAULT NULL,
+  governorate_name_ar VARCHAR(255) DEFAULT NULL,
+  governorate_code VARCHAR(50) DEFAULT NULL,
+  old_governorate_code VARCHAR(50) DEFAULT NULL,
+  date_ DATE DEFAULT NULL,
+  valid_on DATE DEFAULT NULL,
+  valid_to DATE DEFAULT NULL,
+  lang VARCHAR(255) DEFAULT NULL,
+  lat VARCHAR(255) DEFAULT NULL,
+  geometry GEOMETRY(Geometry, 4326) DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `governorate_offices`
+--
+
+DROP TABLE IF EXISTS governorate_offices;
+CREATE TYPE governorate_office_status AS ENUM (
+    'active',
+    'closed',
+    'under_construction'
+);
+CREATE TABLE governorate_offices (
+  id BIGSERIAL PRIMARY KEY,
+  governorate_id BIGINT NOT NULL,
+  ministry_id BIGINT NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  name_en VARCHAR(255) NOT NULL,
+  code VARCHAR(255) DEFAULT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  status governorate_office_status NOT NULL DEFAULT 'active',
+  establishment_date DATE DEFAULT NULL,
+  deactivation_date DATE DEFAULT NULL,
+  notes TEXT DEFAULT NULL,
+  latitude DECIMAL(10,7) DEFAULT NULL,
+  longitude DECIMAL(10,7) DEFAULT NULL,
+  logo VARCHAR(255) DEFAULT NULL,
+  is_active SMALLINT NOT NULL DEFAULT 0,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `help_center_knowledgebases`
+--
+
+DROP TABLE IF EXISTS help_center_knowledgebases;
+CREATE TABLE help_center_knowledgebases (
+  id BIGSERIAL PRIMARY KEY,
+  slug VARCHAR(255) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  content TEXT DEFAULT NULL,
+  image VARCHAR(255) DEFAULT NULL,
+  icon VARCHAR(255) DEFAULT NULL,
+  is_active SMALLINT DEFAULT NULL,
+  is_featured SMALLINT DEFAULT NULL,
+  meta_title VARCHAR(255) DEFAULT NULL,
+  meta_description TEXT DEFAULT NULL,
+  meta_keywords VARCHAR(255) DEFAULT NULL,
+  help_center_knowledgebases_topic_id BIGINT DEFAULT NULL,
+  languages_id BIGINT DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  user_tupes_id BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `help_center_knowledgebases_topics`
+--
+
+DROP TABLE IF EXISTS help_center_knowledgebases_topics;
+CREATE TABLE help_center_knowledgebases_topics (
+  id BIGSERIAL PRIMARY KEY,
+  slug VARCHAR(255) DEFAULT NULL,
+  title VARCHAR(255) NOT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  icon VARCHAR(255) DEFAULT NULL,
+  image VARCHAR(255) DEFAULT NULL,
+  is_active SMALLINT DEFAULT NULL,
+  is_featured SMALLINT DEFAULT NULL,
+  user_type_id BIGINT DEFAULT NULL,
+  is_hidden SMALLINT DEFAULT NULL,
+  languages_id BIGINT DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `invoice_items`
+--
+
+DROP TABLE IF EXISTS invoice_items;
+CREATE TABLE invoice_items (
+  id BIGSERIAL PRIMARY KEY,
+  invoice_id BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  unit_name VARCHAR(255) DEFAULT NULL,
+  quantity INTEGER DEFAULT NULL,
+  unit_price VARCHAR(255) DEFAULT NULL,
+  discount DECIMAL(8,2) DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  tax_id BIGINT DEFAULT NULL,
+  sub_total VARCHAR(255) DEFAULT NULL,
+  status VARCHAR(255) DEFAULT NULL,
+  exchange_rate VARCHAR(255) DEFAULT NULL,
+  curancy_id BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `invoices`
+--
+
+DROP TABLE IF EXISTS invoices;
+CREATE TYPE payment_way_enum AS ENUM (
+    'manual',
+    'auto'
+);
+CREATE TYPE month_enum AS ENUM (
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'June',
+    'July',
+    'Aug',
+    'Sept',
+    'Oct',
+    'Nov',
+    'Dec'
+);
+CREATE TABLE invoices (
+  id BIGSERIAL PRIMARY KEY,
+  invoice_number VARCHAR(255) DEFAULT NULL UNIQUE,
+  billing_name VARCHAR(255) DEFAULT NULL,
+  tax_total DOUBLE PRECISION DEFAULT NULL,
+  due_date DATE DEFAULT NULL,
+  invoice_date DATE DEFAULT NULL,
+  commossion DOUBLE PRECISION DEFAULT NULL,
+  totle_amount DOUBLE PRECISION DEFAULT NULL,
+  commossion_rate VARCHAR(255) DEFAULT NULL,
+  notes TEXT DEFAULT NULL,
+  reference VARCHAR(255) DEFAULT NULL,
+  cashair_referance VARCHAR(255) DEFAULT NULL,
+  invoice_code VARCHAR(255) DEFAULT NULL,
+  IsPaid SMALLINT DEFAULT NULL,
+  exchange_rate DECIMAL(12,4) DEFAULT NULL,
+  payer_type BIGINT DEFAULT NULL,
+  owner_mobile VARCHAR(255) DEFAULT NULL,
+  payment_way payment_way_enum DEFAULT 'auto',
+  order_id BIGINT DEFAULT NULL,
+  propertie_id BIGINT DEFAULT NULL,
+  currency_id BIGINT DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  paid_by BIGINT DEFAULT NULL,
+  tax_id BIGINT DEFAULT NULL,
+  BillTaxPerc VARCHAR(255) DEFAULT NULL,
+  discount_code VARCHAR(255) DEFAULT NULL,
+  TotalDiscount VARCHAR(255) DEFAULT NULL,
+  TotalPay VARCHAR(255) DEFAULT NULL,
+  Remain VARCHAR(255) DEFAULT NULL,
+  chart_of_account_id BIGINT DEFAULT NULL,
+  PrintCount INTEGER DEFAULT NULL,
+  Printed SMALLINT DEFAULT NULL,
+  PrintedBy BIGINT DEFAULT NULL,
+  cancelled SMALLINT DEFAULT NULL,
+  CancledBy BIGINT DEFAULT NULL,
+  year INTEGER DEFAULT NULL,
+  month month_enum DEFAULT NULL,
+  payment_type_id BIGINT DEFAULT NULL,
+  bank_id BIGINT DEFAULT NULL,
+  hawalh_no VARCHAR(255) DEFAULT NULL,
+  getway_id BIGINT DEFAULT NULL,
+  services_id BIGINT DEFAULT NULL,
+  attatchemt VARCHAR(255) DEFAULT NULL,
+  sub_payment_method_id BIGINT DEFAULT NULL,
+  short_code VARCHAR(255) DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `jawali_tokens`
+--
+
+DROP TABLE IF EXISTS jawali_tokens;
+CREATE TABLE jawali_tokens (
+  id BIGSERIAL PRIMARY KEY,
+  oauth_token VARCHAR(255) NOT NULL,
+  oauth_token_response JSONB NOT NULL,
+  wallet_token VARCHAR(255) NOT NULL,
+  wallet_token_response JSONB NOT NULL,
+  expires_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `job_batches`
+--
+
+DROP TABLE IF EXISTS job_batches;
+CREATE TABLE job_batches (
+  id VARCHAR(255) PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  total_jobs INTEGER NOT NULL,
+  pending_jobs INTEGER NOT NULL,
+  failed_jobs INTEGER NOT NULL,
+  failed_job_ids TEXT NOT NULL,
+  options TEXT DEFAULT NULL,
+  cancelled_at INTEGER DEFAULT NULL,
+  created_at INTEGER NOT NULL,
+  finished_at INTEGER DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `jobs`
+--
+
+DROP TABLE IF EXISTS jobs;
+CREATE TABLE jobs (
+  id BIGSERIAL PRIMARY KEY,
+  queue VARCHAR(255) NOT NULL,
+  payload TEXT NOT NULL,
+  attempts SMALLINT NOT NULL,
+  reserved_at INTEGER DEFAULT NULL,
+  available_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `journal_entries`
+--
+
+DROP TABLE IF EXISTS journal_entries;
+CREATE TYPE journal_month_enum AS ENUM (
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December'
+);
+CREATE TABLE journal_entries (
+  id BIGSERIAL PRIMARY KEY,
+  JID BIGINT DEFAULT NULL,
+  document_type_id BIGINT DEFAULT NULL,
+  transaction_type_id BIGINT DEFAULT NULL,
+  JNO VARCHAR(255) NOT NULL,
+  debit DECIMAL(18,4) DEFAULT NULL,
+  debit_foreign DECIMAL(18,4) DEFAULT NULL,
+  credit DECIMAL(18,4) DEFAULT NULL,
+  currency_id BIGINT DEFAULT NULL,
+  gl_code BIGINT DEFAULT NULL,
+  account_document_type_id BIGINT DEFAULT NULL,
+  exchange_rate DECIMAL(18,4) DEFAULT NULL,
+  details TEXT DEFAULT NULL,
+  date DATE NOT NULL,
+  year INTEGER DEFAULT NULL,
+  month journal_month_enum DEFAULT NULL,
+  reference VARCHAR(255) DEFAULT NULL,
+  property_id BIGINT DEFAULT NULL,
+  fund_id BIGINT DEFAULT NULL,
+  status SMALLINT DEFAULT NULL,
+  notes BIGINT DEFAULT NULL,
+  transaction_state_id BIGINT DEFAULT NULL,
+  loan_transaction_id BIGINT DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `languages`
+--
+
+DROP TABLE IF EXISTS languages;
+CREATE TYPE language_direction AS ENUM (
+    'rtl',
+    'ltr'
+);
+CREATE TABLE languages (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) DEFAULT NULL,
+  code VARCHAR(255) NOT NULL,
+  locale VARCHAR(8) DEFAULT NULL,
+  native VARCHAR(255) DEFAULT NULL,
+  rtl SMALLINT DEFAULT 0,
+  direction language_direction NOT NULL DEFAULT 'rtl',
+  status SMALLINT DEFAULT 0,
+  is_active SMALLINT DEFAULT 0,
+  is_default VARCHAR(255) DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `maintainence_settings`
+--
+
+DROP TABLE IF EXISTS maintainence_settings;
+CREATE TABLE maintainence_settings (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  transalation_key VARCHAR(255) DEFAULT NULL,
+  option_key VARCHAR(255) NOT NULL,
+  value TEXT DEFAULT NULL,
+  default_value TEXT DEFAULT NULL,
+  order_id INTEGER NOT NULL DEFAULT 0,
+  option_type VARCHAR(255) NOT NULL,
+  icon VARCHAR(255) DEFAULT NULL,
+  is_hidden BOOLEAN NOT NULL DEFAULT FALSE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  hint_text_en VARCHAR(255) DEFAULT NULL,
+  hint_text VARCHAR(255) DEFAULT NULL,
+  user_type_id BIGINT DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `manager_names`
+--
+
+DROP TABLE IF EXISTS manager_names;
+CREATE TABLE manager_names (
+  id BIGSERIAL PRIMARY KEY,
+  first_name VARCHAR(255) NOT NULL,
+  last_name VARCHAR(255) NOT NULL,
+  alternative_name VARCHAR(255) DEFAULT NULL,
+  dob DATE DEFAULT NULL,
+  type SMALLINT DEFAULT 1,
+  user_id BIGINT DEFAULT NULL,
+  address VARCHAR(255) DEFAULT NULL,
+  mobile VARCHAR(255) DEFAULT NULL,
+  mobile_type VARCHAR(255) NOT NULL DEFAULT 'mobile',
+  email VARCHAR(255) DEFAULT NULL,
+  city_id BIGINT DEFAULT NULL,
+  country_id BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `media`
+--
+
+DROP TABLE IF EXISTS media;
+CREATE TABLE media (
+  id BIGSERIAL PRIMARY KEY,
+  model_type VARCHAR(255) NOT NULL,
+  model_id BIGINT DEFAULT NULL,
+  uuid CHAR(36) NOT NULL,
+  collection_name VARCHAR(255) DEFAULT NULL,
+  name VARCHAR(255) NOT NULL,
+  file_name VARCHAR(255) DEFAULT NULL,
+  mime_type VARCHAR(255) DEFAULT NULL,
+  conversions_disk VARCHAR(255) DEFAULT NULL,
+  size BIGINT DEFAULT NULL,
+  manipulations TEXT DEFAULT NULL,
+  generated_conversions TEXT DEFAULT NULL,
+  custom_properties TEXT DEFAULT NULL,
+  order_column INTEGER DEFAULT NULL,
+  responsive_images TEXT DEFAULT NULL,
+  user_id BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `migrations`
+--
+
+DROP TABLE IF EXISTS migrations;
+CREATE TABLE migrations (
+  id SERIAL PRIMARY KEY,
+  migration VARCHAR(255) NOT NULL,
+  batch INTEGER NOT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `ministries`
+--
+
+DROP TABLE IF EXISTS ministries;
+CREATE TYPE ministry_status AS ENUM (
+    'active',
+    'closed',
+    'under_construction'
+);
+CREATE TABLE ministries (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  name_en VARCHAR(255) NOT NULL,
+  code VARCHAR(255) DEFAULT NULL,
+  color VARCHAR(255) DEFAULT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  status ministry_status NOT NULL DEFAULT 'active',
+  establishment_date DATE DEFAULT NULL,
+  deactivation_date DATE DEFAULT NULL,
+  notes TEXT DEFAULT NULL,
+  latitude DECIMAL(10,7) DEFAULT NULL,
+  longitude DECIMAL(10,7) DEFAULT NULL,
+  logo VARCHAR(255) DEFAULT NULL,
+  is_active SMALLINT NOT NULL DEFAULT 0,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `ministry_sectors`
+--
+
+DROP TABLE IF EXISTS ministry_sectors;
+CREATE TABLE ministry_sectors (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  ministry_id BIGINT NOT NULL,
+  name_en VARCHAR(255) DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  code VARCHAR(255) DEFAULT NULL,
+  config_status SMALLINT DEFAULT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  manager_mobile VARCHAR(255) DEFAULT NULL,
+  manager_email VARCHAR(255) DEFAULT NULL,
+  whatsapp VARCHAR(255) DEFAULT NULL,
+  opening_time VARCHAR(255) DEFAULT NULL,
+  closing_time VARCHAR(255) DEFAULT NULL,
+  phone VARCHAR(255) DEFAULT NULL,
+  manager_name_ar VARCHAR(255) DEFAULT NULL,
+  manager_name_en VARCHAR(255) DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `model_has_permissions`
+--
+
+DROP TABLE IF EXISTS model_has_permissions;
+CREATE TABLE model_has_permissions (
+  permission_id BIGINT NOT NULL,
+  model_type VARCHAR(255) NOT NULL,
+  model_id BIGINT NOT NULL,
+  PRIMARY KEY (permission_id, model_id, model_type)
+);
+
+
+
+
+
+--
+-- Table structure for table `model_has_roles`
+--
+
+DROP TABLE IF EXISTS model_has_roles;
+CREATE TABLE model_has_roles (
+  role_id BIGINT NOT NULL,
+  model_type VARCHAR(255) NOT NULL,
+  model_id BIGINT NOT NULL,
+  PRIMARY KEY (role_id, model_id, model_type)
+);
+
+
+
+
+
+--
+-- Table structure for table `neighborhoods`
+--
+
+DROP TABLE IF EXISTS neighborhoods;
+CREATE TABLE neighborhoods (
+  id BIGSERIAL PRIMARY KEY,
+  districtsid BIGINT DEFAULT NULL,
+  subdistrictsid BIGINT DEFAULT NULL,
+  neighborhood_name VARCHAR(255) NOT NULL,
+  neighborhood_name_en VARCHAR(255) NOT NULL,
+  code VARCHAR(255) DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  responsible_person VARCHAR(255) DEFAULT NULL,
+  responsible_person_phone VARCHAR(255) DEFAULT NULL,
+  translation_key VARCHAR(255) NOT NULL,
+  status SMALLINT NOT NULL DEFAULT 1,
+  rank INTEGER NOT NULL DEFAULT 0,
+  map_lang VARCHAR(255) DEFAULT NULL,
+  map_lat VARCHAR(255) DEFAULT NULL,
+  show_in_filters SMALLINT NOT NULL DEFAULT 0,
+  image VARCHAR(255) DEFAULT NULL,
+  population BIGINT DEFAULT NULL,
+  area BIGINT DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `notifications`
+--
+
+DROP TABLE IF EXISTS notifications;
+CREATE TABLE notifications (
+  id UUID PRIMARY KEY,
+  type VARCHAR(255) NOT NULL,
+  notifiable_type VARCHAR(255) NOT NULL,
+  notifiable_id BIGINT NOT NULL,
+  data TEXT NOT NULL,
+  read_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `oauth_access_tokens`
+--
+
+DROP TABLE IF EXISTS oauth_access_tokens;
+CREATE TABLE oauth_access_tokens (
+  id VARCHAR(100) PRIMARY KEY,
+  user_id BIGINT DEFAULT NULL,
+  client_id BIGINT NOT NULL,
+  name VARCHAR(255) DEFAULT NULL,
+  scopes TEXT DEFAULT NULL,
+  revoked BOOLEAN NOT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  expires_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `oauth_auth_codes`
+--
+
+DROP TABLE IF EXISTS oauth_auth_codes;
+CREATE TABLE oauth_auth_codes (
+  id VARCHAR(100) PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  client_id BIGINT NOT NULL,
+  scopes TEXT DEFAULT NULL,
+  revoked BOOLEAN NOT NULL,
+  expires_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `oauth_clients`
+--
+
+DROP TABLE IF EXISTS oauth_clients;
+CREATE TABLE oauth_clients (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT DEFAULT NULL,
+  name VARCHAR(255) NOT NULL,
+  secret VARCHAR(100) DEFAULT NULL,
+  provider VARCHAR(255) DEFAULT NULL,
+  redirect TEXT NOT NULL,
+  personal_access_client BOOLEAN NOT NULL,
+  password_client BOOLEAN NOT NULL,
+  revoked BOOLEAN NOT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `oauth_personal_access_clients`
+--
+
+DROP TABLE IF EXISTS oauth_personal_access_clients;
+CREATE TABLE oauth_personal_access_clients (
+  id BIGSERIAL PRIMARY KEY,
+  client_id BIGINT NOT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `oauth_refresh_tokens`
+--
+
+DROP TABLE IF EXISTS oauth_refresh_tokens;
+CREATE TABLE oauth_refresh_tokens (
+  id VARCHAR(100) PRIMARY KEY,
+  access_token_id VARCHAR(100) NOT NULL,
+  revoked BOOLEAN NOT NULL,
+  expires_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `password_reset_tokens`
+--
+
+DROP TABLE IF EXISTS password_reset_tokens;
+CREATE TABLE password_reset_tokens (
+  email VARCHAR(255) PRIMARY KEY,
+  token VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `password_resets`
+--
+
+DROP TABLE IF EXISTS password_resets;
+CREATE TABLE password_resets (
+  email VARCHAR(255) NOT NULL,
+  token VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `payment_gateways`
+--
+
+DROP TABLE IF EXISTS payment_gateways;
+CREATE TABLE payment_gateways (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  image VARCHAR(255) DEFAULT NULL,
+  is_active SMALLINT NOT NULL DEFAULT 1,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `payment_methods`
+--
+
+DROP TABLE IF EXISTS payment_methods;
+CREATE TABLE payment_methods (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  image VARCHAR(255) DEFAULT NULL,
+  is_active SMALLINT NOT NULL DEFAULT 1,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `payment_types`
+--
+
+DROP TABLE IF EXISTS payment_types;
+CREATE TABLE payment_types (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  image VARCHAR(255) DEFAULT NULL,
+  is_active SMALLINT NOT NULL DEFAULT 1,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `payment_types_categories`
+--
+
+DROP TABLE IF EXISTS payment_types_categories;
+CREATE TABLE payment_types_categories (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  image VARCHAR(255) DEFAULT NULL,
+  is_active SMALLINT NOT NULL DEFAULT 1,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `permissions`
+--
+
+DROP TABLE IF EXISTS permissions;
+CREATE TABLE permissions (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL UNIQUE,
+  guard_name VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `personal_access_tokens`
+--
+
+DROP TABLE IF EXISTS personal_access_tokens;
+CREATE TABLE personal_access_tokens (
+  id BIGSERIAL PRIMARY KEY,
+  tokenable_type VARCHAR(255) NOT NULL,
+  tokenable_id BIGINT NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  token VARCHAR(64) NOT NULL UNIQUE,
+  abilities TEXT DEFAULT NULL,
+  last_used_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  expires_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `products`
+--
+
+DROP TABLE IF EXISTS products;
+CREATE TABLE products (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  name_en VARCHAR(255) DEFAULT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  service_subtile TEXT DEFAULT NULL,
+  service_icon VARCHAR(255) DEFAULT NULL,
+  is_active SMALLINT NOT NULL DEFAULT 1,
+  is_featured SMALLINT DEFAULT 0,
+  agnest_comossion VARCHAR(255) DEFAULT NULL,
+  platform_commosion VARCHAR(255) DEFAULT NULL,
+  service_setting_json TEXT DEFAULT NULL,
+  product_cat_id BIGINT DEFAULT NULL,
+  product_type_id BIGINT DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `products_categories`
+--
+
+DROP TABLE IF EXISTS products_categories;
+CREATE TABLE products_categories (
+  id BIGSERIAL PRIMARY KEY,
+  parent_id BIGINT DEFAULT NULL,
+  name VARCHAR(255) NOT NULL,
+  name_en VARCHAR(255) DEFAULT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  status SMALLINT NOT NULL DEFAULT 1,
+  group_key VARCHAR(255) DEFAULT NULL,
+  icon_path VARCHAR(255) DEFAULT NULL,
+  code VARCHAR(255) DEFAULT NULL,
+  show_in_filters SMALLINT NOT NULL DEFAULT 0,
+  is_featured SMALLINT NOT NULL DEFAULT 0,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `products_types`
+--
+
+DROP TABLE IF EXISTS products_types;
+CREATE TABLE products_types (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  is_active SMALLINT DEFAULT NULL,
+  is_featured SMALLINT DEFAULT NULL,
+  image VARCHAR(255) DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `properties`
+--
+
+DROP TABLE IF EXISTS properties;
+CREATE TABLE properties (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  name_en VARCHAR(255) DEFAULT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  is_active SMALLINT NOT NULL DEFAULT 1,
+  is_featured SMALLINT DEFAULT 0,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `property_types`
+--
+
+DROP TABLE IF EXISTS property_types;
+CREATE TABLE property_types (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  is_active SMALLINT DEFAULT NULL,
+  is_featured SMALLINT DEFAULT NULL,
+  image VARCHAR(255) DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `roles`
+--
+
+DROP TABLE IF EXISTS roles;
+CREATE TABLE roles (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL UNIQUE,
+  guard_name VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `role_has_permissions`
+--
+
+DROP TABLE IF EXISTS role_has_permissions;
+CREATE TABLE role_has_permissions (
+  permission_id BIGINT NOT NULL,
+  role_id BIGINT NOT NULL,
+  PRIMARY KEY (permission_id, role_id)
+);
+
+
+
+
+
+--
+-- Table structure for table `sessions`
+--
+
+DROP TABLE IF EXISTS sessions;
+CREATE TABLE sessions (
+  id VARCHAR(255) PRIMARY KEY,
+  user_id BIGINT DEFAULT NULL,
+  ip_address VARCHAR(45) DEFAULT NULL,
+  user_agent TEXT DEFAULT NULL,
+  payload TEXT NOT NULL,
+  last_activity INTEGER NOT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `social_accounts`
+--
+
+DROP TABLE IF EXISTS social_accounts;
+CREATE TABLE social_accounts (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  provider_name VARCHAR(255) NOT NULL,
+  provider_id VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `social_status`
+--
+
+DROP TABLE IF EXISTS social_status;
+CREATE TABLE social_status (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  is_active SMALLINT DEFAULT NULL,
+  is_featured SMALLINT DEFAULT NULL,
+  image VARCHAR(255) DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `sub_districts`
+--
+
+DROP TABLE IF EXISTS sub_districts;
+CREATE TABLE sub_districts (
+  id BIGSERIAL PRIMARY KEY,
+  districtsid BIGINT DEFAULT NULL,
+  sub_districts_name VARCHAR(255) NOT NULL,
+  sub_districts_name_en VARCHAR(255) NOT NULL,
+  code VARCHAR(255) DEFAULT NULL,
+  translation_key VARCHAR(255) NOT NULL,
+  status SMALLINT NOT NULL DEFAULT 1,
+  rank INTEGER NOT NULL DEFAULT 0,
+  map_lang VARCHAR(255) DEFAULT NULL,
+  map_lat VARCHAR(255) DEFAULT NULL,
+  show_in_filters SMALLINT NOT NULL DEFAULT 0,
+  image VARCHAR(255) DEFAULT NULL,
+  population BIGINT DEFAULT NULL,
+  area BIGINT DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `sub_payment_methods`
+--
+
+DROP TABLE IF EXISTS sub_payment_methods;
+CREATE TABLE sub_payment_methods (
+  id BIGSERIAL PRIMARY KEY,
+  payment_method_id BIGINT DEFAULT NULL,
+  name VARCHAR(255) NOT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  image VARCHAR(255) DEFAULT NULL,
+  is_active SMALLINT NOT NULL DEFAULT 1,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `subscriptions`
+--
+
+DROP TABLE IF EXISTS subscriptions;
+CREATE TABLE subscriptions (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  stripe_id VARCHAR(255) NOT NULL,
+  stripe_status VARCHAR(255) NOT NULL,
+  stripe_price VARCHAR(255) DEFAULT NULL,
+  quantity INTEGER DEFAULT NULL,
+  trial_ends_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  ends_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `subscription_items`
+--
+
+DROP TABLE IF EXISTS subscription_items;
+CREATE TABLE subscription_items (
+  id BIGSERIAL PRIMARY KEY,
+  subscription_id BIGINT NOT NULL,
+  stripe_id VARCHAR(255) NOT NULL,
+  stripe_product VARCHAR(255) NOT NULL,
+  stripe_price VARCHAR(255) NOT NULL,
+  quantity INTEGER DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `system_settings`
+--
+
+DROP TABLE IF EXISTS system_settings;
+CREATE TABLE system_settings (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  option_key VARCHAR(255) NOT NULL UNIQUE,
+  value TEXT DEFAULT NULL,
+  default_value TEXT DEFAULT NULL,
+  order_id INTEGER NOT NULL DEFAULT 0,
+  option_type VARCHAR(255) NOT NULL,
+  user_type_id INTEGER DEFAULT NULL,
+  icon VARCHAR(255) DEFAULT NULL,
+  is_hidden BOOLEAN NOT NULL DEFAULT FALSE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  hint_text_en VARCHAR(255) DEFAULT NULL,
+  hint_text VARCHAR(255) DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `team_user`
+--
+
+DROP TABLE IF EXISTS team_user;
+CREATE TABLE team_user (
+  id BIGSERIAL PRIMARY KEY,
+  team_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
+  role VARCHAR(255) DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `teams`
+--
+
+DROP TABLE IF EXISTS teams;
+CREATE TABLE teams (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  personal_team BOOLEAN NOT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `team_invitations`
+--
+
+DROP TABLE IF EXISTS team_invitations;
+CREATE TABLE team_invitations (
+  id BIGSERIAL PRIMARY KEY,
+  team_id BIGINT NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  role VARCHAR(255) DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `transactions`
+--
+
+DROP TABLE IF EXISTS transactions;
+CREATE TABLE transactions (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  currency_id BIGINT NOT NULL,
+  amount DECIMAL(18,4) NOT NULL,
+  type VARCHAR(255) NOT NULL,
+  status VARCHAR(255) NOT NULL,
+  description TEXT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `transactions_categories`
+--
+
+DROP TABLE IF EXISTS transactions_categories;
+CREATE TABLE transactions_categories (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  is_active SMALLINT DEFAULT NULL,
+  is_featured SMALLINT DEFAULT NULL,
+  image VARCHAR(255) DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `user_types`
+--
+
+DROP TABLE IF EXISTS user_types;
+CREATE TABLE user_types (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  is_active SMALLINT DEFAULT NULL,
+  is_featured SMALLINT DEFAULT NULL,
+  image VARCHAR(255) DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `users`
+--
+
+DROP TABLE IF EXISTS users;
+CREATE TABLE users (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  name_en VARCHAR(255) DEFAULT NULL,
+  card_id VARCHAR(255) DEFAULT NULL,
+  birthdate VARCHAR(255) DEFAULT NULL,
+  id_type_id VARCHAR(255) DEFAULT NULL,
+  code VARCHAR(255) DEFAULT NULL,
+  user_name VARCHAR(255) NOT NULL UNIQUE,
+  email_verified_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  password VARCHAR(255) NOT NULL,
+  remember_token VARCHAR(100) DEFAULT NULL,
+  two_factor_secret TEXT DEFAULT NULL,
+  two_factor_recovery_codes TEXT DEFAULT NULL,
+  two_factor_confirmed_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  country_id BIGINT DEFAULT NULL,
+  district_id BIGINT DEFAULT NULL,
+  governorate_id BIGINT DEFAULT NULL,
+  address VARCHAR(255) DEFAULT NULL,
+  profile_photo_path TEXT DEFAULT NULL,
+  first_name VARCHAR(255) DEFAULT NULL,
+  father_name VARCHAR(255) DEFAULT NULL,
+  grand_father_name VARCHAR(255) DEFAULT NULL,
+  last_name VARCHAR(255) DEFAULT NULL,
+  phone VARCHAR(255) DEFAULT NULL,
+  email VARCHAR(255) DEFAULT NULL,
+  issuing_authority VARCHAR(300) DEFAULT NULL,
+  card_front_photo VARCHAR(255) DEFAULT NULL,
+  card_back_photo VARCHAR(255) DEFAULT NULL,
+  card_front_photo64based TEXT DEFAULT NULL,
+  card_back_photo64based TEXT DEFAULT NULL,
+  issue_date DATE DEFAULT NULL,
+  phone_verified_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  whatsapp VARCHAR(255) DEFAULT NULL,
+  gender SMALLINT NOT NULL DEFAULT 1,
+  is_active SMALLINT NOT NULL DEFAULT 1,
+  is_comerical BOOLEAN NOT NULL DEFAULT FALSE,
+  approved SMALLINT NOT NULL DEFAULT 0,
+  otp_code VARCHAR(255) DEFAULT NULL,
+  otp_date TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  approved_by BIGINT DEFAULT NULL,
+  last_login_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  avatar VARCHAR(255) DEFAULT NULL,
+  locale VARCHAR(10) DEFAULT NULL,
+  channel_id BIGINT DEFAULT 10,
+  bio TEXT DEFAULT NULL,
+  device_token TEXT DEFAULT NULL,
+  is_verified SMALLINT DEFAULT NULL,
+  active_status BOOLEAN NOT NULL DEFAULT FALSE,
+  nationality_id BIGINT DEFAULT NULL,
+  commercial_name VARCHAR(255) DEFAULT NULL,
+  commercial_type_id BIGINT DEFAULT NULL,
+  wallet_id BIGINT DEFAULT NULL,
+  user_role_id BIGINT DEFAULT NULL,
+  social_status_id BIGINT DEFAULT NULL,
+  is_epmployee SMALLINT DEFAULT NULL,
+  code4what VARCHAR(255) DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Enable PostGIS extension
+--
+
+CREATE EXTENSION IF NOT EXISTS postgis;
+
+
+
+
+
+--
+-- Table structure for table `user_wallet`
+--
+
+DROP TABLE IF EXISTS user_wallet;
+CREATE TABLE user_wallet (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  amount DECIMAL(18,4) NOT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `users_wallets_transactions`
+--
+
+DROP TABLE IF EXISTS users_wallets_transactions;
+CREATE TABLE users_wallets_transactions (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  amount DECIMAL(18,4) NOT NULL,
+  type VARCHAR(255) NOT NULL,
+  status VARCHAR(255) NOT NULL,
+  description TEXT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `users_roles`
+--
+
+DROP TABLE IF EXISTS users_roles;
+CREATE TABLE users_roles (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  translation_key VARCHAR(255) DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  is_active SMALLINT DEFAULT NULL,
+  is_featured SMALLINT DEFAULT NULL,
+  image VARCHAR(255) DEFAULT NULL,
+  created_by BIGINT DEFAULT NULL,
+  updated_by BIGINT DEFAULT NULL,
+  deleted_by BIGINT DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  deleted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
+
+
+--
+-- Table structure for table `visitors`
+--
+
+DROP TABLE IF EXISTS visitors;
+CREATE TABLE visitors (
+  id BIGSERIAL PRIMARY KEY,
+  ip_address VARCHAR(255) DEFAULT NULL,
+  user_agent TEXT DEFAULT NULL,
+  visit_date DATE DEFAULT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL
+);
+
+
+
