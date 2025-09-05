@@ -184,11 +184,11 @@ export default function SurveyingDecisionForm() {
   const validateStep = (step: number): boolean => {
     switch (step) {
       case 1:
-        return formData.applicantName && formData.applicantId && formData.contactPhone;
+        return !!(formData.applicantName && formData.applicantId && formData.contactPhone);
       case 2:
-        return formData.governorate && formData.district && formData.landNumber;
+        return !!(formData.governorate && formData.district && formData.landNumber);
       case 3:
-        return formData.surveyType && formData.purpose;
+        return !!(formData.surveyType && formData.purpose);
       case 4:
         return formData.drawnFeatures.length > 0;
       default:
