@@ -3,7 +3,9 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import Dashboard from "@/pages/Dashboard";
+import { ThemeProvider } from "@/themes/ThemeProvider";
+import AdminLayout from "@/layouts/AdminLayout";
+import AdminDashboard from "@/dashboard/pages/AdminDashboard";
 import BuildingLicenses from "@/pages/BuildingLicenses";
 import SurveyingDecision from "@/pages/SurveyingDecision";
 import TechnicalRequirements from "@/pages/TechnicalRequirements";
@@ -20,32 +22,36 @@ import NotFound from "@/pages/not-found";
 
 function Router() {
   return (
-    <Switch>
-      <Route path="/" component={Dashboard} />
-      <Route path="/building-licenses" component={BuildingLicenses} />
-      <Route path="/surveying-decision" component={SurveyingDecision} />
-      <Route path="/technical-requirements" component={TechnicalRequirements} />
-      <Route path="/legal-system" component={LegalSystem} />
-      <Route path="/organizational-structure" component={OrganizationalStructure} />
-      <Route path="/advanced-organizational-structure" component={AdvancedOrganizationalStructure} />
-      <Route path="/advanced-analytics" component={AdvancedAnalytics} />
-      <Route path="/user-management" component={UserManagement} />
-      <Route path="/document-archive" component={DocumentArchive} />
-      <Route path="/smart-search" component={SmartSearch} />
-      <Route path="/task-management" component={TaskManagement} />
-      <Route path="/service-builder" component={ServiceBuilder} />
-      <Route component={NotFound} />
-    </Switch>
+    <AdminLayout>
+      <Switch>
+        <Route path="/" component={AdminDashboard} />
+        <Route path="/building-licenses" component={BuildingLicenses} />
+        <Route path="/surveying-decision" component={SurveyingDecision} />
+        <Route path="/technical-requirements" component={TechnicalRequirements} />
+        <Route path="/legal-system" component={LegalSystem} />
+        <Route path="/organizational-structure" component={OrganizationalStructure} />
+        <Route path="/advanced-organizational-structure" component={AdvancedOrganizationalStructure} />
+        <Route path="/advanced-analytics" component={AdvancedAnalytics} />
+        <Route path="/user-management" component={UserManagement} />
+        <Route path="/document-archive" component={DocumentArchive} />
+        <Route path="/smart-search" component={SmartSearch} />
+        <Route path="/task-management" component={TaskManagement} />
+        <Route path="/service-builder" component={ServiceBuilder} />
+        <Route component={NotFound} />
+      </Switch>
+    </AdminLayout>
   );
 }
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Router />
-      </TooltipProvider>
+      <ThemeProvider defaultTheme="light" storageKey="yemen-platform-theme">
+        <TooltipProvider>
+          <Toaster />
+          <Router />
+        </TooltipProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }
