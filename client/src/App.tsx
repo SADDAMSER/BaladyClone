@@ -44,11 +44,11 @@ function Router() {
         <Route path="/task-management" component={TaskManagement} />
         <Route path="/service-builder" component={ServiceBuilder} />
         <Route path="/services" component={ServiceCatalog} />
+        <Route path="/services/surveying-decision" component={SurveyingDecisionForm} />
         <Route path="/services/:id" component={ServiceDetails} />
         <Route path="/services/:id/apply" component={ServiceApplication} />
         <Route path="/applications/track" component={ApplicationTracking} />
         <Route path="/applications/pending" component={PendingApplications} />
-        <Route path="/services/surveying-decision" component={SurveyingDecisionForm} />
         <Route component={NotFound} />
       </Switch>
     </AdminLayout>
