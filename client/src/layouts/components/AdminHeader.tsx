@@ -304,7 +304,16 @@ export default function AdminHeader({
                 <span>الإعدادات</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-red-600" data-testid="logout-button">
+              <DropdownMenuItem 
+                className="text-red-600" 
+                data-testid="logout-button"
+                onClick={() => {
+                  // تنظيف البيانات وتسجيل خروج
+                  localStorage.removeItem('auth_token');
+                  localStorage.removeItem('auth_user');
+                  window.location.reload();
+                }}
+              >
                 <LogOut className="mr-2 h-4 w-4" />
                 <span>تسجيل الخروج</span>
               </DropdownMenuItem>
