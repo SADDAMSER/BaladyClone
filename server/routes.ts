@@ -1101,6 +1101,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Payment Processing
+  app.post("/api/applications/:id/payment", async (req, res) => {
+    try {
+      const { paymentMethod, notes, paidBy } = req.body;
+      const applicationId = req.params.id;
+      
+      // Update application payment status
+      const updatedApplication = await storage.updateApplication(applicationId, {
+        isPaid: true,
+        paymentDate: new Date(),
+        currentStage: 'payment_confirmed',
+        status: 'paid'
+      });
+
+      // Create payment record in application data
+      const existingApp = await storage.getApplication(applicationId);
+      if (existingApp && existingApp.applicationData) {
+        const updatedData = {
+          ...existingApp.applicationData,
+          payment: {
+            method: paymentMethod,
+            notes,
+            paidBy,
+            paidAt: new Date().toISOString(),
+            confirmedBy: 'cashier'
+          }
+        };
+        
+        await storage.updateApplication(applicationId, {
+          applicationData: updatedData
+        });
+      }
+
+      // Create status history
+      await storage.createApplicationStatusHistory({
+        applicationId,
+        previousStatus: 'submitted',
+        newStatus: 'paid',
+        changedById: paidBy,
+        notes: `Payment confirmed - ${paymentMethod}. ${notes || ''}`
+      });
+
+      // Create notification for next stage
+      await storage.createNotification({
+        userId: paidBy,
+        title: 'تم تأكيد دفع الرسوم',
+        message: `تم تأكيد دفع رسوم الطلب رقم ${existingApp?.applicationNumber}`,
+        type: 'payment',
+        category: 'workflow',
+        relatedEntityId: applicationId,
+        relatedEntityType: 'application'
+      });
+
+      res.json(updatedApplication);
+    } catch (error) {
+      console.error('Error processing payment:', error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // Application Reviews
   app.get("/api/applications/:id/reviews", authenticateToken, async (req, res) => {
     try {
