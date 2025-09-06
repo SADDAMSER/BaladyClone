@@ -115,7 +115,8 @@ export default function SurveyingDecisionForm() {
   // Create application mutation
   const createApplicationMutation = useMutation({
     mutationFn: async (applicationData: any) => {
-      return await apiRequest('/api/applications', 'POST', applicationData);
+      const response = await apiRequest('POST', '/api/applications', applicationData);
+      return await response.json();
     },
     onSuccess: async (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/applications'] });
@@ -123,7 +124,7 @@ export default function SurveyingDecisionForm() {
       
       // Try to auto-assign the application
       try {
-        await apiRequest(`/api/applications/${data.id}/auto-assign`, 'POST', {});
+        await apiRequest('POST', `/api/applications/${data.id}/auto-assign`, {});
       } catch (error) {
         console.log('Auto-assignment failed, will be done manually:', error);
       }
