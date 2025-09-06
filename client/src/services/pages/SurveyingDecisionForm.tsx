@@ -204,9 +204,18 @@ export default function SurveyingDecisionForm() {
 
     setIsSubmitting(true);
     
+    // إنشاء UUID للطلب
+    const generateUUID = () => {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    };
+
     const applicationData = {
-      serviceId: 'service-surveying-decision', // معرف خدمة القرار المساحي
-      applicantId: formData.applicantId || 'anonymous',
+      serviceId: generateUUID(), // UUID للخدمة
+      applicantId: formData.applicantId || generateUUID(), // UUID لمقدم الطلب
       status: 'submitted',
       currentStage: 'submitted',
       applicationData: {
