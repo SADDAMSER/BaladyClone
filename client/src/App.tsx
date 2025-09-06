@@ -26,6 +26,7 @@ import PendingApplications from "@/applications/pages/PendingApplications";
 import SurveyingDecisionForm from "@/services/pages/SurveyingDecisionForm";
 import EmployeeDashboard from "@/employee/pages/EmployeeDashboard";
 import CashierDashboard from "@/employee/pages/CashierDashboard";
+import PublicServiceDashboard from "@/employee/pages/PublicServiceDashboard";
 import ApplicationStatus from "@/citizen/pages/ApplicationStatus";
 import NotFound from "@/pages/not-found";
 
@@ -54,6 +55,7 @@ function Router() {
         <Route path="/applications/pending" component={PendingApplications} />
         <Route path="/employee/dashboard" component={EmployeeDashboard} />
         <Route path="/employee/cashier" component={CashierDashboard} />
+        <Route path="/employee/public-service" component={PublicServiceDashboard} />
         <Route path="/citizen/application-status" component={ApplicationStatus} />
         <Route component={NotFound} />
       </Switch>

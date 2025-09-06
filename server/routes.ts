@@ -1161,6 +1161,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Document Review Processing
+  app.post("/api/applications/:id/document-review", async (req, res) => {
+    try {
+      const { action, notes, reviewerId } = req.body;
+      const applicationId = req.params.id;
+      
+      let newStatus = 'document_approved';
+      let newStage = 'document_approved';
+      
+      if (action === 'reject') {
+        newStatus = 'document_rejected';
+        newStage = 'rejected';
+      } else if (action === 'request_docs') {
+        newStatus = 'document_review';
+        newStage = 'awaiting_documents';
+      }
+
+      // Update application status
+      const updatedApplication = await storage.updateApplication(applicationId, {
+        status: newStatus,
+        currentStage: newStage,
+        reviewNotes: notes
+      });
+
+      // Get application details for notification
+      const existingApp = await storage.getApplication(applicationId);
+
+      // Create status history
+      await storage.createApplicationStatusHistory({
+        applicationId,
+        previousStatus: 'paid',
+        newStatus,
+        changedById: reviewerId,
+        notes: `Document review: ${action}. ${notes || ''}`
+      });
+
+      // Create notification
+      let notificationMessage = '';
+      if (action === 'approve') {
+        notificationMessage = `تمت الموافقة على مستندات الطلب رقم ${existingApp?.applicationNumber}`;
+      } else if (action === 'reject') {
+        notificationMessage = `تم رفض مستندات الطلب رقم ${existingApp?.applicationNumber}`;
+      } else {
+        notificationMessage = `مطلوب مستندات إضافية للطلب رقم ${existingApp?.applicationNumber}`;
+      }
+
+      await storage.createNotification({
+        userId: reviewerId,
+        title: 'مراجعة المستندات',
+        message: notificationMessage,
+        type: 'document_review',
+        category: 'workflow',
+        relatedEntityId: applicationId,
+        relatedEntityType: 'application'
+      });
+
+      res.json(updatedApplication);
+    } catch (error) {
+      console.error('Error processing document review:', error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // Application Reviews
   app.get("/api/applications/:id/reviews", authenticateToken, async (req, res) => {
     try {
