@@ -855,7 +855,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ${whereClause}
         ORDER BY gs.is_featured DESC, gs.name
         ${featured === 'true' ? 'LIMIT 6' : ''}
-      `, params));
+      `));
 
       res.json(result.rows);
     } catch (error) {
@@ -898,7 +898,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ${whereClause}
         ORDER BY ca.submitted_at DESC
         LIMIT ${limit} OFFSET ${offset}
-      `, params));
+      `));
 
       res.json(result.rows);
     } catch (error) {
@@ -919,11 +919,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ]);
 
       res.json({
-        totalApplications: parseInt(stats[0].rows[0].count),
-        pendingApplications: parseInt(stats[1].rows[0].count),
-        approvedApplications: parseInt(stats[2].rows[0].count),
-        pendingSurveys: parseInt(stats[3].rows[0].count),
-        totalServices: parseInt(stats[4].rows[0].count),
+        totalApplications: parseInt(String(stats[0].rows[0].count)),
+        pendingApplications: parseInt(String(stats[1].rows[0].count)),
+        approvedApplications: parseInt(String(stats[2].rows[0].count)),
+        pendingSurveys: parseInt(String(stats[3].rows[0].count)),
+        totalServices: parseInt(String(stats[4].rows[0].count)),
       });
     } catch (error) {
       console.error("Error fetching enhanced dashboard stats:", error);
@@ -997,7 +997,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'industrial_license': 'dept4', // Industrial Development Department
       };
 
-      const targetDepartmentId = departmentAssignments[application.serviceType as keyof typeof departmentAssignments] || 'dept1';
+      // Extract service type from applicationData or use serviceId
+      const serviceType = (application.applicationData as any)?.serviceType || 
+                         (application.serviceId === 'service-surveying-decision' ? 'surveying_decision' : 'general');
+      
+      const targetDepartmentId = departmentAssignments[serviceType as keyof typeof departmentAssignments] || 'dept1';
 
       // Get available employees in the target department with the least workload
       const departmentUsers = await storage.getUsers({ departmentId: targetDepartmentId, isActive: true });
@@ -1014,9 +1018,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         applicationId: id,
         assignedToId,
         assignedById: 'system', // System auto-assignment
+        assignmentType: 'primary_reviewer', // نوع التكليف
+        stage: 'initial_review', // مرحلة المراجعة الأولية
+        departmentId: targetDepartmentId,
         dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
         priority: 'medium',
-        notes: `Auto-assigned based on service type: ${application.serviceType}`,
+        notes: `Auto-assigned based on service type: ${serviceType}`,
         status: 'pending'
       });
 
@@ -1032,7 +1039,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         previousStatus: application.status || 'submitted',
         newStatus: 'in_review',
         changedById: 'system', // System auto-assignment
-        changeReason: 'Application auto-assigned for review'
+        notes: 'Application auto-assigned for review'
       });
 
       // Create notification for assigned employee

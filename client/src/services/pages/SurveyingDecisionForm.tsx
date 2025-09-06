@@ -205,37 +205,40 @@ export default function SurveyingDecisionForm() {
     setIsSubmitting(true);
     
     const applicationData = {
-      serviceType: 'surveying_decision',
-      applicantName: formData.applicantName,
-      applicantId: formData.applicantId,
-      contactPhone: formData.contactPhone,
-      contactEmail: formData.email,
-      description: `طلب قرار مساحي - ${formData.purpose}`,
-      location: `${formData.governorate} - ${formData.district} - ${formData.area}`,
-      plotInfo: {
-        landNumber: formData.landNumber,
-        plotNumber: formData.plotNumber,
-        governorate: formData.governorate,
-        district: formData.district,
-        area: formData.area,
-        coordinates: formData.coordinates,
+      serviceId: 'service-surveying-decision', // معرف خدمة القرار المساحي
+      applicantId: formData.applicantId || 'anonymous',
+      status: 'submitted',
+      currentStage: 'submitted',
+      applicationData: {
+        applicantName: formData.applicantName,
+        contactPhone: formData.contactPhone,
+        contactEmail: formData.email,
+        description: `طلب قرار مساحي - ${formData.purpose}`,
+        location: `${formData.governorate} - ${formData.district} - ${formData.area}`,
+        plotInfo: {
+          landNumber: formData.landNumber,
+          plotNumber: formData.plotNumber,
+          governorate: formData.governorate,
+          district: formData.district,
+          area: formData.area,
+          coordinates: formData.coordinates,
+        },
+        surveyInfo: {
+          surveyType: formData.surveyType,
+          purpose: formData.purpose,
+          description: formData.description,
+          drawnFeatures: formData.drawnFeatures,
+          totalArea: formData.totalArea,
+          totalLength: formData.totalLength,
+        },
+        serviceType: 'surveying_decision', // نحتفظ بهذا للمنطق الداخلي
       },
-      surveyInfo: {
-        surveyType: formData.surveyType,
-        purpose: formData.purpose,
-        description: formData.description,
-        drawnFeatures: formData.drawnFeatures,
-        totalArea: formData.totalArea,
-        totalLength: formData.totalLength,
-      },
-      attachments: formData.attachments.map(file => ({
+      documents: formData.attachments.map(file => ({
         name: file.name,
         size: file.size,
         type: file.type,
       })),
-      priority: 'normal',
-      status: 'submitted',
-      currentStage: 'submitted',
+      fees: '50000', // رسوم افتراضية - سيتم حسابها لاحقاً
     };
 
     try {
