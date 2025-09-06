@@ -10,7 +10,9 @@ import {
   insertRequirementCategorySchema, insertRequirementSchema, insertServiceSchema,
   insertApplicationSchema, insertSurveyingDecisionSchema, insertTaskSchema,
   insertSystemSettingSchema, insertServiceTemplateSchema, insertDynamicFormSchema,
-  insertWorkflowDefinitionSchema, insertServiceBuilderSchema
+  insertWorkflowDefinitionSchema, insertServiceBuilderSchema,
+  insertNotificationSchema, insertApplicationStatusHistorySchema,
+  insertApplicationAssignmentSchema, insertApplicationReviewSchema
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
@@ -924,6 +926,264 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching enhanced dashboard stats:", error);
       res.status(500).json({ message: "خطأ في استرجاع الإحصائيات" });
+    }
+  });
+
+  // Workflow Management Routes
+
+  // Application Status History
+  app.get("/api/applications/:id/status-history", authenticateToken, async (req, res) => {
+    try {
+      const history = await storage.getApplicationStatusHistory(req.params.id);
+      res.json(history);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/applications/:id/status-change", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const statusData = insertApplicationStatusHistorySchema.parse({
+        ...req.body,
+        applicationId: req.params.id,
+        changedById: req.user?.id,
+      });
+      const statusHistory = await storage.createApplicationStatusHistory(statusData);
+      
+      // Also update the main application status
+      await storage.updateApplication(req.params.id, {
+        status: statusData.newStatus,
+        currentStage: statusData.newStage,
+      });
+      
+      res.status(201).json(statusHistory);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Application Assignments
+  app.get("/api/applications/:id/assignments", authenticateToken, async (req, res) => {
+    try {
+      const assignments = await storage.getApplicationAssignments(req.params.id);
+      res.json(assignments);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Auto-assignment endpoint
+  app.post("/api/applications/:id/auto-assign", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { id } = req.params;
+      const application = await storage.getApplication(id);
+
+      if (!application) {
+        return res.status(404).json({ error: 'Application not found' });
+      }
+
+      // Simple auto-assignment logic based on service type
+      const departmentAssignments = {
+        'building_license': 'dept1', // Planning & Licensing Department
+        'surveying_decision': 'dept2', // Surveying Department
+        'demolition_permit': 'dept1', // Planning & Licensing Department
+        'renovation_permit': 'dept1', // Planning & Licensing Department
+        'commercial_license': 'dept3', // Commercial Affairs Department
+        'industrial_license': 'dept4', // Industrial Development Department
+      };
+
+      const targetDepartmentId = departmentAssignments[application.serviceType as keyof typeof departmentAssignments] || 'dept1';
+
+      // Get available employees in the target department with the least workload
+      const departmentUsers = await storage.getUsers({ departmentId: targetDepartmentId, isActive: true });
+      
+      if (departmentUsers.length === 0) {
+        return res.status(400).json({ error: 'No available employees in target department' });
+      }
+
+      // Simple round-robin assignment to the first available employee
+      const assignedToId = departmentUsers[0].id;
+
+      // Create assignment
+      const assignment = await storage.createApplicationAssignment({
+        applicationId: id,
+        assignedToId,
+        assignedById: req.user?.id || 'system',
+        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+        priority: 'medium',
+        notes: `Auto-assigned based on service type: ${application.serviceType}`,
+        status: 'pending'
+      });
+
+      // Update application status
+      await storage.updateApplication(id, {
+        status: 'in_review',
+        currentStage: 'review'
+      });
+
+      // Create status history
+      await storage.createApplicationStatusHistory({
+        applicationId: id,
+        previousStatus: application.status || 'submitted',
+        newStatus: 'in_review',
+        changedById: req.user?.id || 'system',
+        changeReason: 'Application auto-assigned for review'
+      });
+
+      // Create notification for assigned employee
+      await storage.createNotification({
+        userId: assignedToId,
+        title: 'تم تعيين طلب جديد لك',
+        message: `تم تعيين طلب رقم ${application.applicationNumber} لمراجعتك`,
+        type: 'assignment',
+        category: 'workflow',
+        relatedEntityId: id,
+        relatedEntityType: 'application'
+      });
+
+      res.json({ 
+        assignment, 
+        message: 'Application auto-assigned successfully' 
+      });
+    } catch (error) {
+      console.error('Error auto-assigning application:', error);
+      res.status(500).json({ error: 'Failed to auto-assign application' });
+    }
+  });
+
+  app.post("/api/applications/:id/assign", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const assignmentData = insertApplicationAssignmentSchema.parse({
+        ...req.body,
+        applicationId: req.params.id,
+        assignedById: req.user?.id,
+      });
+      const assignment = await storage.createApplicationAssignment(assignmentData);
+      
+      // Create notification for assigned employee
+      await storage.createNotification({
+        userId: assignmentData.assignedToId,
+        title: 'تم تعيين طلب جديد لك',
+        message: `تم تعيين طلب جديد لمراجعتك`,
+        type: 'assignment',
+        category: 'workflow',
+        relatedEntityId: req.params.id,
+        relatedEntityType: 'application'
+      });
+      
+      res.status(201).json(assignment);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/assignments/:id", authenticateToken, async (req, res) => {
+    try {
+      const assignment = await storage.updateApplicationAssignment(req.params.id, req.body);
+      res.json(assignment);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Application Reviews
+  app.get("/api/applications/:id/reviews", authenticateToken, async (req, res) => {
+    try {
+      const reviews = await storage.getApplicationReviews(req.params.id);
+      res.json(reviews);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/applications/:id/review", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const reviewData = insertApplicationReviewSchema.parse({
+        ...req.body,
+        applicationId: req.params.id,
+        reviewerId: req.user?.id,
+      });
+      const review = await storage.createApplicationReview(reviewData);
+      res.status(201).json(review);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Notifications
+  app.get("/api/notifications", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { isRead, category, type } = req.query;
+      const notifications = await storage.getNotifications({
+        userId: req.user?.id || "",
+        isRead: isRead === 'true' ? true : isRead === 'false' ? false : undefined,
+        category: category as string,
+        type: type as string,
+      });
+      res.json(notifications);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/notifications", authenticateToken, async (req, res) => {
+    try {
+      const notificationData = insertNotificationSchema.parse(req.body);
+      const notification = await storage.createNotification(notificationData);
+      res.status(201).json(notification);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/notifications/:id/read", authenticateToken, async (req, res) => {
+    try {
+      const notification = await storage.markNotificationAsRead(req.params.id);
+      res.json(notification);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/notifications/mark-all-read", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      await storage.markAllNotificationsAsRead(req.user?.id || "");
+      res.json({ message: "All notifications marked as read" });
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Employee dashboard - pending assignments
+  app.get("/api/dashboard/my-assignments", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const assignments = await storage.getUserAssignments(req.user?.id || "");
+      res.json(assignments);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Department workload statistics
+  app.get("/api/dashboard/department-workload", authenticateToken, async (req, res) => {
+    try {
+      const { departmentId } = req.query;
+      const workload = await storage.getDepartmentWorkload(departmentId as string);
+      res.json(workload);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
     }
   });
 

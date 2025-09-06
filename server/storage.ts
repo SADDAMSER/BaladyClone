@@ -3,6 +3,7 @@ import {
   requirementCategories, requirements, services, serviceRequirements,
   applications, surveyingDecisions, tasks, systemSettings,
   serviceTemplates, dynamicForms, workflowDefinitions, serviceBuilder,
+  applicationAssignments, applicationStatusHistory, applicationReviews, notifications,
   type User, type InsertUser, type Department, type InsertDepartment,
   type Position, type InsertPosition, type LawRegulation, type InsertLawRegulation,
   type LawSection, type InsertLawSection, type LawArticle, type InsertLawArticle,
@@ -13,7 +14,11 @@ import {
   type ServiceTemplate, type InsertServiceTemplate,
   type DynamicForm, type InsertDynamicForm,
   type WorkflowDefinition, type InsertWorkflowDefinition,
-  type ServiceBuilder, type InsertServiceBuilder
+  type ServiceBuilder, type InsertServiceBuilder,
+  type ApplicationAssignment, type InsertApplicationAssignment,
+  type ApplicationStatusHistory, type InsertApplicationStatusHistory,
+  type ApplicationReview, type InsertApplicationReview,
+  type Notification, type InsertNotification
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, like, ilike, and, or, desc, asc, sql, count } from "drizzle-orm";
@@ -156,6 +161,32 @@ export interface IStorage {
   getServiceUsageAnalytics(): Promise<any>;
   getWorkflowPerformanceAnalytics(): Promise<any>;
   getSystemHealth(): Promise<any>;
+
+  // Workflow Management - Status History
+  getApplicationStatusHistory(applicationId: string): Promise<ApplicationStatusHistory[]>;
+  createApplicationStatusHistory(history: InsertApplicationStatusHistory): Promise<ApplicationStatusHistory>;
+
+  // Workflow Management - Assignments
+  getApplicationAssignments(applicationId: string): Promise<ApplicationAssignment[]>;
+  createApplicationAssignment(assignment: InsertApplicationAssignment): Promise<ApplicationAssignment>;
+  updateApplicationAssignment(id: string, updates: Partial<InsertApplicationAssignment>): Promise<ApplicationAssignment>;
+  getUserAssignments(userId: string): Promise<ApplicationAssignment[]>;
+  getDepartmentWorkload(departmentId: string): Promise<any>;
+
+  // Workflow Management - Reviews
+  getApplicationReviews(applicationId: string): Promise<ApplicationReview[]>;
+  createApplicationReview(review: InsertApplicationReview): Promise<ApplicationReview>;
+
+  // Notifications
+  getNotifications(filters: { 
+    userId: string; 
+    isRead?: boolean; 
+    category?: string; 
+    type?: string; 
+  }): Promise<Notification[]>;
+  createNotification(notification: InsertNotification): Promise<Notification>;
+  markNotificationAsRead(notificationId: string): Promise<Notification>;
+  markAllNotificationsAsRead(userId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -916,6 +947,239 @@ export class DatabaseStorage implements IStorage {
       cpuUsage: "23%",
       lastBackup: new Date().toISOString()
     };
+  }
+
+  // Workflow Management - Status History
+  async getApplicationStatusHistory(applicationId: string): Promise<ApplicationStatusHistory[]> {
+    return await db
+      .select()
+      .from(applicationStatusHistory)
+      .where(eq(applicationStatusHistory.applicationId, applicationId))
+      .orderBy(desc(applicationStatusHistory.changedAt));
+  }
+
+  async createApplicationStatusHistory(history: InsertApplicationStatusHistory): Promise<ApplicationStatusHistory> {
+    const newHistory = {
+      ...history,
+      id: randomUUID(),
+      changedAt: new Date()
+    };
+
+    const [created] = await db
+      .insert(applicationStatusHistory)
+      .values(newHistory)
+      .returning();
+    
+    return created;
+  }
+
+  // Workflow Management - Assignments
+  async getApplicationAssignments(applicationId: string): Promise<ApplicationAssignment[]> {
+    return await db
+      .select()
+      .from(applicationAssignments)
+      .where(eq(applicationAssignments.applicationId, applicationId))
+      .orderBy(desc(applicationAssignments.assignedAt));
+  }
+
+  async createApplicationAssignment(assignment: InsertApplicationAssignment): Promise<ApplicationAssignment> {
+    const newAssignment = {
+      ...assignment,
+      id: randomUUID(),
+      assignedAt: new Date(),
+      status: assignment.status || 'pending'
+    };
+
+    const [created] = await db
+      .insert(applicationAssignments)
+      .values(newAssignment)
+      .returning();
+    
+    return created;
+  }
+
+  async updateApplicationAssignment(id: string, updates: Partial<InsertApplicationAssignment>): Promise<ApplicationAssignment> {
+    const [updated] = await db
+      .update(applicationAssignments)
+      .set(updates)
+      .where(eq(applicationAssignments.id, id))
+      .returning();
+
+    if (!updated) {
+      throw new Error('Assignment not found');
+    }
+
+    return updated;
+  }
+
+  async getUserAssignments(userId: string): Promise<ApplicationAssignment[]> {
+    return await db
+      .select({
+        id: applicationAssignments.id,
+        applicationId: applicationAssignments.applicationId,
+        assignedToId: applicationAssignments.assignedToId,
+        assignedById: applicationAssignments.assignedById,
+        assignedAt: applicationAssignments.assignedAt,
+        dueDate: applicationAssignments.dueDate,
+        priority: applicationAssignments.priority,
+        status: applicationAssignments.status,
+        notes: applicationAssignments.notes,
+        completedAt: applicationAssignments.completedAt,
+        application: {
+          id: applications.id,
+          applicationNumber: applications.applicationNumber,
+          serviceType: applications.serviceType,
+          applicantName: applications.applicantName,
+          applicantId: applications.applicantId,
+          status: applications.status,
+          currentStage: applications.currentStage,
+          submittedAt: applications.submittedAt,
+          description: applications.description,
+        }
+      })
+      .from(applicationAssignments)
+      .leftJoin(applications, eq(applicationAssignments.applicationId, applications.id))
+      .where(eq(applicationAssignments.assignedToId, userId))
+      .orderBy(desc(applicationAssignments.assignedAt));
+  }
+
+  async getDepartmentWorkload(departmentId: string): Promise<any> {
+    // Get users in department
+    const departmentUsers = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.departmentId, departmentId));
+
+    const userIds = departmentUsers.map(u => u.id);
+    
+    if (userIds.length === 0) {
+      return {
+        totalAssignments: 0,
+        pendingAssignments: 0,
+        completedAssignments: 0,
+        averageCompletionTime: 0
+      };
+    }
+
+    const totalAssignments = await db
+      .select({ count: count() })
+      .from(applicationAssignments)
+      .where(sql`${applicationAssignments.assignedToId} IN (${userIds.map(() => '?').join(',')})`, ...userIds);
+
+    const pendingAssignments = await db
+      .select({ count: count() })
+      .from(applicationAssignments)
+      .where(and(
+        sql`${applicationAssignments.assignedToId} IN (${userIds.map(() => '?').join(',')})`, ...userIds,
+        eq(applicationAssignments.status, 'pending')
+      ));
+
+    const completedAssignments = await db
+      .select({ count: count() })
+      .from(applicationAssignments)
+      .where(and(
+        sql`${applicationAssignments.assignedToId} IN (${userIds.map(() => '?').join(',')})`, ...userIds,
+        eq(applicationAssignments.status, 'completed')
+      ));
+
+    return {
+      totalAssignments: totalAssignments[0].count,
+      pendingAssignments: pendingAssignments[0].count,
+      completedAssignments: completedAssignments[0].count,
+      averageCompletionTime: 3.2 // days - placeholder calculation
+    };
+  }
+
+  // Workflow Management - Reviews
+  async getApplicationReviews(applicationId: string): Promise<ApplicationReview[]> {
+    return await db
+      .select()
+      .from(applicationReviews)
+      .where(eq(applicationReviews.applicationId, applicationId))
+      .orderBy(desc(applicationReviews.reviewedAt));
+  }
+
+  async createApplicationReview(review: InsertApplicationReview): Promise<ApplicationReview> {
+    const newReview = {
+      ...review,
+      id: randomUUID(),
+      reviewedAt: new Date()
+    };
+
+    const [created] = await db
+      .insert(applicationReviews)
+      .values(newReview)
+      .returning();
+    
+    return created;
+  }
+
+  // Notifications
+  async getNotifications(filters: { 
+    userId: string; 
+    isRead?: boolean; 
+    category?: string; 
+    type?: string; 
+  }): Promise<Notification[]> {
+    const conditions = [eq(notifications.userId, filters.userId)];
+    
+    if (filters.isRead !== undefined) {
+      conditions.push(eq(notifications.isRead, filters.isRead));
+    }
+    
+    if (filters.category) {
+      conditions.push(eq(notifications.category, filters.category));
+    }
+    
+    if (filters.type) {
+      conditions.push(eq(notifications.type, filters.type));
+    }
+
+    return await db
+      .select()
+      .from(notifications)
+      .where(and(...conditions))
+      .orderBy(desc(notifications.createdAt));
+  }
+
+  async createNotification(notification: InsertNotification): Promise<Notification> {
+    const newNotification = {
+      ...notification,
+      id: randomUUID(),
+      isRead: false,
+      createdAt: new Date()
+    };
+
+    const [created] = await db
+      .insert(notifications)
+      .values(newNotification)
+      .returning();
+    
+    return created;
+  }
+
+  async markNotificationAsRead(notificationId: string): Promise<Notification> {
+    const [updated] = await db
+      .update(notifications)
+      .set({ isRead: true })
+      .where(eq(notifications.id, notificationId))
+      .returning();
+
+    if (!updated) {
+      throw new Error('Notification not found');
+    }
+
+    return updated;
+  }
+
+  async markAllNotificationsAsRead(userId: string): Promise<void> {
+    await db
+      .update(notifications)
+      .set({ isRead: true })
+      .where(and(
+        eq(notifications.userId, userId),
+        eq(notifications.isRead, false)
+      ));
   }
 }
 

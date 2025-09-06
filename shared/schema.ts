@@ -407,6 +407,9 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   }),
   applications: many(applications),
   assignedTasks: many(tasks),
+  notifications: many(notifications),
+  assignments: many(applicationAssignments),
+  reviews: many(applicationReviews),
 }));
 
 export const departmentsRelations = relations(departments, ({ one, many }) => ({
@@ -539,6 +542,11 @@ export const applicationsRelations = relations(applications, ({ one, many }) => 
   }),
   surveyingDecision: one(surveyingDecisions),
   tasks: many(tasks),
+  statusHistory: many(applicationStatusHistory),
+  assignments: many(applicationAssignments),
+  reviews: many(applicationReviews),
+  attachments: many(applicationAttachments),
+  paymentInvoices: many(paymentInvoices),
 }));
 
 export const surveyingDecisionsRelations = relations(surveyingDecisions, ({ one }) => ({
@@ -1020,3 +1028,154 @@ export interface PermissionConfig {
     value: any;
   }>;
 }
+
+// Workflow Status Tracking
+export const applicationStatusHistory = pgTable("application_status_history", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  applicationId: uuid("application_id").notNull(),
+  previousStatus: text("previous_status"),
+  newStatus: text("new_status").notNull(),
+  previousStage: text("previous_stage"),
+  newStage: text("new_stage"),
+  changedById: uuid("changed_by_id"),
+  notes: text("notes"),
+  reasonCode: text("reason_code"), // approval_code, rejection_reason, etc.
+  attachments: jsonb("attachments"),
+  changedAt: timestamp("changed_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Notifications System
+export const notifications = pgTable("notifications", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").notNull(),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  type: text("type").notNull(), // info, warning, success, error, reminder
+  category: text("category").notNull(), // application_status, task_assignment, deadline, payment
+  relatedEntityType: text("related_entity_type"), // application, task, payment
+  relatedEntityId: uuid("related_entity_id"),
+  actionUrl: text("action_url"),
+  priority: text("priority").default("medium"), // high, medium, low
+  isRead: boolean("is_read").default(false),
+  isActionRequired: boolean("is_action_required").default(false),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  readAt: timestamp("read_at"),
+});
+
+// Application Assignment and Distribution
+export const applicationAssignments = pgTable("application_assignments", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  applicationId: uuid("application_id").notNull(),
+  assignedToId: uuid("assigned_to_id").notNull(),
+  assignedById: uuid("assigned_by_id").notNull(),
+  assignmentType: text("assignment_type").notNull(), // primary_reviewer, secondary_reviewer, specialist, approver
+  departmentId: uuid("department_id"),
+  stage: text("stage").notNull(), // initial_review, technical_review, legal_review, final_approval
+  priority: text("priority").default("medium"),
+  dueDate: timestamp("due_date"),
+  status: text("status").default("pending"), // pending, in_progress, completed, reassigned
+  notes: text("notes"),
+  assignedAt: timestamp("assigned_at").default(sql`CURRENT_TIMESTAMP`),
+  completedAt: timestamp("completed_at"),
+});
+
+// Application Reviews and Comments
+export const applicationReviews = pgTable("application_reviews", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  applicationId: uuid("application_id").notNull(),
+  reviewerId: uuid("reviewer_id").notNull(),
+  stage: text("stage").notNull(),
+  reviewType: text("review_type").notNull(), // initial, technical, legal, final
+  decision: text("decision").notNull(), // approve, reject, request_changes, need_info
+  comments: text("comments"),
+  reviewData: jsonb("review_data"), // stage-specific review details
+  attachments: jsonb("attachments"),
+  isRequired: boolean("is_required").default(true),
+  reviewedAt: timestamp("reviewed_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Relations for new tables
+export const applicationStatusHistoryRelations = relations(applicationStatusHistory, ({ one }) => ({
+  application: one(applications, {
+    fields: [applicationStatusHistory.applicationId],
+    references: [applications.id],
+  }),
+  changedBy: one(users, {
+    fields: [applicationStatusHistory.changedById],
+    references: [users.id],
+  }),
+}));
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(users, {
+    fields: [notifications.userId],
+    references: [users.id],
+  }),
+}));
+
+export const applicationAssignmentsRelations = relations(applicationAssignments, ({ one }) => ({
+  application: one(applications, {
+    fields: [applicationAssignments.applicationId],
+    references: [applications.id],
+  }),
+  assignedTo: one(users, {
+    fields: [applicationAssignments.assignedToId],
+    references: [users.id],
+  }),
+  assignedBy: one(users, {
+    fields: [applicationAssignments.assignedById],
+    references: [users.id],
+  }),
+  department: one(departments, {
+    fields: [applicationAssignments.departmentId],
+    references: [departments.id],
+  }),
+}));
+
+export const applicationReviewsRelations = relations(applicationReviews, ({ one }) => ({
+  application: one(applications, {
+    fields: [applicationReviews.applicationId],
+    references: [applications.id],
+  }),
+  reviewer: one(users, {
+    fields: [applicationReviews.reviewerId],
+    references: [users.id],
+  }),
+}));
+
+// Insert Schemas
+export const insertNotificationSchema = createInsertSchema(notifications).omit({ 
+  id: true, 
+  createdAt: true, 
+  readAt: true 
+});
+
+export const insertApplicationStatusHistorySchema = createInsertSchema(applicationStatusHistory).omit({ 
+  id: true, 
+  changedAt: true 
+});
+
+export const insertApplicationAssignmentSchema = createInsertSchema(applicationAssignments).omit({ 
+  id: true, 
+  assignedAt: true, 
+  completedAt: true 
+});
+
+export const insertApplicationReviewSchema = createInsertSchema(applicationReviews).omit({ 
+  id: true, 
+  reviewedAt: true 
+});
+
+// Types
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+
+export type ApplicationStatusHistory = typeof applicationStatusHistory.$inferSelect;
+export type InsertApplicationStatusHistory = z.infer<typeof insertApplicationStatusHistorySchema>;
+
+export type ApplicationAssignment = typeof applicationAssignments.$inferSelect;
+export type InsertApplicationAssignment = z.infer<typeof insertApplicationAssignmentSchema>;
+
+export type ApplicationReview = typeof applicationReviews.$inferSelect;
+export type InsertApplicationReview = z.infer<typeof insertApplicationReviewSchema>;

@@ -16,7 +16,8 @@ import {
   Zap,
   Brain,
   Archive,
-  Search
+  Search,
+  UserCheck
 } from "lucide-react";
 
 export interface NavigationItem {
@@ -60,6 +61,7 @@ export const navigationConfig: NavigationItem[] = [
     children: [
       { id: 'apps-track', label: 'تتبع الطلبات', icon: Search, path: '/applications/track' },
       { id: 'apps-pending', label: 'الطلبات المعلقة', icon: FileText, path: '/applications/pending' },
+      { id: 'employee-dashboard', label: 'لوحة الموظف', icon: UserCheck, path: '/employee/dashboard' },
       { id: 'apps-approved', label: 'الطلبات المعتمدة', icon: FileText, path: '/applications/approved' },
       { id: 'apps-history', label: 'سجل الطلبات', icon: Archive, path: '/applications/history' }
     ]
