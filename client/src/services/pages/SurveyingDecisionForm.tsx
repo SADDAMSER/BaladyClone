@@ -214,8 +214,8 @@ export default function SurveyingDecisionForm() {
     };
 
     const applicationData = {
-      serviceId: generateUUID(), // UUID للخدمة
-      applicantId: formData.applicantId || generateUUID(), // UUID لمقدم الطلب
+      serviceId: '550e8400-e29b-41d4-a716-446655440001', // خدمة قرار مساحي
+      applicantId: '550e8400-e29b-41d4-a716-446655440000', // مستخدم اختبار ثابت
       status: 'submitted',
       currentStage: 'submitted',
       applicationData: {
