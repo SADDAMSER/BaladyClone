@@ -31,8 +31,16 @@ import DepartmentManagerDashboard from "@/employee/pages/DepartmentManagerDashbo
 import SurveyorDashboard from "@/employee/pages/SurveyorDashboard";
 import ApplicationStatus from "@/citizen/pages/ApplicationStatus";
 import NotFound from "@/pages/not-found";
+import { AuthProvider, useAuth } from "@/auth/useAuth";
+import SimpleLogin from "@/auth/SimpleLogin";
 
-function Router() {
+function AuthenticatedRouter() {
+  const { isAuthenticated, login } = useAuth();
+
+  if (!isAuthenticated) {
+    return <SimpleLogin onLogin={login} />;
+  }
+
   return (
     <AdminLayout>
       <Switch>
@@ -72,8 +80,10 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="light" storageKey="yemen-platform-theme">
         <TooltipProvider>
-          <Toaster />
-          <Router />
+          <AuthProvider>
+            <Toaster />
+            <AuthenticatedRouter />
+          </AuthProvider>
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>
