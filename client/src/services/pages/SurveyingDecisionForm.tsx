@@ -247,7 +247,7 @@ export default function SurveyingDecisionForm() {
         size: file.size,
         type: file.type,
       })),
-      fees: '50000', // رسوم افتراضية - سيتم حسابها لاحقاً
+      fees: 50000, // رسوم افتراضية - سيتم حسابها لاحقاً
     };
 
     try {
