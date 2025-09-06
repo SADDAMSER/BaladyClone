@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useLocation } from "wouter";
+import { useParams, useLocation, useRouter } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -215,6 +215,14 @@ export default function ServiceApplication() {
   const serviceId = params.id as string;
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Redirect surveying decision service to specialized form
+  useEffect(() => {
+    if (serviceId === "2") { // Surveying decision service
+      setLocation("/services/surveying-decision");
+      return;
+    }
+  }, [serviceId, setLocation]);
 
   const [currentStep, setCurrentStep] = useState(1);
   const [uploadedFiles, setUploadedFiles] = useState<Record<string, File>>({});
