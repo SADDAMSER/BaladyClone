@@ -1,7 +1,10 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { MapContainer, TileLayer, useMapEvents, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, useMapEvents, useMap, LayersControl } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Globe, Map as MapIcon, Layers } from 'lucide-react';
 
 // إصلاح أيقونات Leaflet الافتراضية
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -18,6 +21,102 @@ interface InteractiveMapProps {
   height?: string;
   enableDrawing?: boolean;
   onFeatureDrawn?: (feature: any) => void;
+}
+
+type MapType = 'streets' | 'satellite' | 'hybrid' | 'terrain';
+
+const mapLayers = {
+  streets: {
+    name: 'الخريطة العادية',
+    icon: MapIcon,
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '© OpenStreetMap contributors'
+  },
+  satellite: {
+    name: 'صور الأقمار الصناعية',
+    icon: Globe,
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: '© Esri, DigitalGlobe, GeoEye, Earthstar Geographics, CNES/Airbus DS, USDA, USGS, AeroGRID, IGN, and the GIS User Community'
+  },
+  hybrid: {
+    name: 'الخريطة المختلطة',
+    icon: Layers,
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: '© Esri, DigitalGlobe, GeoEye, Earthstar Geographics, CNES/Airbus DS, USDA, USGS, AeroGRID, IGN, and the GIS User Community'
+  },
+  terrain: {
+    name: 'خريطة التضاريس',
+    icon: MapIcon,
+    url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+    attribution: '© OpenTopoMap (CC-BY-SA)'
+  }
+};
+
+interface MapTypeControlProps {
+  currentMapType: MapType;
+  onMapTypeChange: (type: MapType) => void;
+}
+
+function MapTypeControl({ currentMapType, onMapTypeChange }: MapTypeControlProps) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className="absolute top-4 right-4 z-[1000]" data-testid="map-type-control">
+      <Card className="shadow-lg">
+        <CardContent className="p-2">
+          {!isOpen ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsOpen(true)}
+              className="flex items-center gap-2"
+              data-testid="button-open-map-layers"
+            >
+              <Layers className="h-4 w-4" />
+              <span className="text-sm">طبقات الخريطة</span>
+            </Button>
+          ) : (
+            <div className="space-y-1 min-w-[180px]">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium">نوع الخريطة</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsOpen(false)}
+                  className="h-6 w-6 p-0"
+                  data-testid="button-close-map-layers"
+                >
+                  ×
+                </Button>
+              </div>
+              {Object.entries(mapLayers).map(([key, layer]) => {
+                const IconComponent = layer.icon;
+                const isActive = currentMapType === key;
+                return (
+                  <Button
+                    key={key}
+                    variant={isActive ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => {
+                      onMapTypeChange(key as MapType);
+                      setIsOpen(false);
+                    }}
+                    className={`w-full justify-start text-sm ${
+                      isActive ? 'bg-primary text-primary-foreground' : ''
+                    }`}
+                    data-testid={`button-map-type-${key}`}
+                  >
+                    <IconComponent className="h-4 w-4 ml-2" />
+                    {layer.name}
+                  </Button>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
 
 interface CoordinateDisplayProps {
@@ -147,7 +246,16 @@ export default function InteractiveMap({
 }: InteractiveMapProps) {
   const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   const [coordinateFormat, setCoordinateFormat] = useState<'wgs84' | 'utm'>('wgs84');
+  const [mapType, setMapType] = useState<MapType>(() => {
+    const saved = localStorage.getItem('preferred-map-type');
+    return (saved as MapType) || 'streets';
+  });
   const mapRef = useRef<L.Map | null>(null);
+
+  // حفظ نوع الخريطة المفضل
+  useEffect(() => {
+    localStorage.setItem('preferred-map-type', mapType);
+  }, [mapType]);
 
   return (
     <div className="relative w-full" style={{ height }} data-testid="interactive-map">
@@ -160,9 +268,19 @@ export default function InteractiveMap({
         ref={mapRef}
       >
         <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution="© OpenStreetMap contributors"
+          key={mapType}
+          url={mapLayers[mapType].url}
+          attribution={mapLayers[mapType].attribution}
         />
+        
+        {/* طبقة إضافية للخريطة المختلطة */}
+        {mapType === 'hybrid' && (
+          <TileLayer
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution="© OpenStreetMap contributors"
+            opacity={0.3}
+          />
+        )}
         
         {/* معالج الأحداث */}
         <MapEvents
@@ -174,12 +292,23 @@ export default function InteractiveMap({
         <MapStateManager />
       </MapContainer>
       
+      {/* تحكم في نوع الخريطة */}
+      <MapTypeControl
+        currentMapType={mapType}
+        onMapTypeChange={setMapType}
+      />
+      
       {/* عرض الإحداثيات */}
       <CoordinateDisplay
         coordinates={coordinates}
         format={coordinateFormat}
         onFormatChange={setCoordinateFormat}
       />
+      
+      {/* معلومات نوع الخريطة الحالي */}
+      <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-2 py-1 rounded text-xs text-muted-foreground z-[1000]" dir="rtl">
+        {mapLayers[mapType].name}
+      </div>
     </div>
   );
 }
