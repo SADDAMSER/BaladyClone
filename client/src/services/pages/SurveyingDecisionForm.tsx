@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -85,6 +87,8 @@ const surveyTypes = [
 
 export default function SurveyingDecisionForm() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
   const [formData, setFormData] = useState<SurveyFormData>({
     applicantName: '',
     applicantId: '',
@@ -107,6 +111,59 @@ export default function SurveyingDecisionForm() {
   
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Create application mutation
+  const createApplicationMutation = useMutation({
+    mutationFn: async (applicationData: any) => {
+      return await apiRequest('/api/applications', 'POST', applicationData);
+    },
+    onSuccess: async (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/applications'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard'] });
+      
+      // Try to auto-assign the application
+      try {
+        await apiRequest(`/api/applications/${data.id}/auto-assign`, 'POST', {});
+      } catch (error) {
+        console.log('Auto-assignment failed, will be done manually:', error);
+      }
+      
+      toast({
+        title: "تم تقديم الطلب بنجاح",
+        description: `تم إنشاء طلب القرار المساحي برقم: ${data.applicationNumber || data.id}. سيتم مراجعته من قبل الفريق المختص.`,
+        variant: "default",
+      });
+      
+      // Reset form after successful submission
+      setFormData({
+        applicantName: '',
+        applicantId: '',
+        contactPhone: '',
+        email: '',
+        governorate: '',
+        district: '',
+        area: '',
+        landNumber: '',
+        plotNumber: '',
+        coordinates: '',
+        surveyType: '',
+        purpose: '',
+        description: '',
+        drawnFeatures: [],
+        totalArea: 0,
+        totalLength: 0,
+        attachments: []
+      });
+      setCurrentStep(1);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "خطأ في تقديم الطلب",
+        description: error.message || "حدث خطأ أثناء تقديم الطلب. يرجى المحاولة مرة أخرى.",
+        variant: "destructive",
+      });
+    },
+  });
   
   const handleInputChange = (field: keyof SurveyFormData, value: any) => {
     setFormData(prev => ({
@@ -135,47 +192,55 @@ export default function SurveyingDecisionForm() {
   };
   
   const handleSubmit = async () => {
-    setIsSubmitting(true);
-    
-    try {
-      // محاكاة إرسال البيانات
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+    if (!validateStep(4) || formData.drawnFeatures.length === 0) {
       toast({
-        title: "تم تقديم الطلب بنجاح",
-        description: "سيتم مراجعة طلب القرار المساحي والرد عليك خلال 5-7 أيام عمل",
-        variant: "default",
-      });
-      
-      // إعادة تعيين النموذج
-      setFormData({
-        applicantName: '',
-        applicantId: '',
-        contactPhone: '',
-        email: '',
-        governorate: '',
-        district: '',
-        area: '',
-        landNumber: '',
-        plotNumber: '',
-        coordinates: '',
-        surveyType: '',
-        purpose: '',
-        description: '',
-        drawnFeatures: [],
-        totalArea: 0,
-        totalLength: 0,
-        attachments: []
-      });
-      
-      setCurrentStep(1);
-      
-    } catch (error) {
-      toast({
-        title: "خطأ في التقديم",
-        description: "حدث خطأ أثناء تقديم الطلب. يرجى المحاولة مرة أخرى.",
+        title: "بيانات ناقصة",
+        description: "يرجى التأكد من رسم المعالم الجغرافية على الخريطة",
         variant: "destructive",
       });
+      return;
+    }
+
+    setIsSubmitting(true);
+    
+    const applicationData = {
+      serviceType: 'surveying_decision',
+      applicantName: formData.applicantName,
+      applicantId: formData.applicantId,
+      contactPhone: formData.contactPhone,
+      contactEmail: formData.email,
+      description: `طلب قرار مساحي - ${formData.purpose}`,
+      location: `${formData.governorate} - ${formData.district} - ${formData.area}`,
+      plotInfo: {
+        landNumber: formData.landNumber,
+        plotNumber: formData.plotNumber,
+        governorate: formData.governorate,
+        district: formData.district,
+        area: formData.area,
+        coordinates: formData.coordinates,
+      },
+      surveyInfo: {
+        surveyType: formData.surveyType,
+        purpose: formData.purpose,
+        description: formData.description,
+        drawnFeatures: formData.drawnFeatures,
+        totalArea: formData.totalArea,
+        totalLength: formData.totalLength,
+      },
+      attachments: formData.attachments.map(file => ({
+        name: file.name,
+        size: file.size,
+        type: file.type,
+      })),
+      priority: 'normal',
+      status: 'submitted',
+      currentStage: 'submitted',
+    };
+
+    try {
+      await createApplicationMutation.mutateAsync(applicationData);
+    } catch (error) {
+      console.error('Error submitting application:', error);
     } finally {
       setIsSubmitting(false);
     }
