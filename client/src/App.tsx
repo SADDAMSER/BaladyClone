@@ -28,6 +28,7 @@ import EmployeeDashboard from "@/employee/pages/EmployeeDashboard";
 import CashierDashboard from "@/employee/pages/CashierDashboard";
 import PublicServiceDashboard from "@/employee/pages/PublicServiceDashboard";
 import DepartmentManagerDashboard from "@/employee/pages/DepartmentManagerDashboard";
+import SurveyorDashboard from "@/employee/pages/SurveyorDashboard";
 import ApplicationStatus from "@/citizen/pages/ApplicationStatus";
 import NotFound from "@/pages/not-found";
 
@@ -58,6 +59,7 @@ function Router() {
         <Route path="/employee/cashier" component={CashierDashboard} />
         <Route path="/employee/public-service" component={PublicServiceDashboard} />
         <Route path="/employee/department-manager" component={DepartmentManagerDashboard} />
+        <Route path="/employee/surveyor" component={SurveyorDashboard} />
         <Route path="/citizen/application-status" component={ApplicationStatus} />
         <Route component={NotFound} />
       </Switch>

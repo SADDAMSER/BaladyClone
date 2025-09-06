@@ -1319,6 +1319,123 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Surveyor Workflow Endpoints
+
+  // Assignment endpoint
+  app.post("/api/applications/:id/assign", async (req, res) => {
+    try {
+      const { assignedToId, notes, priority, assignedById } = req.body;
+      const applicationId = req.params.id;
+
+      const application = storage.getApplication(applicationId);
+      if (!application) {
+        return res.status(404).json({ message: "Application not found" });
+      }
+
+      const updatedApplication = {
+        ...application,
+        status: "assigned",
+        currentStage: "engineer_review",
+        assignedToId,
+        updatedAt: new Date().toISOString()
+      };
+
+      storage.updateApplication(applicationId, updatedApplication);
+
+      res.json({ 
+        message: "Application assigned successfully",
+        application: updatedApplication
+      });
+    } catch (error) {
+      console.error("Error assigning application:", error);
+      res.status(500).json({ message: "Failed to assign application" });
+    }
+  });
+
+  // Survey report submission endpoint
+  app.post("/api/applications/:id/survey-report", async (req, res) => {
+    try {
+      const {
+        surveyorId,
+        findings,
+        decision,
+        decisionReason,
+        attachments = []
+      } = req.body;
+      const applicationId = req.params.id;
+
+      const application = storage.getApplication(applicationId);
+      if (!application) {
+        return res.status(404).json({ message: "Application not found" });
+      }
+
+      // Create survey report
+      const surveyReport = {
+        id: Date.now().toString(),
+        applicationId,
+        surveyorId,
+        findings,
+        decision,
+        decisionReason,
+        attachments,
+        status: 'submitted',
+        createdAt: new Date().toISOString()
+      };
+
+      // Update application status based on survey decision
+      let newStatus = "survey_completed";
+      let newStage = "completed";
+      
+      if (decision === 'require_modification') {
+        newStatus = "requires_modification";
+        newStage = "citizen_action_required";
+      } else if (decision === 'reject') {
+        newStatus = "rejected";
+        newStage = "rejected";
+      }
+
+      const updatedApplication = {
+        ...application,
+        status: newStatus,
+        currentStage: newStage,
+        surveyReport,
+        updatedAt: new Date().toISOString()
+      };
+
+      storage.updateApplication(applicationId, updatedApplication);
+
+      res.json({
+        message: "Survey report submitted successfully",
+        application: updatedApplication,
+        surveyReport
+      });
+    } catch (error) {
+      console.error("Error submitting survey report:", error);
+      res.status(500).json({ message: "Failed to submit survey report" });
+    }
+  });
+
+  // Get survey report for application
+  app.get("/api/applications/:id/survey-report", async (req, res) => {
+    try {
+      const applicationId = req.params.id;
+      const application = storage.getApplication(applicationId);
+      
+      if (!application) {
+        return res.status(404).json({ message: "Application not found" });
+      }
+
+      if (!application.surveyReport) {
+        return res.status(404).json({ message: "Survey report not found" });
+      }
+
+      res.json(application.surveyReport);
+    } catch (error) {
+      console.error("Error fetching survey report:", error);
+      res.status(500).json({ message: "Failed to fetch survey report" });
+    }
+  });
+
   // Ministries
   app.get("/api/ministries", async (req, res) => {
     try {
