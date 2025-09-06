@@ -457,11 +457,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/applications", authenticateToken, async (req: AuthenticatedRequest, res) => {
+  // Public endpoint for citizens to submit applications (no authentication required)
+  app.post("/api/applications", async (req, res) => {
     try {
       const applicationData = insertApplicationSchema.parse({
         ...req.body,
-        applicantId: req.user?.id,
+        applicantId: req.body.applicantId || "anonymous", // Use provided applicantId or anonymous
       });
       const application = await storage.createApplication(applicationData);
       res.status(201).json(application);
@@ -469,6 +470,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Validation error", errors: error.errors });
       }
+      console.error("Error creating application:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });
@@ -975,8 +977,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Auto-assignment endpoint
-  app.post("/api/applications/:id/auto-assign", authenticateToken, async (req: AuthenticatedRequest, res) => {
+  // Auto-assignment endpoint (public - no authentication required for system auto-assignment)
+  app.post("/api/applications/:id/auto-assign", async (req, res) => {
     try {
       const { id } = req.params;
       const application = await storage.getApplication(id);
@@ -1011,7 +1013,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const assignment = await storage.createApplicationAssignment({
         applicationId: id,
         assignedToId,
-        assignedById: req.user?.id || 'system',
+        assignedById: 'system', // System auto-assignment
         dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
         priority: 'medium',
         notes: `Auto-assigned based on service type: ${application.serviceType}`,
@@ -1029,7 +1031,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         applicationId: id,
         previousStatus: application.status || 'submitted',
         newStatus: 'in_review',
-        changedById: req.user?.id || 'system',
+        changedById: 'system', // System auto-assignment
         changeReason: 'Application auto-assigned for review'
       });
 
