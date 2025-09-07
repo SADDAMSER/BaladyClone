@@ -1017,7 +1017,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const assignment = await storage.createApplicationAssignment({
         applicationId: id,
         assignedToId,
-        assignedById: 'system', // System auto-assignment
+        assignedById: null, // System auto-assignment
         assignmentType: 'primary_reviewer', // نوع التكليف
         stage: 'initial_review', // مرحلة المراجعة الأولية
         departmentId: targetDepartmentId,
@@ -1038,7 +1038,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         applicationId: id,
         previousStatus: application.status || 'submitted',
         newStatus: 'in_review',
-        changedById: 'system', // System auto-assignment
+        changedById: null, // System auto-assignment
         notes: 'Application auto-assigned for review'
       });
 
