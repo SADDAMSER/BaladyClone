@@ -21,7 +21,7 @@ import ServiceBuilder from "@/pages/ServiceBuilder";
 import ServiceCatalog from "@/services/pages/ServiceCatalog";
 import ServiceDetails from "@/services/pages/ServiceDetails";
 import ServiceApplication from "@/services/pages/ServiceApplication";
-import ApplicationTracking from "@/applications/pages/ApplicationTracking";
+import ApplicationTrackingAdmin from "@/applications/pages/ApplicationTracking";
 import PendingApplications from "@/applications/pages/PendingApplications";
 import SurveyingDecisionForm from "@/services/pages/SurveyingDecisionForm";
 import EmployeeDashboard from "@/employee/pages/EmployeeDashboard";
@@ -30,6 +30,8 @@ import PublicServiceDashboard from "@/employee/pages/PublicServiceDashboard";
 import DepartmentManagerDashboard from "@/employee/pages/DepartmentManagerDashboard";
 import SurveyorDashboard from "@/employee/pages/SurveyorDashboard";
 import ApplicationStatus from "@/citizen/pages/ApplicationStatus";
+import ApplicationTracking from "@/citizen/pages/ApplicationTracking";
+import PublicHomePage from "@/pages/PublicHomePage";
 import NotFound from "@/pages/not-found";
 import { AuthProvider, useAuth } from "@/auth/useAuth";
 import SimpleLogin from "@/auth/SimpleLogin";
@@ -44,7 +46,7 @@ function AuthenticatedRouter() {
   return (
     <AdminLayout>
       <Switch>
-        <Route path="/" component={AdminDashboard} />
+        <Route path="/admin" component={AdminDashboard} />
         <Route path="/building-licenses" component={BuildingLicenses} />
         <Route path="/surveying-decision" component={SurveyingDecision} />
         <Route path="/technical-requirements" component={TechnicalRequirements} />
@@ -57,21 +59,112 @@ function AuthenticatedRouter() {
         <Route path="/smart-search" component={SmartSearch} />
         <Route path="/task-management" component={TaskManagement} />
         <Route path="/service-builder" component={ServiceBuilder} />
-        <Route path="/services" component={ServiceCatalog} />
-        <Route path="/services/surveying-decision" component={SurveyingDecisionForm} />
-        <Route path="/services/:id" component={ServiceDetails} />
-        <Route path="/services/:id/apply" component={ServiceApplication} />
-        <Route path="/applications/track" component={ApplicationTracking} />
+        <Route path="/applications/track" component={ApplicationTrackingAdmin} />
         <Route path="/applications/pending" component={PendingApplications} />
         <Route path="/employee/dashboard" component={EmployeeDashboard} />
         <Route path="/employee/cashier" component={CashierDashboard} />
         <Route path="/employee/public-service" component={PublicServiceDashboard} />
         <Route path="/employee/department-manager" component={DepartmentManagerDashboard} />
         <Route path="/employee/surveyor" component={SurveyorDashboard} />
-        <Route path="/citizen/application-status" component={ApplicationStatus} />
         <Route component={NotFound} />
       </Switch>
     </AdminLayout>
+  );
+}
+
+function MainRouter() {
+  return (
+    <Switch>
+      {/* Public routes - accessible without authentication */}
+      <Route path="/" component={PublicHomePage} />
+      <Route path="/services/surveying-decision" component={SurveyingDecisionForm} />
+      <Route path="/citizen/application-status" component={ApplicationStatus} />
+      <Route path="/citizen/track" component={ApplicationTracking} />
+      
+      {/* Protected admin/employee routes */}
+      <Route path="/login">
+        <AuthProvider>
+          <AuthenticatedRouter />
+        </AuthProvider>
+      </Route>
+      <Route path="/admin/:rest*">
+        <AuthProvider>
+          <AuthenticatedRouter />
+        </AuthProvider>
+      </Route>
+      <Route path="/employee/:rest*">
+        <AuthProvider>
+          <AuthenticatedRouter />
+        </AuthProvider>
+      </Route>
+      <Route path="/building-licenses">
+        <AuthProvider>
+          <AuthenticatedRouter />
+        </AuthProvider>
+      </Route>
+      <Route path="/surveying-decision">
+        <AuthProvider>
+          <AuthenticatedRouter />
+        </AuthProvider>
+      </Route>
+      <Route path="/technical-requirements">
+        <AuthProvider>
+          <AuthenticatedRouter />
+        </AuthProvider>
+      </Route>
+      <Route path="/legal-system">
+        <AuthProvider>
+          <AuthenticatedRouter />
+        </AuthProvider>
+      </Route>
+      <Route path="/organizational-structure">
+        <AuthProvider>
+          <AuthenticatedRouter />
+        </AuthProvider>
+      </Route>
+      <Route path="/advanced-organizational-structure">
+        <AuthProvider>
+          <AuthenticatedRouter />
+        </AuthProvider>
+      </Route>
+      <Route path="/advanced-analytics">
+        <AuthProvider>
+          <AuthenticatedRouter />
+        </AuthProvider>
+      </Route>
+      <Route path="/user-management">
+        <AuthProvider>
+          <AuthenticatedRouter />
+        </AuthProvider>
+      </Route>
+      <Route path="/document-archive">
+        <AuthProvider>
+          <AuthenticatedRouter />
+        </AuthProvider>
+      </Route>
+      <Route path="/smart-search">
+        <AuthProvider>
+          <AuthenticatedRouter />
+        </AuthProvider>
+      </Route>
+      <Route path="/task-management">
+        <AuthProvider>
+          <AuthenticatedRouter />
+        </AuthProvider>
+      </Route>
+      <Route path="/service-builder">
+        <AuthProvider>
+          <AuthenticatedRouter />
+        </AuthProvider>
+      </Route>
+      <Route path="/applications/:rest*">
+        <AuthProvider>
+          <AuthenticatedRouter />
+        </AuthProvider>
+      </Route>
+      
+      <Route component={NotFound} />
+    </Switch>
   );
 }
 
@@ -80,10 +173,8 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="light" storageKey="yemen-platform-theme">
         <TooltipProvider>
-          <AuthProvider>
-            <Toaster />
-            <AuthenticatedRouter />
-          </AuthProvider>
+          <Toaster />
+          <MainRouter />
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>
