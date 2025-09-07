@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import EmployeeLogin from "@/employee/components/EmployeeLogin";
+import UnifiedSurveyingForm from "@/employee/components/UnifiedSurveyingForm";
 import { useLocation } from "wouter";
 import { 
   FileText, 
@@ -344,18 +345,16 @@ export default function PublicServiceDashboard() {
   const handlePrintInvoice = () => {
     if (!invoiceApplication) return;
     
-    // Open unified form in new window for printing
-    const printWindow = window.open(
-      `/employee/unified-form/${invoiceApplication.id}`,
-      '_blank',
-      'width=800,height=600,scrollbars=yes,resizable=yes'
-    );
+    // Print the dialog content directly
+    setTimeout(() => {
+      window.print();
+    }, 100);
     
-    // After a delay, transfer to treasury
+    // After printing, transfer to treasury
     setTimeout(() => {
       setIsTransferring(true);
       transferToTreasuryMutation.mutate();
-    }, 2000);
+    }, 1500);
   };
 
   const calculateFees = (application: ApplicationDetails) => {
@@ -805,7 +804,7 @@ export default function PublicServiceDashboard() {
                     <DialogHeader>
                       <DialogTitle className="text-right">فاتورة سداد - INV-{Date.now().toString().slice(-6)}</DialogTitle>
                       <DialogDescription className="text-right">
-                        اضغط طباعة لإصدار الفاتورة وترحيل الطلب إلى الصندوق
+                        النموذج الموحد - طلب الإسقاط المساحي مع إشعار السداد
                       </DialogDescription>
                     </DialogHeader>
                     <div className="flex gap-2 mt-4">
@@ -815,7 +814,7 @@ export default function PublicServiceDashboard() {
                         className="bg-green-600 hover:bg-green-700"
                       >
                         <Printer className="h-4 w-4 ml-2" />
-                        {isTransferring ? 'جاري الترحيل...' : 'طباعة وترحيل للصندوق'}
+                        {isTransferring ? 'جاري الترحيل...' : 'طباعة النموذج الموحد'}
                       </Button>
                       <Button 
                         variant="outline" 
@@ -827,32 +826,35 @@ export default function PublicServiceDashboard() {
                     </div>
                   </div>
 
-                  {/* Invoice Content */}
+                  {/* Unified Form Content */}
                   <div className="bg-white">
-                    {/* Invoice Header */}
-                    <div className="p-6 border-b border-gray-200">
-                      <div className="flex items-start justify-between">
-                        {/* Left side - Application details */}
-                        <div className="space-y-2 text-sm">
-                          <div><strong>رقم الطلب:</strong> {invoiceApplication.applicationNumber}</div>
-                          <div><strong>تاريخ الطلب:</strong> {formatDate(invoiceApplication.submittedAt)}</div>
-                          <div><strong>رقم الفاتورة:</strong> INV-{Date.now().toString().slice(-6)}</div>
-                          <div><strong>حالة الفاتورة:</strong> 
-                            <Badge className="mr-2 bg-orange-100 text-orange-800">
-                              غير مدفوع
-                            </Badge>
-                          </div>
-                        </div>
-
-                        {/* Center - QR Code */}
-                        <div className="flex flex-col items-center">
-                          <div className="w-20 h-20 bg-gray-200 border-2 border-gray-400 flex items-center justify-center">
-                            <div className="grid grid-cols-6 gap-px w-16 h-16">
-                              {Array.from({ length: 36 }, (_, i) => (
-                                <div
-                                  key={i}
-                                  className={`w-full h-full ${
-                                    Math.random() > 0.5 ? 'bg-black' : 'bg-white'
+                    <UnifiedSurveyingForm 
+                      application={{
+                        id: invoiceApplication.id,
+                        applicationNumber: invoiceApplication.applicationNumber,
+                        applicationData: {
+                          applicantName: invoiceApplication.applicantName,
+                          applicantId: invoiceApplication.applicantId,
+                          phoneNumber: invoiceApplication.contactPhone || '',
+                          location: invoiceApplication.location || '',
+                          area: invoiceApplication.applicationData?.area || '700',
+                          purpose: invoiceApplication.serviceType
+                        },
+                        fees: reviewData.calculatedFees,
+                        submittedAt: invoiceApplication.submittedAt
+                      }}
+                      barcode={`*${invoiceApplication.applicationNumber}*`}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </div>
+  );
+}
                                   }`}
                                 />
                               ))}
