@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { 
   FileText, 
@@ -20,7 +21,11 @@ import {
   Clock,
   Calculator,
   Search,
-  Filter
+  Filter,
+  Building2,
+  Phone,
+  Mail,
+  AlertCircle
 } from "lucide-react";
 
 interface ApplicationDetails {
@@ -30,6 +35,7 @@ interface ApplicationDetails {
   status: string;
   currentStage: string;
   submittedAt: string;
+  estimatedCompletion?: string;
   applicantName: string;
   applicantId: string;
   contactPhone: string;
@@ -46,6 +52,16 @@ interface ApplicationDetails {
   };
   fees?: string;
   isPaid?: boolean;
+  assignedTo?: {
+    username: string;
+    role: string;
+    department: string;
+  };
+  statusHistory?: Array<{
+    status: string;
+    changedAt: string;
+    notes?: string;
+  }>;
 }
 
 interface ReviewData {
@@ -55,10 +71,49 @@ interface ReviewData {
   reviewerComments: string;
 }
 
+const statusConfig = {
+  submitted: { 
+    label: "تم التقديم", 
+    color: "bg-blue-100 text-blue-800", 
+    icon: <FileText className="h-4 w-4" /> 
+  },
+  in_review: { 
+    label: "قيد المراجعة", 
+    color: "bg-yellow-100 text-yellow-800", 
+    icon: <Clock className="h-4 w-4" /> 
+  },
+  approved: { 
+    label: "موافق", 
+    color: "bg-green-100 text-green-800", 
+    icon: <CheckCircle className="h-4 w-4" /> 
+  },
+  rejected: { 
+    label: "مرفوض", 
+    color: "bg-red-100 text-red-800", 
+    icon: <XCircle className="h-4 w-4" /> 
+  },
+  pending_payment: { 
+    label: "في انتظار السداد", 
+    color: "bg-orange-100 text-orange-800", 
+    icon: <AlertCircle className="h-4 w-4" /> 
+  },
+  completed: { 
+    label: "مكتمل", 
+    color: "bg-green-100 text-green-800", 
+    icon: <CheckCircle className="h-4 w-4" /> 
+  }
+};
+
 export default function PublicServiceDashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState("pending");
+  
+  // States for search functionality
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchBy, setSearchBy] = useState<"application_number" | "national_id">("application_number");
+  const [hasSearched, setHasSearched] = useState(false);
+  
+  // States for review functionality
   const [selectedApplication, setSelectedApplication] = useState<ApplicationDetails | null>(null);
   const [reviewData, setReviewData] = useState<ReviewData>({
     decision: 'approved',
@@ -66,18 +121,18 @@ export default function PublicServiceDashboard() {
     calculatedFees: 0,
     reviewerComments: ''
   });
-  const [searchTerm, setSearchTerm] = useState("");
+  
+  // States for UI
+  const [activeTab, setActiveTab] = useState("search");
 
-  // Fetch pending applications for review
-  const { data: pendingApplications, isLoading: loadingPending } = useQuery<ApplicationDetails[]>({
-    queryKey: ['/api/public-service/pending-applications'],
-    retry: false,
-    refetchOnWindowFocus: false
-  });
-
-  // Fetch reviewed applications
-  const { data: reviewedApplications, isLoading: loadingReviewed } = useQuery<ApplicationDetails[]>({
-    queryKey: ['/api/public-service/reviewed-applications'],
+  // Query for application search/tracking
+  const { data: applicationDetails, isLoading, error } = useQuery<ApplicationDetails>({
+    queryKey: ['/api/track-application', searchTerm, searchBy],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/track-application?search_term=${searchTerm}&search_by=${searchBy}`);
+      return await response.json();
+    },
+    enabled: hasSearched && searchTerm.length > 0,
     retry: false,
     refetchOnWindowFocus: false
   });
@@ -94,8 +149,7 @@ export default function PublicServiceDashboard() {
         description: reviewData.decision === 'approved' ? "تم اعتماد الطلب بنجاح" : "تم رفض الطلب",
         variant: reviewData.decision === 'approved' ? "default" : "destructive",
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/public-service/pending-applications'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/public-service/reviewed-applications'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/track-application'] });
       setSelectedApplication(null);
       setReviewData({ decision: 'approved', notes: '', calculatedFees: 0, reviewerComments: '' });
     },
@@ -108,6 +162,14 @@ export default function PublicServiceDashboard() {
       console.error('Review error:', error);
     },
   });
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchTerm.trim()) {
+      setHasSearched(true);
+      setSelectedApplication(null);
+    }
+  };
 
   const handleReview = () => {
     if (!selectedApplication) return;
@@ -128,7 +190,6 @@ export default function PublicServiceDashboard() {
   };
 
   const calculateFees = (application: ApplicationDetails) => {
-    // Fee calculation logic based on service type and area
     const baseFees = {
       'قرار المساحة': 5000,
       'ترخيص بناء': 15000,
@@ -137,8 +198,6 @@ export default function PublicServiceDashboard() {
     };
     
     const baseAmount = baseFees[application.serviceType as keyof typeof baseFees] || 5000;
-    
-    // Additional fees based on land area or other factors
     const areaMultiplier = application.applicationData.area ? 
       Math.min(parseInt(application.applicationData.area) / 100, 5) : 1;
     
@@ -155,225 +214,411 @@ export default function PublicServiceDashboard() {
     }
   }, [selectedApplication]);
 
-  const filteredApplications = (applications: ApplicationDetails[] | undefined) => {
-    if (!applications || !searchTerm) return applications || [];
-    
-    return applications.filter(app => 
-      app.applicationNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      app.applicantName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      app.applicantId.includes(searchTerm)
-    );
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('ar-YE', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
-  const getStatusBadge = (status: string) => {
-    const statusMap = {
-      'submitted': { label: 'مقدم', variant: 'secondary' as const },
-      'in_review': { label: 'قيد المراجعة', variant: 'default' as const },
-      'approved': { label: 'معتمد', variant: 'default' as const },
-      'rejected': { label: 'مرفوض', variant: 'destructive' as const },
-      'pending_payment': { label: 'في انتظار السداد', variant: 'secondary' as const }
-    };
-    
-    const statusInfo = statusMap[status as keyof typeof statusMap] || { label: status, variant: 'secondary' as const };
-    return <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>;
+  const getStatusConfig = (status: string) => {
+    return statusConfig[status as keyof typeof statusConfig] || statusConfig.submitted;
   };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900" dir="rtl">
-      <div className="container mx-auto px-4 py-6">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              خدمة الجمهور - مراجعة الطلبات
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-2">
-              مراجعة واعتماد طلبات الخدمات المقدمة من المواطنين
-            </p>
+      {/* Header */}
+      <header className="bg-white dark:bg-gray-800 shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center">
+              <Building2 className="h-6 w-6 text-blue-600 ml-2" />
+              <span className="text-lg font-semibold">خدمة الجمهور - مراجعة الطلبات</span>
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              {new Date().toLocaleDateString('ar-YE', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              })}
+            </div>
           </div>
         </div>
+      </header>
 
-        {/* Search and Filter */}
-        <Card className="mb-6">
-          <CardContent className="p-4">
-            <div className="flex gap-4 items-center">
-              <div className="flex-1">
-                <div className="relative">
-                  <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                  <Input
-                    placeholder="البحث برقم الطلب، اسم المتقدم، أو رقم الهوية..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pr-10"
-                    data-testid="input-search-applications"
-                  />
-                </div>
-              </div>
-              <Button variant="outline" size="sm" data-testid="button-filter">
-                <Filter className="h-4 w-4 ml-2" />
-                فلترة
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-8">
+            <TabsTrigger value="search" data-testid="tab-search">
+              البحث وتتبع الطلبات
+            </TabsTrigger>
+            <TabsTrigger value="review" data-testid="tab-review">
+              مراجعة واعتماد الطلبات
+            </TabsTrigger>
+          </TabsList>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Applications List */}
-          <div className="lg:col-span-2">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="pending" data-testid="tab-pending">
-                  الطلبات المطلوب مراجعتها ({filteredApplications(pendingApplications)?.length || 0})
-                </TabsTrigger>
-                <TabsTrigger value="reviewed" data-testid="tab-reviewed">
-                  الطلبات المراجعة ({filteredApplications(reviewedApplications)?.length || 0})
-                </TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="pending" className="space-y-4">
-                {loadingPending ? (
-                  <div className="text-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                    <p className="text-gray-600 dark:text-gray-400 mt-2">جاري تحميل الطلبات...</p>
-                  </div>
-                ) : filteredApplications(pendingApplications)?.length === 0 ? (
-                  <Card>
-                    <CardContent className="text-center py-8">
-                      <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-600 dark:text-gray-400">لا توجد طلبات مطلوب مراجعتها</p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  filteredApplications(pendingApplications)?.map((application) => (
-                    <Card 
-                      key={application.id} 
-                      className={`cursor-pointer transition-all hover:shadow-md ${
-                        selectedApplication?.id === application.id ? 'ring-2 ring-blue-500' : ''
-                      }`}
-                      onClick={() => setSelectedApplication(application)}
-                      data-testid={`card-application-${application.id}`}
-                    >
-                      <CardContent className="p-4">
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <h3 className="font-semibold text-lg text-gray-900 dark:text-white">
-                              {application.applicationNumber}
-                            </h3>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">
-                              {application.serviceType}
-                            </p>
-                          </div>
-                          {getStatusBadge(application.status)}
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div className="flex items-center">
-                            <User className="h-4 w-4 ml-2 text-gray-400" />
-                            <span>{application.applicantName}</span>
-                          </div>
-                          <div className="flex items-center">
-                            <Calendar className="h-4 w-4 ml-2 text-gray-400" />
-                            <span>{new Date(application.submittedAt).toLocaleDateString('ar-SA')}</span>
-                          </div>
-                          <div className="flex items-center">
-                            <MapPin className="h-4 w-4 ml-2 text-gray-400" />
-                            <span>{application.applicationData.governorate}</span>
-                          </div>
-                          <div className="flex items-center">
-                            <Clock className="h-4 w-4 ml-2 text-gray-400" />
-                            <span>{application.currentStage}</span>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))
-                )}
-              </TabsContent>
-              
-              <TabsContent value="reviewed" className="space-y-4">
-                {loadingReviewed ? (
-                  <div className="text-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                    <p className="text-gray-600 dark:text-gray-400 mt-2">جاري تحميل الطلبات...</p>
-                  </div>
-                ) : filteredApplications(reviewedApplications)?.length === 0 ? (
-                  <Card>
-                    <CardContent className="text-center py-8">
-                      <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-600 dark:text-gray-400">لا توجد طلبات مراجعة</p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  filteredApplications(reviewedApplications)?.map((application) => (
-                    <Card 
-                      key={application.id} 
-                      className="cursor-pointer transition-all hover:shadow-md"
-                      onClick={() => setSelectedApplication(application)}
-                      data-testid={`card-reviewed-${application.id}`}
-                    >
-                      <CardContent className="p-4">
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <h3 className="font-semibold text-lg text-gray-900 dark:text-white">
-                              {application.applicationNumber}
-                            </h3>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">
-                              {application.serviceType}
-                            </p>
-                          </div>
-                          {getStatusBadge(application.status)}
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div className="flex items-center">
-                            <User className="h-4 w-4 ml-2 text-gray-400" />
-                            <span>{application.applicantName}</span>
-                          </div>
-                          <div className="flex items-center">
-                            <DollarSign className="h-4 w-4 ml-2 text-gray-400" />
-                            <span>{application.fees ? `${application.fees} ريال` : 'لم يتم تحديد الرسوم'}</span>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))
-                )}
-              </TabsContent>
-            </Tabs>
-          </div>
-
-          {/* Review Panel */}
-          <div className="lg:col-span-1">
-            {selectedApplication ? (
-              <Card className="sticky top-6">
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <FileText className="h-5 w-5 ml-2" />
-                    مراجعة الطلب
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <h4 className="font-semibold mb-2">تفاصيل الطلب</h4>
-                    <div className="space-y-2 text-sm">
-                      <div><strong>رقم الطلب:</strong> {selectedApplication.applicationNumber}</div>
-                      <div><strong>نوع الخدمة:</strong> {selectedApplication.serviceType}</div>
-                      <div><strong>اسم المتقدم:</strong> {selectedApplication.applicantName}</div>
-                      <div><strong>رقم الهوية:</strong> {selectedApplication.applicantId}</div>
-                      <div><strong>رقم الهاتف:</strong> {selectedApplication.contactPhone}</div>
-                      {selectedApplication.applicationData.governorate && (
-                        <div><strong>المحافظة:</strong> {selectedApplication.applicationData.governorate}</div>
-                      )}
-                      {selectedApplication.applicationData.district && (
-                        <div><strong>المديرية:</strong> {selectedApplication.applicationData.district}</div>
-                      )}
-                      {selectedApplication.applicationData.purpose && (
-                        <div><strong>الغرض:</strong> {selectedApplication.applicationData.purpose}</div>
-                      )}
+          {/* Search and Tracking Tab */}
+          <TabsContent value="search" className="space-y-6">
+            {/* Search Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Search className="h-5 w-5 ml-2" />
+                  البحث عن طلب
+                </CardTitle>
+                <CardDescription>
+                  ابحث عن الطلبات المقدمة باستخدام رقم الطلب أو رقم الهوية
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSearch} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label>البحث بواسطة</Label>
+                      <select 
+                        className="w-full p-2 border rounded-md"
+                        value={searchBy}
+                        onChange={(e) => setSearchBy(e.target.value as "application_number" | "national_id")}
+                      >
+                        <option value="application_number">رقم الطلب</option>
+                        <option value="national_id">رقم الهوية</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>
+                        {searchBy === "application_number" ? "رقم الطلب" : "رقم الهوية"}
+                      </Label>
+                      <Input
+                        placeholder={searchBy === "application_number" ? "مثال: APP-2025-123456" : "مثال: 123456789"}
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        data-testid="input-search-term"
+                      />
+                    </div>
+                    <div className="flex items-end">
+                      <Button type="submit" className="w-full" data-testid="button-search">
+                        <Search className="h-4 w-4 ml-2" />
+                        بحث
+                      </Button>
                     </div>
                   </div>
+                </form>
+              </CardContent>
+            </Card>
 
-                  {activeTab === 'pending' && (
-                    <>
+            {/* Loading State */}
+            {isLoading && (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="mt-4 text-gray-600">جاري البحث...</p>
+              </div>
+            )}
+
+            {/* Error State */}
+            {error && hasSearched && (
+              <Alert className="mb-8">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  لم يتم العثور على طلب بالمعلومات المدخلة. تأكد من صحة رقم الطلب أو رقم الهوية.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Application Details */}
+            {applicationDetails && !isLoading && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Application Overview */}
+                <div className="lg:col-span-2 space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <CardTitle className="text-xl">
+                            طلب رقم: {applicationDetails.applicationNumber}
+                          </CardTitle>
+                          <CardDescription className="mt-2">
+                            نوع الخدمة: {applicationDetails.serviceType}
+                          </CardDescription>
+                        </div>
+                        <Badge className={getStatusConfig(applicationDetails.status).color}>
+                          <span className="flex items-center">
+                            {getStatusConfig(applicationDetails.status).icon}
+                            <span className="mr-1">{getStatusConfig(applicationDetails.status).label}</span>
+                          </span>
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-3">
+                          <div className="flex items-center">
+                            <Calendar className="h-4 w-4 text-gray-500 ml-2" />
+                            <span className="text-sm text-gray-600">تاريخ التقديم:</span>
+                            <span className="mr-2 font-medium">{formatDate(applicationDetails.submittedAt)}</span>
+                          </div>
+                          {applicationDetails.estimatedCompletion && (
+                            <div className="flex items-center">
+                              <Clock className="h-4 w-4 text-gray-500 ml-2" />
+                              <span className="text-sm text-gray-600">التاريخ المتوقع للإنجاز:</span>
+                              <span className="mr-2 font-medium">{formatDate(applicationDetails.estimatedCompletion)}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="space-y-3">
+                          <div className="flex items-center">
+                            <User className="h-4 w-4 text-gray-500 ml-2" />
+                            <span className="text-sm text-gray-600">اسم المتقدم:</span>
+                            <span className="mr-2 font-medium">{applicationDetails.applicantName}</span>
+                          </div>
+                          <div className="flex items-center">
+                            <Phone className="h-4 w-4 text-gray-500 ml-2" />
+                            <span className="text-sm text-gray-600">رقم الهاتف:</span>
+                            <span className="mr-2 font-medium">{applicationDetails.contactPhone}</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {applicationDetails.assignedTo && (
+                        <div className="mt-6 p-4 bg-blue-50 rounded-lg dark:bg-blue-900/20">
+                          <h4 className="font-medium mb-2">معلومات الموظف المختص</h4>
+                          <div className="text-sm space-y-1">
+                            <p><span className="text-gray-600">القسم:</span> {applicationDetails.assignedTo.department}</p>
+                            <p><span className="text-gray-600">المسؤول:</span> {applicationDetails.assignedTo.username}</p>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Status Timeline */}
+                  {applicationDetails.statusHistory && applicationDetails.statusHistory.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>سجل حالة الطلب</CardTitle>
+                        <CardDescription>
+                          تتبع جميع التحديثات والتغييرات التي طرأت على الطلب
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          {applicationDetails.statusHistory.map((entry, index) => (
+                            <div key={index} className="flex items-start space-x-3 space-x-reverse">
+                              <div className="flex-shrink-0">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${getStatusConfig(entry.status).color}`}>
+                                  {getStatusConfig(entry.status).icon}
+                                </div>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex justify-between items-center">
+                                  <p className="font-medium">
+                                    {getStatusConfig(entry.status).label}
+                                  </p>
+                                  <p className="text-sm text-gray-500">
+                                    {formatDate(entry.changedAt)}
+                                  </p>
+                                </div>
+                                {entry.notes && (
+                                  <p className="text-sm text-gray-600 mt-1">{entry.notes}</p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Application Data */}
+                  {applicationDetails.applicationData && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>تفاصيل الطلب</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                          {Object.entries(applicationDetails.applicationData).map(([key, value]) => (
+                            value && (
+                              <div key={key} className="flex justify-between">
+                                <span className="text-gray-600 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}:</span>
+                                <span className="font-medium">{String(value)}</span>
+                              </div>
+                            )
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Next Steps */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>الخطوات التالية</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {applicationDetails.status === 'submitted' && (
+                          <Alert>
+                            <Clock className="h-4 w-4" />
+                            <AlertDescription>
+                              طلبك قيد المراجعة الأولية. سيتم التواصل معك في حال الحاجة لمعلومات إضافية.
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                        {applicationDetails.status === 'in_review' && (
+                          <Alert>
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertDescription>
+                              طلبك قيد المراجعة من قبل الفريق المختص. سيتم إشعارك بأي تحديثات.
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                        {applicationDetails.status === 'pending_payment' && (
+                          <Alert>
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertDescription>
+                              يرجى زيارة المكتب لدفع الرسوم المطلوبة لإكمال معالجة طلبك.
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                        {applicationDetails.status === 'approved' && (
+                          <Alert>
+                            <CheckCircle className="h-4 w-4" />
+                            <AlertDescription>
+                              تم الموافقة على طلبك! يمكنك زيارة المكتب لاستلام الوثائق النهائية.
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                        
+                        <div className="flex flex-col sm:flex-row gap-3 pt-4">
+                          <Button variant="outline">
+                            <Phone className="h-4 w-4 ml-2" />
+                            التواصل مع المكتب
+                          </Button>
+                          <Button variant="outline">
+                            طباعة التفاصيل
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Quick Actions Panel */}
+                <div className="lg:col-span-1">
+                  <Card className="sticky top-6">
+                    <CardHeader>
+                      <CardTitle>إجراءات سريعة</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <Button 
+                        onClick={() => {
+                          setSelectedApplication(applicationDetails);
+                          setActiveTab("review");
+                        }}
+                        className="w-full"
+                        data-testid="button-start-review"
+                      >
+                        <FileText className="h-4 w-4 ml-2" />
+                        بدء مراجعة الطلب
+                      </Button>
+                      
+                      <Button variant="outline" className="w-full">
+                        <Phone className="h-4 w-4 ml-2" />
+                        التواصل مع المتقدم
+                      </Button>
+                      
+                      <Button variant="outline" className="w-full">
+                        طباعة التفاصيل
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            )}
+
+            {/* Help Section */}
+            {!hasSearched && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>تحتاج مساعدة؟</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <h4 className="font-medium mb-2">كيفية العثور على رقم الطلب</h4>
+                      <p className="text-sm text-gray-600">
+                        رقم الطلب موجود في رسالة التأكيد التي تم إرسالها عند تقديم الطلب، 
+                        أو يمكن العثور عليه في الإيصال المطبوع.
+                      </p>
+                    </div>
+                    <div>
+                      <h4 className="font-medium mb-2">للاستفسارات</h4>
+                      <div className="text-sm space-y-1">
+                        <p className="flex items-center">
+                          <Phone className="h-4 w-4 ml-2" />
+                          +967 1 123 456
+                        </p>
+                        <p className="flex items-center">
+                          <Mail className="h-4 w-4 ml-2" />
+                          support@yemen-platform.gov.ye
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Review Tab */}
+          <TabsContent value="review" className="space-y-6">
+            {selectedApplication ? (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Application Details */}
+                <div className="lg:col-span-2">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center">
+                        <FileText className="h-5 w-5 ml-2" />
+                        تفاصيل الطلب - {selectedApplication.applicationNumber}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-3">
+                          <div><strong>نوع الخدمة:</strong> {selectedApplication.serviceType}</div>
+                          <div><strong>اسم المتقدم:</strong> {selectedApplication.applicantName}</div>
+                          <div><strong>رقم الهوية:</strong> {selectedApplication.applicantId}</div>
+                          <div><strong>رقم الهاتف:</strong> {selectedApplication.contactPhone}</div>
+                        </div>
+                        <div className="space-y-3">
+                          {selectedApplication.applicationData.governorate && (
+                            <div><strong>المحافظة:</strong> {selectedApplication.applicationData.governorate}</div>
+                          )}
+                          {selectedApplication.applicationData.district && (
+                            <div><strong>المديرية:</strong> {selectedApplication.applicationData.district}</div>
+                          )}
+                          {selectedApplication.applicationData.purpose && (
+                            <div><strong>الغرض:</strong> {selectedApplication.applicationData.purpose}</div>
+                          )}
+                          <div><strong>تاريخ التقديم:</strong> {formatDate(selectedApplication.submittedAt)}</div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Review Panel */}
+                <div className="lg:col-span-1">
+                  <Card className="sticky top-6">
+                    <CardHeader>
+                      <CardTitle>مراجعة الطلب</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
                       <div>
                         <Label htmlFor="calculated-fees">الرسوم المحسوبة (ريال)</Label>
                         <div className="flex items-center mt-1">
@@ -448,22 +693,38 @@ export default function PublicServiceDashboard() {
                           رفض
                         </Button>
                       </div>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
+
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setSelectedApplication(null);
+                          setActiveTab("search");
+                        }}
+                        className="w-full mt-4"
+                      >
+                        العودة للبحث
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
             ) : (
-              <Card className="sticky top-6">
-                <CardContent className="text-center py-8">
-                  <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600 dark:text-gray-400">
-                    اختر طلباً لمراجعته
+              <Card>
+                <CardContent className="text-center py-12">
+                  <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium mb-2">لا يوجد طلب محدد للمراجعة</h3>
+                  <p className="text-gray-600 mb-4">
+                    ابحث عن طلب أولاً ثم اختر "بدء مراجعة الطلب" لبدء عملية المراجعة
                   </p>
+                  <Button onClick={() => setActiveTab("search")} data-testid="button-go-to-search">
+                    <Search className="h-4 w-4 ml-2" />
+                    ابدأ البحث
+                  </Button>
                 </CardContent>
               </Card>
             )}
-          </div>
-        </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
