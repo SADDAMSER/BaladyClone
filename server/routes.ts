@@ -1730,7 +1730,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update application status to completed
       await storage.updateApplication(applicationId, {
         status: 'completed',
-        currentStage: 'completed'
+        currentStage: 'completed',
+        paymentStatus: 'paid',
+        paymentDate: new Date().toISOString()
       });
 
       // Create payment record (this would be stored in a payments table in real implementation)
@@ -1766,6 +1768,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get treasury statistics
+  // Treasury applications - Applications ready for payment
+  app.get("/api/treasury-applications", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      // Get applications that are approved and pending payment
+      const applications = await storage.getApplications({
+        status: 'pending_payment'
+      });
+
+      // Transform applications to include payment-related fields
+      const treasuryApplications = applications.map(app => {
+        const fees = app.fees || 57000; // Default fee if not set
+        
+        return {
+          ...app,
+          fees: fees.toString(),
+          invoiceNumber: app.invoiceNumber || `INV-${Date.now().toString().slice(-6)}`,
+          paymentStatus: app.status === 'completed' ? 'paid' : 'pending',
+          invoiceDate: app.updatedAt || app.submittedAt,
+          dueDate: new Date(Date.now() + (15 * 24 * 60 * 60 * 1000)).toISOString(), // 15 days from now
+          applicationData: {
+            ...app.applicationData,
+            area: app.applicationData?.area || '700'
+          }
+        };
+      });
+
+      res.json(treasuryApplications);
+    } catch (error) {
+      console.error("Error fetching treasury applications:", error);
+      res.status(500).json({ message: "خطأ في استرجاع طلبات الصندوق" });
+    }
+  });
+
   app.get("/api/treasury/stats", authenticateToken, async (req: AuthenticatedRequest, res) => {
     try {
       // Mock statistics - في التطبيق الحقيقي سيتم حساب الإحصائيات من قاعدة البيانات
