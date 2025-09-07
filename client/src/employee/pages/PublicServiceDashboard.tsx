@@ -32,7 +32,8 @@ import {
   TrendingUp,
   Users,
   FileCheck,
-  DollarSign
+  DollarSign,
+  Printer
 } from "lucide-react";
 
 interface ApplicationDetails {
@@ -119,6 +120,11 @@ export default function PublicServiceDashboard() {
     calculatedFees: 0,
     reviewerComments: ''
   });
+  
+  // Invoice dialog state
+  const [showInvoiceDialog, setShowInvoiceDialog] = useState(false);
+  const [invoiceApplication, setInvoiceApplication] = useState<ApplicationDetails | null>(null);
+  const [isTransferring, setIsTransferring] = useState(false);
 
   // Check for existing login on component mount
   useEffect(() => {
@@ -269,6 +275,40 @@ export default function PublicServiceDashboard() {
     },
   });
 
+  // Transfer to treasury mutation
+  const transferToTreasuryMutation = useMutation({
+    mutationFn: async () => {
+      const token = localStorage.getItem('employee_token');
+      localStorage.setItem("auth-token", token || '');
+      
+      try {
+        const response = await apiRequest('POST', `/api/applications/${invoiceApplication?.id}/generate-invoice`, {});
+        return await response.json();
+      } finally {
+        localStorage.removeItem("auth-token");
+      }
+    },
+    onSuccess: () => {
+      toast({
+        title: "تم بنجاح",
+        description: "تم ترحيل الطلب إلى الصندوق للسداد",
+      });
+      setShowInvoiceDialog(false);
+      setInvoiceApplication(null);
+      setIsTransferring(false);
+      // Navigate to treasury
+      setLocation('/employee/treasury');
+    },
+    onError: () => {
+      toast({
+        title: "خطأ",
+        description: "فشل في ترحيل الطلب إلى الصندوق",
+        variant: "destructive",
+      });
+      setIsTransferring(false);
+    },
+  });
+
   const handleReview = () => {
     if (!selectedApplication) return;
     
@@ -281,16 +321,16 @@ export default function PublicServiceDashboard() {
       return;
     }
 
-    // If approved, show invoice directly after review
+    // If approved, show invoice dialog after review
     if (reviewData.decision === 'approved') {
       reviewMutation.mutate({
         applicationId: selectedApplication.id,
         reviewData
       }, {
         onSuccess: () => {
-          // Open invoice in a new window for printing
-          const invoiceUrl = `/employee/invoice/${selectedApplication.id}?autoprint=true`;
-          window.open(invoiceUrl, '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
+          // Show invoice dialog
+          setInvoiceApplication(selectedApplication);
+          setShowInvoiceDialog(true);
         }
       });
     } else {
@@ -299,6 +339,17 @@ export default function PublicServiceDashboard() {
         reviewData
       });
     }
+  };
+
+  const handlePrintInvoice = () => {
+    // Print the invoice dialog content
+    window.print();
+    
+    // After printing, transfer to treasury
+    setTimeout(() => {
+      setIsTransferring(true);
+      transferToTreasuryMutation.mutate();
+    }, 1000);
   };
 
   const calculateFees = (application: ApplicationDetails) => {
@@ -336,6 +387,14 @@ export default function PublicServiceDashboard() {
 
   const getStatusConfig = (status: string) => {
     return statusConfig[status as keyof typeof statusConfig] || statusConfig.submitted;
+  };
+
+  const formatCurrencyDetailed = (amount: number) => {
+    return new Intl.NumberFormat('ar-YE', {
+      style: 'decimal',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount);
   };
 
   // Filter applications based on search and filters
@@ -728,6 +787,228 @@ export default function PublicServiceDashboard() {
             )}
           </CardContent>
         </Card>
+
+        {/* Invoice Dialog */}
+        <Dialog open={showInvoiceDialog} onOpenChange={setShowInvoiceDialog}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto print:shadow-none print:max-w-full print:max-h-full" dir="rtl">
+            <div className="print:p-0" id="invoice-content">
+              {invoiceApplication && (
+                <>
+                  {/* Dialog Header - Hidden in print */}
+                  <div className="print:hidden mb-4">
+                    <DialogHeader>
+                      <DialogTitle className="text-right">فاتورة سداد - INV-{Date.now().toString().slice(-6)}</DialogTitle>
+                      <DialogDescription className="text-right">
+                        اضغط طباعة لإصدار الفاتورة وترحيل الطلب إلى الصندوق
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex gap-2 mt-4">
+                      <Button 
+                        onClick={handlePrintInvoice}
+                        disabled={isTransferring || transferToTreasuryMutation.isPending}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        <Printer className="h-4 w-4 ml-2" />
+                        {isTransferring ? 'جاري الترحيل...' : 'طباعة وترحيل للصندوق'}
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setShowInvoiceDialog(false)}
+                        disabled={isTransferring || transferToTreasuryMutation.isPending}
+                      >
+                        إغلاق
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Invoice Content */}
+                  <div className="bg-white">
+                    {/* Invoice Header */}
+                    <div className="p-6 border-b border-gray-200">
+                      <div className="flex items-start justify-between">
+                        {/* Left side - Application details */}
+                        <div className="space-y-2 text-sm">
+                          <div><strong>رقم الطلب:</strong> {invoiceApplication.applicationNumber}</div>
+                          <div><strong>تاريخ الطلب:</strong> {formatDate(invoiceApplication.submittedAt)}</div>
+                          <div><strong>رقم الفاتورة:</strong> INV-{Date.now().toString().slice(-6)}</div>
+                          <div><strong>حالة الفاتورة:</strong> 
+                            <Badge className="mr-2 bg-orange-100 text-orange-800">
+                              غير مدفوع
+                            </Badge>
+                          </div>
+                        </div>
+
+                        {/* Center - QR Code */}
+                        <div className="flex flex-col items-center">
+                          <div className="w-20 h-20 bg-gray-200 border-2 border-gray-400 flex items-center justify-center">
+                            <div className="grid grid-cols-6 gap-px w-16 h-16">
+                              {Array.from({ length: 36 }, (_, i) => (
+                                <div
+                                  key={i}
+                                  className={`w-full h-full ${
+                                    Math.random() > 0.5 ? 'bg-black' : 'bg-white'
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-600 mt-1">QR Code</p>
+                        </div>
+
+                        {/* Right side - Ministry logo and header */}
+                        <div className="text-center">
+                          <div className="w-14 h-14 bg-red-600 rounded-full flex items-center justify-center text-white font-bold text-sm mx-auto mb-2">
+                            شعار
+                          </div>
+                          <h1 className="text-lg font-bold text-gray-900">الجمهورية اليمنية</h1>
+                          <p className="text-sm text-gray-600">وزارة النقل والأشغال العامة</p>
+                          <h2 className="text-xl font-bold text-teal-600 mt-4">إشعار سداد</h2>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Customer Details Section */}
+                    <div className="p-4">
+                      <div className="bg-teal-600 text-white px-4 py-2 rounded-t-lg">
+                        <h3 className="font-semibold">تفاصيل المستفيد والخدمة</h3>
+                      </div>
+                      <div className="border border-gray-200 rounded-b-lg p-4 space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                            <span className="font-semibold text-gray-700">اسم الخدمة:</span>
+                            <span className="mr-2">{invoiceApplication.serviceType}</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-gray-700">رقم الهوية:</span>
+                            <span className="mr-2">{invoiceApplication.applicantId}</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-gray-700">اسم المستفيد:</span>
+                            <span className="mr-2">{invoiceApplication.applicantName}</span>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                            <span className="font-semibold text-gray-700">نوع الوثيقة:</span>
+                            <span className="mr-2">مساحة بحسب الوثيقة</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-gray-700">حالة الوثيقة:</span>
+                            <span className="mr-2">--</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-gray-700">مساحة بحسب الوثيقة:</span>
+                            <span className="mr-2">{invoiceApplication.applicationData.area || '700'} متر مربع</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Invoice Details Section */}
+                    <div className="p-4">
+                      <div className="bg-teal-600 text-white px-4 py-2 rounded-t-lg">
+                        <h3 className="font-semibold">تفاصيل الفاتورة</h3>
+                      </div>
+                      <div className="border border-gray-200 rounded-b-lg p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                          <div>
+                            <span className="font-semibold text-gray-700">رقم الحساب:</span>
+                            <span className="mr-2">30000001</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-gray-700">اسم الحساب:</span>
+                            <span className="mr-2">حساب الإيرادات</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-gray-700">تاريخ الفاتورة:</span>
+                            <span className="mr-2">{formatDate(new Date().toISOString())}</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-gray-700">المرجع:</span>
+                            <span className="mr-2">{Date.now().toString().slice(-6)}</span>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <span className="font-semibold text-gray-700">العملة:</span>
+                            <span className="mr-2">ريال يمني</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-gray-700">إجمالي المبلغ المستحق:</span>
+                            <span className="mr-2 text-lg font-bold text-teal-600">{formatCurrencyDetailed(reviewData.calculatedFees)} ريال</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Fees Breakdown Table */}
+                    <div className="p-4">
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse border border-gray-300">
+                          <thead>
+                            <tr className="bg-gray-100">
+                              <th className="border border-gray-300 px-4 py-2 text-right">الإجمالي</th>
+                              <th className="border border-gray-300 px-4 py-2 text-right">السعر الجزئي</th>
+                              <th className="border border-gray-300 px-4 py-2 text-right">الكمية/العدد</th>
+                              <th className="border border-gray-300 px-4 py-2 text-right">اسم الوحدة</th>
+                              <th className="border border-gray-300 px-4 py-2 text-right">تفاصيل</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td className="border border-gray-300 px-4 py-2 font-semibold">
+                                {formatCurrencyDetailed(Math.floor(reviewData.calculatedFees * 0.96))}
+                              </td>
+                              <td className="border border-gray-300 px-4 py-2">
+                                {formatCurrencyDetailed(500)}
+                              </td>
+                              <td className="border border-gray-300 px-4 py-2">{invoiceApplication.applicationData.area || '700'}</td>
+                              <td className="border border-gray-300 px-4 py-2">م مربع</td>
+                              <td className="border border-gray-300 px-4 py-2">
+                                مقابل رسوم الخدمة لمساحة {invoiceApplication.applicationData.area || '700'} متر مربع
+                              </td>
+                            </tr>
+                            <tr>
+                              <td className="border border-gray-300 px-4 py-2 font-semibold">
+                                {formatCurrencyDetailed(Math.floor(reviewData.calculatedFees * 0.04))}
+                              </td>
+                              <td className="border border-gray-300 px-4 py-2">
+                                {formatCurrencyDetailed(Math.floor(reviewData.calculatedFees * 0.04))}
+                              </td>
+                              <td className="border border-gray-300 px-4 py-2">1</td>
+                              <td className="border border-gray-300 px-4 py-2">--</td>
+                              <td className="border border-gray-300 px-4 py-2">
+                                رسوم كشفية
+                              </td>
+                            </tr>
+                            <tr className="bg-gray-50 font-bold">
+                              <td className="border border-gray-300 px-4 py-2 text-lg text-teal-600">
+                                {formatCurrencyDetailed(reviewData.calculatedFees)}
+                              </td>
+                              <td className="border border-gray-300 px-4 py-2" colSpan={4}>
+                                إجمالي المبلغ المستحق
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="p-4 border-t border-gray-200 text-center text-sm text-gray-600">
+                      <p>اسم المحصل: {currentUser?.fullName || currentUser?.username}</p>
+                      <p>توقيع المحصل</p>
+                      <div className="mt-4 text-xs">
+                        <p>هذه الفاتورة صادرة إلكترونياً ولا تحتاج لختم أو توقيع</p>
+                        <p>للاستفسار: {invoiceApplication.contactPhone} | البريد الإلكتروني: info@transport.gov.ye</p>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
