@@ -1631,6 +1631,183 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Treasury and Payment APIs
+  
+  // Generate invoice for approved application
+  app.post("/api/applications/:id/generate-invoice", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const applicationId = req.params.id;
+      const application = await storage.getApplication(applicationId);
+      
+      if (!application) {
+        return res.status(404).json({ message: "الطلب غير موجود" });
+      }
+
+      if (application.status !== 'approved') {
+        return res.status(400).json({ message: "يمكن إصدار الفاتورة للطلبات المعتمدة فقط" });
+      }
+
+      // Generate invoice number
+      const invoiceNumber = `INV-${Date.now()}`;
+      const issueDate = new Date();
+      const dueDate = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000); // 15 days from now
+
+      // Update application with payment status
+      await storage.updateApplication(applicationId, {
+        status: 'pending_payment',
+        currentStage: 'payment'
+      });
+
+      const invoiceData = {
+        invoiceNumber,
+        applicationId,
+        applicationNumber: application.applicationNumber,
+        applicantName: application.applicantName,
+        applicantId: application.applicantId,
+        contactPhone: application.contactPhone,
+        serviceType: application.serviceType,
+        fees: application.fees,
+        issueDate: issueDate.toISOString(),
+        dueDate: dueDate.toISOString(),
+        status: 'pending'
+      };
+
+      res.json({
+        message: "تم إنشاء الفاتورة بنجاح",
+        invoice: invoiceData
+      });
+    } catch (error) {
+      console.error("Error generating invoice:", error);
+      res.status(500).json({ message: "خطأ في إنشاء الفاتورة" });
+    }
+  });
+
+  // Get invoice details
+  app.get("/api/invoices/:id", async (req, res) => {
+    try {
+      const invoiceId = req.params.id;
+      
+      // Mock invoice data - في التطبيق الحقيقي سيتم جلب البيانات من قاعدة البيانات
+      const mockInvoice = {
+        id: invoiceId,
+        invoiceNumber: 'INV-711220912',
+        applicationNumber: 'APP-2025-297204542',
+        applicantName: 'صدام حسين حسين السراجي',
+        applicantId: '778774772',
+        contactPhone: '777123456',
+        serviceType: 'إصدار تقرير مساحي',
+        fees: {
+          basicFee: 55000,
+          additionalFee: 2000,
+          total: 57000
+        },
+        issueDate: '2025-03-31',
+        dueDate: '2025-04-15',
+        status: 'pending'
+      };
+
+      res.json(mockInvoice);
+    } catch (error) {
+      console.error("Error fetching invoice:", error);
+      res.status(500).json({ message: "خطأ في استرجاع الفاتورة" });
+    }
+  });
+
+  // Confirm payment
+  app.post("/api/payments/confirm", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { applicationId, paymentMethod, notes, amount } = req.body;
+      
+      if (!applicationId) {
+        return res.status(400).json({ message: "معرف الطلب مطلوب" });
+      }
+
+      const application = await storage.getApplication(applicationId);
+      if (!application) {
+        return res.status(404).json({ message: "الطلب غير موجود" });
+      }
+
+      // Update application status to completed
+      await storage.updateApplication(applicationId, {
+        status: 'completed',
+        currentStage: 'completed'
+      });
+
+      // Create payment record (this would be stored in a payments table in real implementation)
+      const paymentRecord = {
+        id: `PAY-${Date.now()}`,
+        applicationId,
+        amount: amount || application.fees,
+        paymentMethod: paymentMethod || 'cash',
+        notes: notes || 'تم السداد في الصندوق',
+        paymentDate: new Date().toISOString(),
+        cashierId: req.user?.id
+      };
+
+      // Create status history
+      await storage.createApplicationStatusHistory({
+        applicationId,
+        previousStatus: 'pending_payment',
+        newStatus: 'completed',
+        previousStage: 'payment',
+        newStage: 'completed',
+        changedById: req.user?.id || '',
+        notes: `تم تأكيد السداد - ${paymentMethod || 'نقدي'}`
+      });
+
+      res.json({
+        message: "تم تأكيد السداد بنجاح",
+        payment: paymentRecord
+      });
+    } catch (error) {
+      console.error("Error confirming payment:", error);
+      res.status(500).json({ message: "خطأ في تأكيد السداد" });
+    }
+  });
+
+  // Get treasury statistics
+  app.get("/api/treasury/stats", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      // Mock statistics - في التطبيق الحقيقي سيتم حساب الإحصائيات من قاعدة البيانات
+      const mockStats = {
+        totalRevenue: 187000,
+        pendingPayments: 2,
+        paidToday: 1,
+        overduePayments: 1,
+        totalTransactions: 1,
+        revenueToday: 45000
+      };
+
+      res.json(mockStats);
+    } catch (error) {
+      console.error("Error fetching treasury stats:", error);
+      res.status(500).json({ message: "خطأ في استرجاع إحصائيات الصندوق" });
+    }
+  });
+
+  // Get payment notifications for treasury
+  app.get("/api/treasury/notifications", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      // Mock notifications for new payments
+      const mockNotifications = [
+        {
+          id: 'notif-1',
+          type: 'new_payment',
+          title: 'طلب جديد في انتظار السداد',
+          message: 'طلب APP-2025-297204542 معتمد ومجهز للسداد',
+          applicationId: 'treasury-1',
+          createdAt: new Date().toISOString(),
+          isRead: false
+        }
+      ];
+
+      res.json(mockNotifications);
+    } catch (error) {
+      console.error("Error fetching treasury notifications:", error);
+      res.status(500).json({ message: "خطأ في استرجاع الإشعارات" });
+    }
+  });
+
   // Ministries
   app.get("/api/ministries", async (req, res) => {
     try {

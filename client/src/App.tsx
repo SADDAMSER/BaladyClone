@@ -27,6 +27,8 @@ import SurveyingDecisionForm from "@/services/pages/SurveyingDecisionForm";
 import EmployeeDashboard from "@/employee/pages/EmployeeDashboard";
 import CashierDashboard from "@/employee/pages/CashierDashboard";
 import PublicServiceDashboard from "@/employee/pages/PublicServiceDashboard";
+import TreasuryDashboard from "@/employee/pages/TreasuryDashboard";
+import PaymentInvoice from "@/employee/pages/PaymentInvoice";
 import DepartmentManagerDashboard from "@/employee/pages/DepartmentManagerDashboard";
 import SurveyorDashboard from "@/employee/pages/SurveyorDashboard";
 import ApplicationStatus from "@/citizen/pages/ApplicationStatus";
@@ -64,6 +66,8 @@ function AuthenticatedRouter() {
         <Route path="/employee/dashboard" component={EmployeeDashboard} />
         <Route path="/employee/cashier" component={CashierDashboard} />
         <Route path="/employee/public-service" component={PublicServiceDashboard} />
+        <Route path="/employee/treasury" component={TreasuryDashboard} />
+        <Route path="/employee/invoice/:id" component={PaymentInvoice} />
         <Route path="/employee/department-manager" component={DepartmentManagerDashboard} />
         <Route path="/employee/surveyor" component={SurveyorDashboard} />
         <Route component={NotFound} />

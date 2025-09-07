@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import EmployeeLogin from "@/employee/components/EmployeeLogin";
+import { useLocation } from "wouter";
 import { 
   FileText, 
   User, 
@@ -98,6 +99,7 @@ const statusConfig = {
 export default function PublicServiceDashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
   
   // Authentication states
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -361,6 +363,16 @@ export default function PublicServiceDashboard() {
               <span className="text-lg font-semibold">خدمة الجمهور - مراجعة الطلبات</span>
             </div>
             <div className="flex items-center gap-4">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setLocation('/employee/treasury')}
+                className="text-green-600 border-green-600 hover:bg-green-50"
+                data-testid="button-goto-treasury"
+              >
+                <DollarSign className="h-4 w-4 ml-2" />
+                الذهاب للصندوق
+              </Button>
               <div className="text-sm text-gray-600 dark:text-gray-400">
                 مرحباً، {currentUser?.fullName || currentUser?.username}
               </div>
