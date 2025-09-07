@@ -37,7 +37,8 @@ import {
   AlertTriangle,
   Bell,
   FileIcon,
-  Download
+  Download,
+  Printer
 } from "lucide-react";
 
 interface ApplicationDetails {
@@ -132,6 +133,12 @@ export default function TreasuryDashboard() {
   
   // Selected application for payment actions
   const [selectedApplication, setSelectedApplication] = useState<ApplicationDetails | null>(null);
+  
+  // Invoice and payment dialogs state
+  const [showInvoiceDialog, setShowInvoiceDialog] = useState(false);
+  const [showPaymentReceiptDialog, setShowPaymentReceiptDialog] = useState(false);
+  const [invoiceApplication, setInvoiceApplication] = useState<ApplicationDetails | null>(null);
+  const [paymentReceiptData, setPaymentReceiptData] = useState<any>(null);
 
   // Check for existing login on component mount
   useEffect(() => {
@@ -243,17 +250,39 @@ export default function TreasuryDashboard() {
   // Confirm payment mutation
   const confirmPaymentMutation = useMutation({
     mutationFn: async (data: { applicationId: string; paymentMethod: string; notes?: string }) => {
-      // Mock API call - في التطبيق الحقيقي سيتم استدعاء API للسداد
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      return { success: true, paymentId: 'PAY-' + Date.now() };
+      const token = localStorage.getItem('employee_token');
+      localStorage.setItem("auth-token", token || '');
+      
+      try {
+        const response = await apiRequest('POST', '/api/payments/confirm', {
+          applicationId: data.applicationId,
+          paymentMethod: data.paymentMethod || 'cash',
+          notes: data.notes || 'تم السداد نقداً في الصندوق',
+          amount: invoiceApplication?.fees
+        });
+        return await response.json();
+      } finally {
+        localStorage.removeItem("auth-token");
+      }
     },
-    onSuccess: () => {
-      toast({
-        title: "تم تأكيد السداد",
-        description: "تم تأكيد سداد الطلب بنجاح",
-      });
+    onSuccess: (result) => {
+      const receiptData = {
+        paymentId: result.payment.id,
+        applicationNumber: invoiceApplication?.applicationNumber,
+        applicantName: invoiceApplication?.applicantName,
+        applicantId: invoiceApplication?.applicantId,
+        amount: invoiceApplication?.fees,
+        paymentMethod: 'نقدي',
+        paymentDate: new Date().toISOString(),
+        cashierName: currentUser?.fullName || currentUser?.username,
+        serviceType: invoiceApplication?.serviceType
+      };
+      
+      setPaymentReceiptData(receiptData);
+      setShowInvoiceDialog(false);
+      setShowPaymentReceiptDialog(true);
+      
       queryClient.invalidateQueries({ queryKey: ['/api/treasury-applications'] });
-      setSelectedApplication(null);
     },
     onError: () => {
       toast({
@@ -265,15 +294,33 @@ export default function TreasuryDashboard() {
   });
 
   const handleViewInvoice = (application: ApplicationDetails) => {
-    setLocation(`/employee/invoice/${application.id}`);
+    setInvoiceApplication(application);
+    setShowInvoiceDialog(true);
   };
 
-  const handleConfirmPayment = (application: ApplicationDetails) => {
+  const handleConfirmPayment = () => {
+    if (!invoiceApplication) return;
+    
     confirmPaymentMutation.mutate({
-      applicationId: application.id,
+      applicationId: invoiceApplication.id,
       paymentMethod: 'cash',
       notes: 'تم السداد نقداً في الصندوق'
     });
+  };
+
+  const handlePrintReceipt = () => {
+    window.print();
+    
+    // Close dialogs after printing
+    setTimeout(() => {
+      setShowPaymentReceiptDialog(false);
+      setPaymentReceiptData(null);
+      setInvoiceApplication(null);
+      toast({
+        title: "تم بنجاح",
+        description: "تم إكمال عملية السداد وطباعة الإشعار",
+      });
+    }, 1000);
   };
 
   const formatDate = (dateString: string) => {
@@ -291,6 +338,14 @@ export default function TreasuryDashboard() {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     }).format(numAmount);
+  };
+
+  const formatCurrencyDetailed = (amount: number) => {
+    return new Intl.NumberFormat('ar-YE', {
+      style: 'decimal',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount);
   };
 
   const getStatusConfig = (status: string) => {
@@ -606,8 +661,10 @@ export default function TreasuryDashboard() {
                               <Button
                                 variant="default"
                                 size="sm"
-                                onClick={() => handleConfirmPayment(application)}
-                                disabled={confirmPaymentMutation.isPending}
+                                onClick={() => {
+                                  setInvoiceApplication(application);
+                                  setShowInvoiceDialog(true);
+                                }}
                                 className="bg-green-600 hover:bg-green-700"
                                 data-testid={`button-confirm-payment-${application.id}`}
                               >
@@ -634,6 +691,413 @@ export default function TreasuryDashboard() {
             )}
           </CardContent>
         </Card>
+
+        {/* Invoice Dialog */}
+        <Dialog open={showInvoiceDialog} onOpenChange={setShowInvoiceDialog}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto print:shadow-none print:max-w-full print:max-h-full" dir="rtl">
+            <div className="print:p-0" id="invoice-content">
+              {invoiceApplication && (
+                <>
+                  {/* Dialog Header - Hidden in print */}
+                  <div className="print:hidden mb-4">
+                    <DialogHeader>
+                      <DialogTitle className="text-right">فاتورة سداد - {invoiceApplication.invoiceNumber}</DialogTitle>
+                      <DialogDescription className="text-right">
+                        راجع تفاصيل الفاتورة واضغط تأكيد السداد لإتمام العملية
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex gap-2 mt-4">
+                      <Button 
+                        onClick={handleConfirmPayment}
+                        disabled={confirmPaymentMutation.isPending}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        <CheckCircle className="h-4 w-4 ml-2" />
+                        {confirmPaymentMutation.isPending ? 'جاري التأكيد...' : 'تأكيد السداد'}
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setShowInvoiceDialog(false)}
+                        disabled={confirmPaymentMutation.isPending}
+                      >
+                        إغلاق
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Invoice Content */}
+                  <div className="bg-white">
+                    {/* Invoice Header */}
+                    <div className="p-6 border-b border-gray-200">
+                      <div className="flex items-start justify-between">
+                        {/* Left side - Application details */}
+                        <div className="space-y-2 text-sm">
+                          <div><strong>رقم الطلب:</strong> {invoiceApplication.applicationNumber}</div>
+                          <div><strong>تاريخ الطلب:</strong> {formatDate(invoiceApplication.submittedAt)}</div>
+                          <div><strong>رقم الفاتورة:</strong> {invoiceApplication.invoiceNumber}</div>
+                          <div><strong>حالة الفاتورة:</strong> 
+                            <Badge className={`mr-2 ${
+                              invoiceApplication.paymentStatus === 'paid' 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-orange-100 text-orange-800'
+                            }`}>
+                              {invoiceApplication.paymentStatus === 'paid' ? 'تم الدفع' : 'غير مدفوع'}
+                            </Badge>
+                          </div>
+                        </div>
+
+                        {/* Center - QR Code */}
+                        <div className="flex flex-col items-center">
+                          <div className="w-20 h-20 bg-gray-200 border-2 border-gray-400 flex items-center justify-center">
+                            <div className="grid grid-cols-6 gap-px w-16 h-16">
+                              {Array.from({ length: 36 }, (_, i) => (
+                                <div
+                                  key={i}
+                                  className={`w-full h-full ${
+                                    Math.random() > 0.5 ? 'bg-black' : 'bg-white'
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-600 mt-1">QR Code</p>
+                        </div>
+
+                        {/* Right side - Ministry logo and header */}
+                        <div className="text-center">
+                          <div className="w-14 h-14 bg-red-600 rounded-full flex items-center justify-center text-white font-bold text-sm mx-auto mb-2">
+                            شعار
+                          </div>
+                          <h1 className="text-lg font-bold text-gray-900">الجمهورية اليمنية</h1>
+                          <p className="text-sm text-gray-600">وزارة النقل والأشغال العامة</p>
+                          <h2 className="text-xl font-bold text-teal-600 mt-4">إشعار سداد</h2>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Customer Details Section */}
+                    <div className="p-4">
+                      <div className="bg-teal-600 text-white px-4 py-2 rounded-t-lg">
+                        <h3 className="font-semibold">تفاصيل المستفيد والخدمة</h3>
+                      </div>
+                      <div className="border border-gray-200 rounded-b-lg p-4 space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                            <span className="font-semibold text-gray-700">اسم الخدمة:</span>
+                            <span className="mr-2">{invoiceApplication.serviceType}</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-gray-700">رقم الهوية:</span>
+                            <span className="mr-2">{invoiceApplication.applicantId}</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-gray-700">اسم المستفيد:</span>
+                            <span className="mr-2">{invoiceApplication.applicantName}</span>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                            <span className="font-semibold text-gray-700">نوع الوثيقة:</span>
+                            <span className="mr-2">مساحة بحسب الوثيقة</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-gray-700">حالة الوثيقة:</span>
+                            <span className="mr-2">--</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-gray-700">مساحة بحسب الوثيقة:</span>
+                            <span className="mr-2">{invoiceApplication.applicationData.area || '700'} متر مربع</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Invoice Details Section */}
+                    <div className="p-4">
+                      <div className="bg-teal-600 text-white px-4 py-2 rounded-t-lg">
+                        <h3 className="font-semibold">تفاصيل الفاتورة</h3>
+                      </div>
+                      <div className="border border-gray-200 rounded-b-lg p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                          <div>
+                            <span className="font-semibold text-gray-700">رقم الحساب:</span>
+                            <span className="mr-2">30000001</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-gray-700">اسم الحساب:</span>
+                            <span className="mr-2">حساب الإيرادات</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-gray-700">تاريخ الفاتورة:</span>
+                            <span className="mr-2">{formatDate(invoiceApplication.submittedAt)}</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-gray-700">المرجع:</span>
+                            <span className="mr-2">{invoiceApplication.invoiceNumber?.slice(-6)}</span>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <span className="font-semibold text-gray-700">العملة:</span>
+                            <span className="mr-2">ريال يمني</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-gray-700">إجمالي المبلغ المستحق:</span>
+                            <span className="mr-2 text-lg font-bold text-teal-600">{formatCurrencyDetailed(parseInt(invoiceApplication.fees || '0'))} ريال</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Fees Breakdown Table */}
+                    <div className="p-4">
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse border border-gray-300">
+                          <thead>
+                            <tr className="bg-gray-100">
+                              <th className="border border-gray-300 px-4 py-2 text-right">الإجمالي</th>
+                              <th className="border border-gray-300 px-4 py-2 text-right">السعر الجزئي</th>
+                              <th className="border border-gray-300 px-4 py-2 text-right">الكمية/العدد</th>
+                              <th className="border border-gray-300 px-4 py-2 text-right">اسم الوحدة</th>
+                              <th className="border border-gray-300 px-4 py-2 text-right">تفاصيل</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td className="border border-gray-300 px-4 py-2 font-semibold">
+                                {formatCurrencyDetailed(Math.floor(parseInt(invoiceApplication.fees || '0') * 0.96))}
+                              </td>
+                              <td className="border border-gray-300 px-4 py-2">
+                                {formatCurrencyDetailed(500)}
+                              </td>
+                              <td className="border border-gray-300 px-4 py-2">{invoiceApplication.applicationData.area || '700'}</td>
+                              <td className="border border-gray-300 px-4 py-2">م مربع</td>
+                              <td className="border border-gray-300 px-4 py-2">
+                                مقابل رسوم الخدمة لمساحة {invoiceApplication.applicationData.area || '700'} متر مربع
+                              </td>
+                            </tr>
+                            <tr>
+                              <td className="border border-gray-300 px-4 py-2 font-semibold">
+                                {formatCurrencyDetailed(Math.floor(parseInt(invoiceApplication.fees || '0') * 0.04))}
+                              </td>
+                              <td className="border border-gray-300 px-4 py-2">
+                                {formatCurrencyDetailed(Math.floor(parseInt(invoiceApplication.fees || '0') * 0.04))}
+                              </td>
+                              <td className="border border-gray-300 px-4 py-2">1</td>
+                              <td className="border border-gray-300 px-4 py-2">--</td>
+                              <td className="border border-gray-300 px-4 py-2">
+                                رسوم كشفية
+                              </td>
+                            </tr>
+                            <tr className="bg-gray-50 font-bold">
+                              <td className="border border-gray-300 px-4 py-2 text-lg text-teal-600">
+                                {formatCurrencyDetailed(parseInt(invoiceApplication.fees || '0'))}
+                              </td>
+                              <td className="border border-gray-300 px-4 py-2" colSpan={4}>
+                                إجمالي المبلغ المستحق
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="p-4 border-t border-gray-200 text-center text-sm text-gray-600">
+                      <p>اسم المحصل: {currentUser?.fullName || currentUser?.username}</p>
+                      <p>توقيع المحصل</p>
+                      <div className="mt-4 text-xs">
+                        <p>هذه الفاتورة صادرة إلكترونياً ولا تحتاج لختم أو توقيع</p>
+                        <p>للاستفسار: {invoiceApplication.contactPhone} | البريد الإلكتروني: info@transport.gov.ye</p>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Payment Receipt Dialog */}
+        <Dialog open={showPaymentReceiptDialog} onOpenChange={setShowPaymentReceiptDialog}>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto print:shadow-none print:max-w-full print:max-h-full" dir="rtl">
+            <div className="print:p-0" id="receipt-content">
+              {paymentReceiptData && (
+                <>
+                  {/* Dialog Header - Hidden in print */}
+                  <div className="print:hidden mb-4">
+                    <DialogHeader>
+                      <DialogTitle className="text-right">إشعار السداد - {paymentReceiptData.paymentId}</DialogTitle>
+                      <DialogDescription className="text-right">
+                        تم تأكيد السداد بنجاح. اضغط طباعة لإصدار الإشعار
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex gap-2 mt-4">
+                      <Button 
+                        onClick={handlePrintReceipt}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        <Printer className="h-4 w-4 ml-2" />
+                        طباعة الإشعار
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setShowPaymentReceiptDialog(false)}
+                      >
+                        إغلاق
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Receipt Content */}
+                  <div className="bg-white">
+                    {/* Receipt Header */}
+                    <div className="p-6 border-b border-gray-200">
+                      <div className="flex items-start justify-between">
+                        {/* Left side - Payment details */}
+                        <div className="space-y-2 text-sm">
+                          <div><strong>رقم العملية:</strong> {paymentReceiptData.paymentId}</div>
+                          <div><strong>تاريخ السداد:</strong> {formatDate(paymentReceiptData.paymentDate)}</div>
+                          <div><strong>طريقة الدفع:</strong> {paymentReceiptData.paymentMethod}</div>
+                          <div><strong>حالة الدفعة:</strong> 
+                            <Badge className="mr-2 bg-green-100 text-green-800">
+                              تم الدفع
+                            </Badge>
+                          </div>
+                        </div>
+
+                        {/* Center - QR Code */}
+                        <div className="flex flex-col items-center">
+                          <div className="w-20 h-20 bg-gray-200 border-2 border-gray-400 flex items-center justify-center">
+                            <div className="grid grid-cols-6 gap-px w-16 h-16">
+                              {Array.from({ length: 36 }, (_, i) => (
+                                <div
+                                  key={i}
+                                  className={`w-full h-full ${
+                                    Math.random() > 0.5 ? 'bg-black' : 'bg-white'
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-600 mt-1">QR Code</p>
+                        </div>
+
+                        {/* Right side - Ministry logo and header */}
+                        <div className="text-center">
+                          <div className="w-14 h-14 bg-red-600 rounded-full flex items-center justify-center text-white font-bold text-sm mx-auto mb-2">
+                            شعار
+                          </div>
+                          <h1 className="text-lg font-bold text-gray-900">الجمهورية اليمنية</h1>
+                          <p className="text-sm text-gray-600">وزارة النقل والأشغال العامة</p>
+                          <h2 className="text-xl font-bold text-green-600 mt-4">إشعار سداد</h2>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Payment Summary */}
+                    <div className="p-6 bg-green-50 border-b border-gray-200">
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-green-600 mb-2">
+                          تم استلام المبلغ
+                        </div>
+                        <div className="text-3xl font-bold text-green-700">
+                          {formatCurrency(paymentReceiptData.amount)} ريال يمني
+                        </div>
+                        <div className="text-sm text-gray-600 mt-2">
+                          المبلغ بالأرقام: {paymentReceiptData.amount}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Payer Details */}
+                    <div className="p-4">
+                      <div className="bg-teal-600 text-white px-4 py-2 rounded-t-lg">
+                        <h3 className="font-semibold">تفاصيل الدافع والخدمة</h3>
+                      </div>
+                      <div className="border border-gray-200 rounded-b-lg p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <span className="font-semibold text-gray-700">اسم الدافع:</span>
+                            <span className="mr-2">{paymentReceiptData.applicantName}</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-gray-700">رقم الهوية:</span>
+                            <span className="mr-2">{paymentReceiptData.applicantId}</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-gray-700">رقم الطلب:</span>
+                            <span className="mr-2">{paymentReceiptData.applicationNumber}</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-gray-700">نوع الخدمة:</span>
+                            <span className="mr-2">{paymentReceiptData.serviceType}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Payment Details */}
+                    <div className="p-4">
+                      <div className="bg-teal-600 text-white px-4 py-2 rounded-t-lg">
+                        <h3 className="font-semibold">تفاصيل الدفعة</h3>
+                      </div>
+                      <div className="border border-gray-200 rounded-b-lg p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <span className="font-semibold text-gray-700">طريقة الدفع:</span>
+                            <span className="mr-2">{paymentReceiptData.paymentMethod}</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-gray-700">تاريخ السداد:</span>
+                            <span className="mr-2">{formatDate(paymentReceiptData.paymentDate)}</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-gray-700">اسم المحصل:</span>
+                            <span className="mr-2">{paymentReceiptData.cashierName}</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-gray-700">المبلغ المدفوع:</span>
+                            <span className="mr-2 text-green-600 font-bold">{formatCurrency(paymentReceiptData.amount)} ريال</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="p-6 border-t-2 border-green-600 text-center">
+                      <div className="mb-4">
+                        <div className="text-lg font-bold text-green-600">تم إكمال عملية السداد بنجاح</div>
+                        <div className="text-sm text-gray-600">نشكركم لاختياركم خدماتنا الرقمية</div>
+                      </div>
+                      
+                      <div className="border-t border-gray-200 pt-4">
+                        <div className="grid grid-cols-2 gap-8 mb-4">
+                          <div>
+                            <p className="font-semibold">توقيع المحصل</p>
+                            <div className="h-12 border-b border-gray-300 mt-2"></div>
+                            <p className="text-xs text-gray-600 mt-1">{paymentReceiptData.cashierName}</p>
+                          </div>
+                          <div>
+                            <p className="font-semibold">ختم الصندوق</p>
+                            <div className="h-12 w-12 border-2 border-gray-300 rounded-full mx-auto mt-2 flex items-center justify-center">
+                              <span className="text-xs text-gray-400">ختم</span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="text-xs text-gray-500">
+                          <p>هذا الإشعار صادر إلكترونياً ومعتمد لدى الجهات الحكومية</p>
+                          <p>رقم العملية: {paymentReceiptData.paymentId} | تاريخ الإصدار: {formatDate(new Date().toISOString())}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
