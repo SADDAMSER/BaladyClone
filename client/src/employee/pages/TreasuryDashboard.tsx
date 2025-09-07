@@ -261,8 +261,9 @@ export default function TreasuryDashboard() {
       setPaymentReceiptData(null);
       setInvoiceApplication(null);
       toast({
-        title: "تم بنجاح",
-        description: "تم إكمال عملية السداد وطباعة الإشعار",
+        title: "تذكير مهم",
+        description: "يرجى فصل الجزء السفلي من النموذج وتسليمه للمستفيد كإيصال سداد",
+        variant: "default",
       });
     }, 1000);
   };
@@ -873,7 +874,13 @@ export default function TreasuryDashboard() {
                     <DialogHeader>
                       <DialogTitle className="text-right">إشعار السداد - {paymentReceiptData.paymentId}</DialogTitle>
                       <DialogDescription className="text-right">
-                        تم تأكيد السداد بنجاح. اضغط طباعة لإصدار الإشعار
+                        <div className="space-y-2">
+                          <div>تم تأكيد السداد بنجاح.</div>
+                          <div className="text-orange-600 font-semibold">
+                            ⚠️ تذكير: المستفيد قد تسلم النموذج الموحد مسبقاً من الخدمة العامة. 
+                            يرجى فصل الجزء السفلي القابل للفصل وتسليمه كإيصال سداد.
+                          </div>
+                        </div>
                       </DialogDescription>
                     </DialogHeader>
                     <div className="flex gap-2 mt-4">
