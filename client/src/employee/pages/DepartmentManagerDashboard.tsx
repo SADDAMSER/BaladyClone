@@ -51,14 +51,33 @@ export default function DepartmentManagerDashboard() {
   const [priority, setPriority] = useState("medium");
   const queryClient = useQueryClient();
 
-  // Get approved applications awaiting assignment
+  // Get paid applications awaiting assignment
   const { data: pendingAssignment = [], isLoading } = useQuery({
-    queryKey: ['/api/applications', { status: 'document_approved', assignedToId: null }],
+    queryKey: ['/api/manager-applications'],
+    queryFn: async () => {
+      const token = localStorage.getItem('employee_token');
+      localStorage.setItem("auth-token", token || '');
+      
+      try {
+        const response = await apiRequest('GET', '/api/manager-applications');
+        const applications = await response.json();
+        return applications;
+      } finally {
+        localStorage.removeItem("auth-token");
+      }
+    },
+    enabled: true,
+    retry: false,
+    refetchOnWindowFocus: false
   });
 
   // Get assigned applications
   const { data: assignedApplications = [] } = useQuery({
     queryKey: ['/api/applications', { status: 'assigned' }],
+    queryFn: async () => {
+      // Mock assigned applications for now
+      return [];
+    }
   });
 
   // Get available surveyors
@@ -86,15 +105,22 @@ export default function DepartmentManagerDashboard() {
       notes: string;
       priority: string;
     }) => {
-      return apiRequest(`/api/applications/${applicationId}/assign`, 'POST', {
-        assignedToId,
-        notes,
-        priority,
-        assignedById: '550e8400-e29b-41d4-a716-446655440030' // Manager ID
-      });
+      const token = localStorage.getItem('employee_token');
+      localStorage.setItem("auth-token", token || '');
+      
+      try {
+        const response = await apiRequest('POST', `/api/applications/${applicationId}/assign`, {
+          assignedToId,
+          notes,
+          priority
+        });
+        return await response.json();
+      } finally {
+        localStorage.removeItem("auth-token");
+      }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/applications'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/manager-applications'] });
       toast({
         title: "تم تعيين الطلب بنجاح",
         description: `تم تعيين الطلب رقم ${selectedApplication?.applicationNumber} للمهندس المختص`,

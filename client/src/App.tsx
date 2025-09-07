@@ -67,6 +67,7 @@ function AuthenticatedRouter() {
         <Route path="/employee/cashier" component={CashierDashboard} />
         <Route path="/employee/public-service" component={PublicServiceDashboard} />
         <Route path="/employee/treasury" component={TreasuryDashboard} />
+        <Route path="/employee/manager" component={DepartmentManagerDashboard} />
         <Route path="/employee/invoice/:id" component={PaymentInvoice} />
         <Route path="/employee/department-manager" component={DepartmentManagerDashboard} />
         <Route path="/employee/surveyor" component={SurveyorDashboard} />

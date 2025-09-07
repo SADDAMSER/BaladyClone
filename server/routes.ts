@@ -1727,10 +1727,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "الطلب غير موجود" });
       }
 
-      // Update application status to completed
+      // Update application status to awaiting assignment after payment
       await storage.updateApplication(applicationId, {
-        status: 'completed',
-        currentStage: 'completed',
+        status: 'paid',
+        currentStage: 'awaiting_assignment',
         paymentStatus: 'paid',
         paymentDate: new Date().toISOString()
       });
@@ -1750,11 +1750,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.createApplicationStatusHistory({
         applicationId,
         previousStatus: 'pending_payment',
-        newStatus: 'completed',
+        newStatus: 'paid',
         previousStage: 'payment',
-        newStage: 'completed',
+        newStage: 'awaiting_assignment',
         changedById: req.user?.id || '',
-        notes: `تم تأكيد السداد - ${paymentMethod || 'نقدي'}`
+        notes: `تم تأكيد السداد - ${paymentMethod || 'نقدي'}. في انتظار تكليف مهندس`
       });
 
       res.json({
@@ -1784,7 +1784,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...app,
           fees: fees.toString(),
           invoiceNumber: app.invoiceNumber || `INV-${Date.now().toString().slice(-6)}`,
-          paymentStatus: app.status === 'completed' ? 'paid' : 'pending',
+          paymentStatus: app.status === 'paid' ? 'paid' : 'pending',
           invoiceDate: app.updatedAt || app.submittedAt,
           dueDate: new Date(Date.now() + (15 * 24 * 60 * 60 * 1000)).toISOString(), // 15 days from now
           applicationData: {
@@ -1798,6 +1798,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching treasury applications:", error);
       res.status(500).json({ message: "خطأ في استرجاع طلبات الصندوق" });
+    }
+  });
+
+  // Department manager applications - Applications awaiting assignment after payment
+  app.get("/api/manager-applications", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      // Get applications that are paid and awaiting assignment
+      const applications = await storage.getApplications({
+        status: 'paid',
+        currentStage: 'awaiting_assignment'
+      });
+
+      res.json(applications);
+    } catch (error) {
+      console.error("Error fetching manager applications:", error);
+      res.status(500).json({ message: "خطأ في استرجاع طلبات المدير" });
+    }
+  });
+
+  // Assign engineer to application
+  app.post('/api/applications/:id/assign', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { assignedToId, notes, priority } = req.body;
+      const applicationId = req.params.id;
+
+      // Update application assignment
+      await storage.updateApplication(applicationId, {
+        assignedToId,
+        status: 'assigned',
+        currentStage: 'field_survey'
+      });
+
+      // Create a task for the assigned engineer
+      const taskData = {
+        title: 'مسح ميداني للطلب',
+        description: 'إجراء مسح ميداني وإعداد التقرير المطلوب',
+        applicationId,
+        assignedToId,
+        assignedById: req.user?.id,
+        priority: priority || 'medium',
+        status: 'pending',
+        notes: notes
+      };
+      
+      await storage.createTask(taskData);
+
+      // Create status history
+      await storage.createApplicationStatusHistory({
+        applicationId,
+        previousStatus: 'paid',
+        newStatus: 'assigned',
+        previousStage: 'awaiting_assignment',
+        newStage: 'field_survey',
+        changedById: req.user?.id || '',
+        notes: `تم تكليف مهندس: ${notes || ''}`
+      });
+
+      res.json({ success: true, message: "تم تكليف المهندس بنجاح" });
+    } catch (error) {
+      console.error('Error assigning application:', error);
+      res.status(500).json({ message: 'خطأ في تكليف المهندس' });
     }
   });
 
