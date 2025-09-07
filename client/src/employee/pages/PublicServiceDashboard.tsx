@@ -1,102 +1,112 @@
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
 import { 
-  FileCheck, 
-  FileX, 
-  Clock, 
+  FileText, 
+  User, 
+  MapPin, 
+  Calendar, 
+  DollarSign, 
+  CheckCircle, 
+  XCircle, 
+  Clock,
+  Calculator,
   Search,
-  CheckCircle,
-  Eye,
-  FileText,
-  AlertTriangle,
-  Users
+  Filter
 } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
-import { toast } from "@/hooks/use-toast";
 
-interface Application {
+interface ApplicationDetails {
   id: string;
   applicationNumber: string;
-  applicantId: string;
-  serviceId: string;
+  serviceType: string;
   status: string;
   currentStage: string;
-  applicationData: any;
-  documents: any[];
-  fees: string;
-  isPaid: boolean;
-  createdAt: string;
+  submittedAt: string;
+  applicantName: string;
+  applicantId: string;
+  contactPhone: string;
+  email?: string;
+  applicationData: {
+    governorate?: string;
+    district?: string;
+    area?: string;
+    landNumber?: string;
+    plotNumber?: string;
+    surveyType?: string;
+    purpose?: string;
+    description?: string;
+  };
+  fees?: string;
+  isPaid?: boolean;
+}
+
+interface ReviewData {
+  decision: 'approved' | 'rejected';
+  notes: string;
+  calculatedFees: number;
+  reviewerComments: string;
 }
 
 export default function PublicServiceDashboard() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
-  const [reviewAction, setReviewAction] = useState<"approve" | "request_docs" | "reject">("approve");
-  const [reviewNotes, setReviewNotes] = useState("");
+  const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState("pending");
+  const [selectedApplication, setSelectedApplication] = useState<ApplicationDetails | null>(null);
+  const [reviewData, setReviewData] = useState<ReviewData>({
+    decision: 'approved',
+    notes: '',
+    calculatedFees: 0,
+    reviewerComments: ''
+  });
+  const [searchTerm, setSearchTerm] = useState("");
 
-  // Get paid applications waiting for document review
-  const { data: pendingReview = [], isLoading } = useQuery({
-    queryKey: ['/api/applications', { status: 'paid', currentStage: 'payment_confirmed' }],
+  // Fetch pending applications for review
+  const { data: pendingApplications, isLoading: loadingPending } = useQuery<ApplicationDetails[]>({
+    queryKey: ['/api/public-service/pending-applications'],
+    retry: false,
+    refetchOnWindowFocus: false
   });
 
-  // Get applications reviewed today
-  const { data: allApplications = [] } = useQuery({
-    queryKey: ['/api/applications'],
+  // Fetch reviewed applications
+  const { data: reviewedApplications, isLoading: loadingReviewed } = useQuery<ApplicationDetails[]>({
+    queryKey: ['/api/public-service/reviewed-applications'],
+    retry: false,
+    refetchOnWindowFocus: false
   });
 
-  // Filter reviewed applications from today
-  const reviewedToday = allApplications.filter((app: Application) => {
-    const today = new Date().toISOString().split('T')[0];
-    const createdDay = new Date(app.createdAt).toISOString().split('T')[0];
-    return (app.status === 'document_approved' || app.status === 'document_rejected' || app.status === 'document_review') && createdDay === today;
-  });
-
-  // Document review mutation
-  const documentReviewMutation = useMutation({
-    mutationFn: async ({ 
-      applicationId, 
-      action, 
-      notes 
-    }: { 
-      applicationId: string; 
-      action: string;
-      notes: string; 
-    }) => {
-      return apiRequest(`/api/applications/${applicationId}/document-review`, 'POST', {
-        action,
-        notes,
-        reviewerId: '550e8400-e29b-41d4-a716-446655440020' // Public service employee ID
-      });
+  // Review application mutation
+  const reviewMutation = useMutation({
+    mutationFn: async (data: { applicationId: string; reviewData: ReviewData }) => {
+      const response = await apiRequest('POST', `/api/applications/${data.applicationId}/public-service-review`, data.reviewData);
+      return await response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/applications'] });
       toast({
-        title: "تم مراجعة المستندات بنجاح",
-        description: `تم ${reviewAction === 'approve' ? 'الموافقة على' : reviewAction === 'reject' ? 'رفض' : 'طلب مستندات إضافية لـ'} الطلب رقم ${selectedApplication?.applicationNumber}`,
-        variant: "default",
+        title: "تم بنجاح",
+        description: reviewData.decision === 'approved' ? "تم اعتماد الطلب بنجاح" : "تم رفض الطلب",
+        variant: reviewData.decision === 'approved' ? "default" : "destructive",
       });
+      queryClient.invalidateQueries({ queryKey: ['/api/public-service/pending-applications'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/public-service/reviewed-applications'] });
       setSelectedApplication(null);
-      setReviewNotes("");
-      setReviewAction("approve");
+      setReviewData({ decision: 'approved', notes: '', calculatedFees: 0, reviewerComments: '' });
     },
-    onError: () => {
+    onError: (error) => {
       toast({
-        title: "خطأ في مراجعة المستندات",
-        description: "حدث خطأ أثناء مراجعة المستندات، يرجى المحاولة مرة أخرى",
+        title: "خطأ",
+        description: "فشل في معالجة المراجعة. حاول مرة أخرى.",
         variant: "destructive",
       });
-    }
+      console.error('Review error:', error);
+    },
   });
 
   const filteredApplications = pendingReview.filter((app: Application) =>

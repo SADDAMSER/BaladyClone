@@ -1515,6 +1515,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Public Service Dashboard APIs
+  
+  // Get pending applications for public service review
+  app.get("/api/public-service/pending-applications", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      // Get applications that are assigned and ready for public service review
+      const result = await db.select()
+        .from(applications)
+        .where(sql`status = 'in_review' AND current_stage = 'review'`)
+        .orderBy(desc(applications.createdAt));
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching pending applications:", error);
+      res.status(500).json({ message: "خطأ في استرجاع الطلبات المطلوب مراجعتها" });
+    }
+  });
+
+  // Get reviewed applications by public service
+  app.get("/api/public-service/reviewed-applications", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const result = await db.select()
+        .from(applications)
+        .where(sql`status IN ('approved', 'rejected', 'pending_payment') AND current_stage != 'review'`)
+        .orderBy(desc(applications.updatedAt));
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching reviewed applications:", error);
+      res.status(500).json({ message: "خطأ في استرجاع الطلبات المراجعة" });
+    }
+  });
+
+  // Public service review endpoint
+  app.post("/api/applications/:id/public-service-review", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { decision, notes, calculatedFees, reviewerComments } = req.body;
+      const applicationId = req.params.id;
+      
+      // Update application with review decision
+      const newStatus = decision === 'approved' ? 'approved' : 'rejected';
+      const newStage = decision === 'approved' ? 'pending_payment' : 'rejected';
+      
+      await storage.updateApplication(applicationId, {
+        status: newStatus,
+        currentStage: newStage,
+        fees: calculatedFees.toString(),
+        updatedAt: new Date()
+      });
+
+      // Create status history
+      await storage.createApplicationStatusHistory({
+        applicationId,
+        previousStatus: 'in_review',
+        newStatus,
+        previousStage: 'review',
+        newStage,
+        changedById: req.user?.id || '',
+        notes: `خدمة الجمهور - ${decision === 'approved' ? 'اعتماد' : 'رفض'}: ${reviewerComments}`
+      });
+
+      // Create notification
+      await storage.createNotification({
+        userId: req.user?.id || '',
+        title: decision === 'approved' ? 'تم اعتماد الطلب' : 'تم رفض الطلب',
+        message: `تم ${decision === 'approved' ? 'اعتماد' : 'رفض'} الطلب من قبل خدمة الجمهور`,
+        type: 'review',
+        category: 'workflow',
+        relatedEntityId: applicationId,
+        relatedEntityType: 'application'
+      });
+
+      res.json({
+        message: `تم ${decision === 'approved' ? 'اعتماد' : 'رفض'} الطلب بنجاح`,
+        applicationId,
+        decision,
+        calculatedFees
+      });
+    } catch (error) {
+      console.error("Error processing public service review:", error);
+      res.status(500).json({ message: "خطأ في معالجة المراجعة" });
+    }
+  });
+
   // Ministries
   app.get("/api/ministries", async (req, res) => {
     try {
