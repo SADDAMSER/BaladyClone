@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
+import EmployeeLogin from "@/employee/components/EmployeeLogin";
 import { 
   FileText, 
   User, 
@@ -25,7 +26,8 @@ import {
   Building2,
   Phone,
   Mail,
-  AlertCircle
+  AlertCircle,
+  LogOut
 } from "lucide-react";
 
 interface ApplicationDetails {
@@ -108,6 +110,11 @@ export default function PublicServiceDashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
+  // Authentication states
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [authToken, setAuthToken] = useState<string>("");
+  
   // States for search functionality
   const [searchTerm, setSearchTerm] = useState("");
   const [searchBy, setSearchBy] = useState<"application_number" | "national_id">("application_number");
@@ -125,6 +132,38 @@ export default function PublicServiceDashboard() {
   // States for UI
   const [activeTab, setActiveTab] = useState("search");
 
+  // Check for existing login on component mount
+  useEffect(() => {
+    const token = localStorage.getItem('employee_token');
+    const user = localStorage.getItem('employee_user');
+    
+    if (token && user) {
+      setAuthToken(token);
+      setCurrentUser(JSON.parse(user));
+      setIsLoggedIn(true);
+    }
+  }, []);
+
+  const handleLoginSuccess = (token: string, user: any) => {
+    setAuthToken(token);
+    setCurrentUser(user);
+    setIsLoggedIn(true);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('employee_token');
+    localStorage.removeItem('employee_user');
+    setAuthToken("");
+    setCurrentUser(null);
+    setIsLoggedIn(false);
+    setSelectedApplication(null);
+    setActiveTab("search");
+    toast({
+      title: "تم تسجيل الخروج",
+      description: "تم تسجيل خروجك بنجاح",
+    });
+  };
+
   // Query for application search/tracking
   const { data: applicationDetails, isLoading, error } = useQuery<ApplicationDetails>({
     queryKey: ['/api/track-application', searchTerm, searchBy],
@@ -140,8 +179,21 @@ export default function PublicServiceDashboard() {
   // Review application mutation
   const reviewMutation = useMutation({
     mutationFn: async (data: { applicationId: string; reviewData: ReviewData }) => {
-      const response = await apiRequest('POST', `/api/applications/${data.applicationId}/public-service-review`, data.reviewData);
-      return await response.json();
+      // Set token in localStorage temporarily for this request
+      const originalToken = localStorage.getItem("auth-token");
+      localStorage.setItem("auth-token", authToken);
+      
+      try {
+        const response = await apiRequest('POST', `/api/applications/${data.applicationId}/public-service-review`, data.reviewData);
+        return await response.json();
+      } finally {
+        // Restore original token
+        if (originalToken) {
+          localStorage.setItem("auth-token", originalToken);
+        } else {
+          localStorage.removeItem("auth-token");
+        }
+      }
     },
     onSuccess: () => {
       toast({
@@ -228,6 +280,11 @@ export default function PublicServiceDashboard() {
     return statusConfig[status as keyof typeof statusConfig] || statusConfig.submitted;
   };
 
+  // Show login screen if not authenticated
+  if (!isLoggedIn) {
+    return <EmployeeLogin onLoginSuccess={handleLoginSuccess} />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900" dir="rtl">
       {/* Header */}
@@ -238,13 +295,27 @@ export default function PublicServiceDashboard() {
               <Building2 className="h-6 w-6 text-blue-600 ml-2" />
               <span className="text-lg font-semibold">خدمة الجمهور - مراجعة الطلبات</span>
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              {new Date().toLocaleDateString('ar-YE', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-              })}
+            <div className="flex items-center gap-4">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                مرحباً، {currentUser?.fullName || currentUser?.username}
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleLogout}
+                data-testid="button-logout"
+              >
+                <LogOut className="h-4 w-4 ml-2" />
+                تسجيل الخروج
+              </Button>
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                {new Date().toLocaleDateString('ar-YE', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })}
+              </div>
             </div>
           </div>
         </div>

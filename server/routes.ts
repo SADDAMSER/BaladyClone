@@ -121,6 +121,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Create demo user for testing (only in development)
+  app.post("/api/auth/create-demo-user", async (req, res) => {
+    try {
+      if (process.env.NODE_ENV === 'production') {
+        return res.status(403).json({ message: "Not available in production" });
+      }
+
+      // Check if demo user already exists
+      const existingUser = await storage.getUserByUsername("public_service");
+      if (existingUser) {
+        return res.json({ message: "Demo user already exists", user: existingUser });
+      }
+
+      // Create demo user
+      const hashedPassword = await bcrypt.hash("demo123", 12);
+      const demoUser = await storage.createUser({
+        username: "public_service",
+        email: "public.service@demo.com",
+        fullName: "موظف خدمة الجمهور",
+        password: hashedPassword,
+        role: "public_service",
+        departmentId: null,
+        positionId: null,
+        isActive: true
+      });
+
+      res.json({ message: "Demo user created successfully", user: demoUser });
+    } catch (error) {
+      console.error("Error creating demo user:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // Authentication routes
   app.post("/api/auth/login", async (req, res) => {
     try {
@@ -1561,8 +1594,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateApplication(applicationId, {
         status: newStatus,
         currentStage: newStage,
-        fees: calculatedFees.toString(),
-        updatedAt: new Date()
+        fees: calculatedFees.toString()
       });
 
       // Create status history
