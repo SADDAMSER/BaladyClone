@@ -342,14 +342,20 @@ export default function PublicServiceDashboard() {
   };
 
   const handlePrintInvoice = () => {
-    // Print the invoice dialog content
-    window.print();
+    if (!invoiceApplication) return;
     
-    // After printing, transfer to treasury
+    // Open unified form in new window for printing
+    const printWindow = window.open(
+      `/employee/unified-form/${invoiceApplication.id}`,
+      '_blank',
+      'width=800,height=600,scrollbars=yes,resizable=yes'
+    );
+    
+    // After a delay, transfer to treasury
     setTimeout(() => {
       setIsTransferring(true);
       transferToTreasuryMutation.mutate();
-    }, 1000);
+    }, 2000);
   };
 
   const calculateFees = (application: ApplicationDetails) => {
