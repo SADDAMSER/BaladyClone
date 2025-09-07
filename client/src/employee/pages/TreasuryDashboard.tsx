@@ -175,72 +175,16 @@ export default function TreasuryDashboard() {
   const { data: allApplications, isLoading } = useQuery<ApplicationDetails[]>({
     queryKey: ['/api/treasury-applications'],
     queryFn: async () => {
-      // Mock applications with payment data
-      const mockApplications: ApplicationDetails[] = [
-        {
-          id: 'treasury-1',
-          applicationNumber: 'APP-2025-297204542',
-          serviceType: 'إصدار تقرير مساحي',
-          status: 'pending_payment',
-          currentStage: 'payment',
-          submittedAt: new Date(Date.now() - 86400000).toISOString(),
-          applicantName: 'صدام حسين حسين السراجي',
-          applicantId: '778774772',
-          contactPhone: '777123456',
-          fees: '57000',
-          paymentStatus: 'pending',
-          invoiceNumber: 'INV-711220912',
-          applicationData: {
-            governorate: 'صنعاء',
-            district: 'شعوب',
-            purpose: 'عن نفسي',
-            area: '700'
-          }
-        },
-        {
-          id: 'treasury-2',
-          applicationNumber: 'APP-2025-123456',
-          serviceType: 'ترخيص بناء',
-          status: 'pending_payment',
-          currentStage: 'payment',
-          submittedAt: new Date(Date.now() - 172800000).toISOString(),
-          applicantName: 'أحمد محمد علي',
-          applicantId: '1234567890',
-          contactPhone: '777987654',
-          fees: '85000',
-          paymentStatus: 'overdue',
-          invoiceNumber: 'INV-711220913',
-          applicationData: {
-            governorate: 'عدن',
-            district: 'كريتر',
-            purpose: 'بناء تجاري',
-            area: '500'
-          }
-        },
-        {
-          id: 'treasury-3',
-          applicationNumber: 'APP-2025-789012',
-          serviceType: 'قرار المساحة',
-          status: 'completed',
-          currentStage: 'completed',
-          submittedAt: new Date(Date.now() - 259200000).toISOString(),
-          applicantName: 'فاطمة حسن أحمد',
-          applicantId: '9876543210',
-          contactPhone: '777555555',
-          fees: '45000',
-          paymentStatus: 'paid',
-          paymentDate: new Date(Date.now() - 86400000).toISOString(),
-          invoiceNumber: 'INV-711220914',
-          applicationData: {
-            governorate: 'تعز',
-            district: 'صالة',
-            purpose: 'تسوية أوضاع',
-            area: '300'
-          }
-        }
-      ];
+      const token = localStorage.getItem('employee_token');
+      localStorage.setItem("auth-token", token || '');
       
-      return mockApplications;
+      try {
+        const response = await apiRequest('GET', '/api/treasury-applications');
+        const applications = await response.json();
+        return applications;
+      } finally {
+        localStorage.removeItem("auth-token");
+      }
     },
     enabled: isLoggedIn,
     retry: false,
