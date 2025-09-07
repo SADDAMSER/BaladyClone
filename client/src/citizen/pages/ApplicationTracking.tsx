@@ -89,9 +89,9 @@ export default function ApplicationTracking() {
   const [hasSearched, setHasSearched] = useState(false);
 
   const { data: applicationDetails, isLoading, error } = useQuery<ApplicationDetails>({
-    queryKey: ['/api/applications/track', searchTerm, searchBy],
+    queryKey: ['/api/track-application', searchTerm, searchBy],
     queryFn: async () => {
-      const response = await apiRequest('GET', `/api/applications/track?search_term=${searchTerm}&search_by=${searchBy}`);
+      const response = await apiRequest('GET', `/api/track-application?search_term=${searchTerm}&search_by=${searchBy}`);
       return await response.json();
     },
     enabled: hasSearched && searchTerm.length > 0,

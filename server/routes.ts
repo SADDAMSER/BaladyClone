@@ -3,7 +3,8 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
 import { z } from "zod";
-import { sql } from "drizzle-orm";
+import { sql, eq, desc } from "drizzle-orm";
+import { applications } from "@shared/schema";
 import {
   insertUserSchema, insertDepartmentSchema, insertPositionSchema,
   insertLawRegulationSchema, insertLawSectionSchema, insertLawArticleSchema,
@@ -47,6 +48,79 @@ const authenticateToken = (req: AuthenticatedRequest, res: Response, next: NextF
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
+  // PUBLIC ROUTES - MUST BE FIRST (No authentication required)
+  
+  // Public application tracking endpoint - separate path to avoid conflicts
+  app.get("/api/track-application", async (req, res) => {
+    try {
+      console.log('Public tracking endpoint called with:', req.query);
+      const { search_term, search_by } = req.query;
+      
+      if (!search_term || !search_by) {
+        return res.status(400).json({ error: "search_term and search_by are required" });
+      }
+
+      let application;
+      
+      if (search_by === 'application_number') {
+        // Search by application number
+        const foundApplications = await db.select()
+          .from(applications)
+          .where(eq(applications.applicationNumber, search_term as string))
+          .limit(1);
+        application = foundApplications[0];
+      } else if (search_by === 'national_id') {
+        // Search by national ID in application data
+        const foundApplications = await db.select()
+          .from(applications)
+          .where(
+            sql`(application_data->>'applicantId') = ${search_term as string}`
+          )
+          .limit(1);
+        application = foundApplications[0];
+      } else {
+        return res.status(400).json({ error: "search_by must be 'application_number' or 'national_id'" });
+      }
+
+      if (!application) {
+        return res.status(404).json({ error: "Application not found" });
+      }
+
+      // Simple response without complex joins for now
+      const applicationData = application.applicationData as any || {};
+      
+      const response = {
+        id: application.id,
+        applicationNumber: application.applicationNumber,
+        serviceType: application.serviceId === 'service-surveying-decision' ? 'قرار المساحة' : 'خدمة حكومية',
+        status: application.status,
+        currentStage: application.currentStage || 'submitted',
+        submittedAt: application.createdAt,
+        estimatedCompletion: null, // Field not in current schema
+        applicantName: applicationData.applicantName || 'غير محدد',
+        applicantId: applicationData.applicantId || 'غير محدد',
+        contactPhone: applicationData.contactPhone || 'غير محدد',
+        email: applicationData.email,
+        applicationData: {
+          governorate: applicationData.governorate,
+          district: applicationData.district,
+          area: applicationData.area,
+          landNumber: applicationData.landNumber,
+          plotNumber: applicationData.plotNumber,
+          surveyType: applicationData.surveyType,
+          purpose: applicationData.purpose,
+          description: applicationData.description
+        }
+      };
+
+      console.log('Successfully found application:', response.applicationNumber);
+      res.json(response);
+    } catch (error) {
+      console.error('Error tracking application:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // Authentication routes
   app.post("/api/auth/login", async (req, res) => {
     try {
@@ -1298,74 +1372,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Public application tracking endpoint
-  app.get("/api/applications/track", async (req, res) => {
-    try {
-      const { search_term, search_by } = req.query;
-      
-      if (!search_term || !search_by) {
-        return res.status(400).json({ error: "search_term and search_by are required" });
-      }
-
-      let application;
-      
-      if (search_by === 'application_number') {
-        // Search by application number
-        const foundApplications = await db.select()
-          .from(applications)
-          .where(eq(applications.applicationNumber, search_term as string))
-          .limit(1);
-        application = foundApplications[0];
-      } else if (search_by === 'national_id') {
-        // Search by national ID in application data
-        const foundApplications = await db.select()
-          .from(applications)
-          .where(
-            sql`(application_data->>'applicantId') = ${search_term as string}`
-          )
-          .limit(1);
-        application = foundApplications[0];
-      } else {
-        return res.status(400).json({ error: "search_by must be 'application_number' or 'national_id'" });
-      }
-
-      if (!application) {
-        return res.status(404).json({ error: "Application not found" });
-      }
-
-      // Simple response without complex joins for now
-      const applicationData = application.applicationData as any || {};
-      
-      const response = {
-        id: application.id,
-        applicationNumber: application.applicationNumber,
-        serviceType: application.serviceId === 'service-surveying-decision' ? 'قرار المساحة' : 'خدمة حكومية',
-        status: application.status,
-        currentStage: application.currentStage || 'submitted',
-        submittedAt: application.createdAt,
-        estimatedCompletion: application.estimatedCompletion,
-        applicantName: applicationData.applicantName || 'غير محدد',
-        applicantId: applicationData.applicantId || 'غير محدد',
-        contactPhone: applicationData.contactPhone || 'غير محدد',
-        email: applicationData.email,
-        applicationData: {
-          governorate: applicationData.governorate,
-          district: applicationData.district,
-          area: applicationData.area,
-          landNumber: applicationData.landNumber,
-          plotNumber: applicationData.plotNumber,
-          surveyType: applicationData.surveyType,
-          purpose: applicationData.purpose,
-          description: applicationData.description
-        }
-      };
-
-      res.json(response);
-    } catch (error) {
-      console.error('Error tracking application:', error);
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  });
 
   // Employee dashboard - pending assignments
   app.get("/api/dashboard/my-assignments", authenticateToken, async (req: AuthenticatedRequest, res) => {
@@ -1488,17 +1494,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/applications/:id/survey-report", async (req, res) => {
     try {
       const applicationId = req.params.id;
-      const application = storage.getApplication(applicationId);
+      const application = await storage.getApplication(applicationId);
       
       if (!application) {
         return res.status(404).json({ message: "Application not found" });
       }
 
-      if (!application.surveyReport) {
+      // Survey report would be stored separately or in applicationData
+      const applicationData = application.applicationData as any || {};
+      const surveyReport = applicationData.surveyReport;
+
+      if (!surveyReport) {
         return res.status(404).json({ message: "Survey report not found" });
       }
 
-      res.json(application.surveyReport);
+      res.json(surveyReport);
     } catch (error) {
       console.error("Error fetching survey report:", error);
       res.status(500).json({ message: "Failed to fetch survey report" });
