@@ -989,19 +989,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Simple auto-assignment logic based on service type
       const departmentAssignments = {
-        'building_license': 'dept1', // Planning & Licensing Department
-        'surveying_decision': 'dept2', // Surveying Department
-        'demolition_permit': 'dept1', // Planning & Licensing Department
-        'renovation_permit': 'dept1', // Planning & Licensing Department
-        'commercial_license': 'dept3', // Commercial Affairs Department
-        'industrial_license': 'dept4', // Industrial Development Department
+        'building_license': '550e8400-e29b-41d4-a716-446655440001', // Planning & Licensing Department
+        'surveying_decision': '550e8400-e29b-41d4-a716-446655440002', // Surveying Department
+        'demolition_permit': '550e8400-e29b-41d4-a716-446655440001', // Planning & Licensing Department
+        'renovation_permit': '550e8400-e29b-41d4-a716-446655440001', // Planning & Licensing Department
+        'commercial_license': '550e8400-e29b-41d4-a716-446655440003', // Commercial Affairs Department
+        'industrial_license': '550e8400-e29b-41d4-a716-446655440004', // Industrial Development Department
       };
 
       // Extract service type from applicationData or use serviceId
       const serviceType = (application.applicationData as any)?.serviceType || 
                          (application.serviceId === 'service-surveying-decision' ? 'surveying_decision' : 'general');
       
-      const targetDepartmentId = departmentAssignments[serviceType as keyof typeof departmentAssignments] || 'dept1';
+      const targetDepartmentId = departmentAssignments[serviceType as keyof typeof departmentAssignments] || '550e8400-e29b-41d4-a716-446655440001';
 
       // Get available employees in the target department with the least workload
       const departmentUsers = await storage.getUsers({ departmentId: targetDepartmentId, isActive: true });
