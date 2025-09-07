@@ -1231,7 +1231,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             method: paymentMethod,
             notes,
             paidBy,
-            paidAt: new Date().toISOString(),
+            paidAt: new Date(),
             confirmedBy: 'cashier'
           }
         };
@@ -1445,7 +1445,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: "assigned",
         currentStage: "engineer_review",
         assignedToId,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date()
       };
 
       storage.updateApplication(applicationId, updatedApplication);
@@ -1487,7 +1487,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         decisionReason,
         attachments,
         status: 'submitted',
-        createdAt: new Date().toISOString()
+        createdAt: new Date()
       };
 
       // Update application status based on survey decision
@@ -1507,7 +1507,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: newStatus,
         currentStage: newStage,
         surveyReport,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date()
       };
 
       storage.updateApplication(applicationId, updatedApplication);
@@ -1732,7 +1732,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: 'paid',
         currentStage: 'awaiting_assignment',
         paymentStatus: 'paid',
-        paymentDate: new Date().toISOString()
+        paymentDate: new Date()
       });
 
       // Create payment record (this would be stored in a payments table in real implementation)
@@ -1742,7 +1742,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         amount: amount || application.fees,
         paymentMethod: paymentMethod || 'cash',
         notes: notes || 'تم السداد في الصندوق',
-        paymentDate: new Date().toISOString(),
+        paymentDate: new Date(),
         cashierId: req.user?.id
       };
 
@@ -1786,7 +1786,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           invoiceNumber: app.invoiceNumber || `INV-${Date.now().toString().slice(-6)}`,
           paymentStatus: app.status === 'paid' ? 'paid' : 'pending',
           invoiceDate: app.updatedAt || app.submittedAt,
-          dueDate: new Date(Date.now() + (15 * 24 * 60 * 60 * 1000)).toISOString(), // 15 days from now
+          dueDate: new Date(Date.now() + (15 * 24 * 60 * 60 * 1000)), // 15 days from now
           applicationData: {
             ...app.applicationData,
             area: app.applicationData?.area || '700'
@@ -1892,7 +1892,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           title: 'طلب جديد في انتظار السداد',
           message: 'طلب APP-2025-297204542 معتمد ومجهز للسداد',
           applicationId: 'treasury-1',
-          createdAt: new Date().toISOString(),
+          createdAt: new Date(),
           isRead: false
         }
       ];
