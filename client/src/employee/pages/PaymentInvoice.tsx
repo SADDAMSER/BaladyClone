@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,7 +48,9 @@ export default function PaymentInvoice() {
   const params = useParams();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const printRef = useRef<HTMLDivElement>(null);
+  const [isTransferring, setIsTransferring] = useState(false);
 
   // Mock data - في التطبيق الحقيقي سيتم جلب البيانات من API
   const invoiceData: PaymentInvoiceData = {
@@ -74,8 +77,51 @@ export default function PaymentInvoice() {
     qrCode: 'QR_CODE_DATA_HERE'
   };
 
+  // Transfer to treasury mutation
+  const transferToTreasuryMutation = useMutation({
+    mutationFn: async () => {
+      const token = localStorage.getItem('employee_token');
+      localStorage.setItem("auth-token", token || '');
+      
+      try {
+        const response = await apiRequest('POST', `/api/applications/${invoiceData.id}/generate-invoice`, {});
+        return await response.json();
+      } finally {
+        localStorage.removeItem("auth-token");
+      }
+    },
+    onSuccess: () => {
+      toast({
+        title: "تم بنجاح",
+        description: "تم ترحيل الطلب إلى الصندوق للسداد",
+      });
+      
+      // Close this window and redirect opener to treasury
+      if (window.opener) {
+        window.opener.location.href = '/employee/treasury';
+        window.close();
+      } else {
+        setLocation('/employee/treasury');
+      }
+    },
+    onError: () => {
+      toast({
+        title: "خطأ",
+        description: "فشل في ترحيل الطلب إلى الصندوق",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handlePrint = () => {
+    // Print the invoice
     window.print();
+    
+    // After printing, transfer to treasury
+    setTimeout(() => {
+      setIsTransferring(true);
+      transferToTreasuryMutation.mutate();
+    }, 1000);
   };
 
   const handleDownloadPDF = () => {
@@ -88,6 +134,17 @@ export default function PaymentInvoice() {
   const handleGoBack = () => {
     setLocation('/employee/treasury');
   };
+
+  // Auto-print if requested
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('autoprint') === 'true') {
+      // Auto-print after component loads
+      setTimeout(() => {
+        window.print();
+      }, 1000);
+    }
+  }, []);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('ar-YE', {
@@ -141,10 +198,11 @@ export default function PaymentInvoice() {
                 variant="outline" 
                 size="sm" 
                 onClick={handlePrint}
+                disabled={isTransferring || transferToTreasuryMutation.isPending}
                 data-testid="button-print"
               >
                 <Printer className="h-4 w-4 ml-2" />
-                طباعة
+                {isTransferring ? 'جاري الترحيل...' : 'طباعة وترحيل للصندوق'}
               </Button>
             </div>
           </div>

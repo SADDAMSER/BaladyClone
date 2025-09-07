@@ -281,10 +281,24 @@ export default function PublicServiceDashboard() {
       return;
     }
 
-    reviewMutation.mutate({
-      applicationId: selectedApplication.id,
-      reviewData
-    });
+    // If approved, show invoice directly after review
+    if (reviewData.decision === 'approved') {
+      reviewMutation.mutate({
+        applicationId: selectedApplication.id,
+        reviewData
+      }, {
+        onSuccess: () => {
+          // Open invoice in a new window for printing
+          const invoiceUrl = `/employee/invoice/${selectedApplication.id}?autoprint=true`;
+          window.open(invoiceUrl, '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
+        }
+      });
+    } else {
+      reviewMutation.mutate({
+        applicationId: selectedApplication.id,
+        reviewData
+      });
+    }
   };
 
   const calculateFees = (application: ApplicationDetails) => {
@@ -363,16 +377,6 @@ export default function PublicServiceDashboard() {
               <span className="text-lg font-semibold">خدمة الجمهور - مراجعة الطلبات</span>
             </div>
             <div className="flex items-center gap-4">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setLocation('/employee/treasury')}
-                className="text-green-600 border-green-600 hover:bg-green-50"
-                data-testid="button-goto-treasury"
-              >
-                <DollarSign className="h-4 w-4 ml-2" />
-                الذهاب للصندوق
-              </Button>
               <div className="text-sm text-gray-600 dark:text-gray-400">
                 مرحباً، {currentUser?.fullName || currentUser?.username}
               </div>
