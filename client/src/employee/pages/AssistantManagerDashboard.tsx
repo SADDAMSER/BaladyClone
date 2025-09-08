@@ -12,6 +12,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+import RealTimeNotifications from '@/components/RealTimeNotifications';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import {
@@ -253,6 +254,7 @@ export default function AssistantManagerDashboard() {
           <p className="text-muted-foreground">إدارة المواعيد والتواصل مع المواطنين</p>
         </div>
         <div className="flex items-center space-x-4 space-x-reverse">
+          <RealTimeNotifications userId="assistant-manager-001" userRole="assistant_manager" />
           <Button 
             onClick={() => setLocation('/employee/assignment-form')}
             className="bg-green-600 hover:bg-green-700 text-white"

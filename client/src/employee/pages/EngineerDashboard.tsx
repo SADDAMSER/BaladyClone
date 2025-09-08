@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import RealTimeNotifications from '@/components/RealTimeNotifications';
 import { 
   MapPin, 
   Clock, 
@@ -313,6 +314,7 @@ export default function EngineerDashboard() {
               </p>
             </div>
             <div className="flex items-center space-x-4 space-x-reverse">
+              <RealTimeNotifications userId={engineerId} userRole="engineer" />
               <div className="text-center">
                 <div className="text-sm text-gray-500 dark:text-gray-400">تاريخ اليوم</div>
                 <div className="font-semibold text-gray-900 dark:text-white">

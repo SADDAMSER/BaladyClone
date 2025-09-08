@@ -4,12 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Building, Bell, User, Menu, Home, FileText, BarChart3, Settings } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import NotificationSystem, { useNotifications } from "@/components/NotificationSystem";
+import RealTimeNotifications from "@/components/RealTimeNotifications";
 
 export default function Header() {
   const [location] = useLocation();
-  const [showNotifications, setShowNotifications] = useState(false);
-  const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification } = useNotifications();
+  // Mock user ID for notifications - replace with actual user data
+  const mockUserId = "user-123";
 
   const navigationItems = [
     { href: "/", label: "الرئيسية", icon: Home },
@@ -55,22 +55,7 @@ export default function Header() {
             </nav>
             
             <div className="flex items-center space-x-3 space-x-reverse">
-              <div className="relative">
-                <Button 
-                  variant="ghost" 
-                  size="icon"
-                  className="text-primary-foreground hover:text-accent transition-colors"
-                  onClick={() => setShowNotifications(true)}
-                  data-testid="button-notifications"
-                >
-                  <Bell size={20} />
-                </Button>
-                {unreadCount > 0 && (
-                  <Badge className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full text-xs w-5 h-5 flex items-center justify-center p-0">
-                    {unreadCount}
-                  </Badge>
-                )}
-              </div>
+              <RealTimeNotifications userId={mockUserId} userRole="citizen" />
               
               <Button
                 variant="ghost"
@@ -112,26 +97,9 @@ export default function Header() {
                   ))}
                   
                   <div className="border-t pt-4 mt-4">
-                    <Button 
-                      variant="ghost" 
-                      className="w-full justify-start text-right"
-                      onClick={() => setShowNotifications(true)}
-                      data-testid="mobile-notifications"
-                    >
-                      <Bell className="h-4 w-4 ml-2" />
-                      الإشعارات
-                      {unreadCount > 0 && (
-                        <Badge className="mr-auto bg-destructive">{unreadCount}</Badge>
-                      )}
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      className="w-full justify-start text-right"
-                      data-testid="mobile-profile"
-                    >
-                      <User className="h-4 w-4 ml-2" />
-                      الملف الشخصي
-                    </Button>
+                    <div className="flex justify-center">
+                      <RealTimeNotifications userId={mockUserId} userRole="citizen" />
+                    </div>
                   </div>
                 </div>
               </SheetContent>
@@ -139,15 +107,6 @@ export default function Header() {
           </div>
         </div>
       </div>
-      
-      <NotificationSystem
-        isOpen={showNotifications}
-        onClose={() => setShowNotifications(false)}
-        notifications={notifications}
-        onMarkAsRead={markAsRead}
-        onMarkAllAsRead={markAllAsRead}
-        onDeleteNotification={deleteNotification}
-      />
     </header>
   );
 }
