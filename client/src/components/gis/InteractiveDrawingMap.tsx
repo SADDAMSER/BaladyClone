@@ -4,7 +4,7 @@ import L, { LatLng, LeafletMouseEvent } from 'leaflet';
 import DrawingToolbar, { type DrawingMode } from './DrawingToolbar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Globe, Map as MapIcon, Layers } from 'lucide-react';
+import { Globe, Map as MapIcon, Layers, Shapes } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 
 // Fix for default markers in react-leaflet
@@ -673,33 +673,78 @@ export default function InteractiveDrawingMap({
         </MapContainer>
         
         {/* تحكم في نوع الخريطة */}
-        <MapTypeControl
-          currentMapType={mapType}
-          onMapTypeChange={setMapType}
-        />
+        <div className="absolute top-4 right-4 z-[1000]">
+          <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50 p-2">
+            <div className="flex flex-col gap-2">
+              {Object.entries(mapLayers).map(([key, layer]) => {
+                const IconComponent = layer.icon;
+                const isActive = mapType === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setMapType(key as MapType)}
+                    className={`
+                      flex items-center justify-center w-10 h-10 rounded-lg transition-all duration-200
+                      ${isActive 
+                        ? 'bg-green-600 text-white shadow-lg' 
+                        : 'bg-white border border-gray-200 text-gray-600 hover:bg-green-50 hover:border-green-300'
+                      }
+                    `}
+                    title={layer.name}
+                    data-testid={`map-type-${key}`}
+                  >
+                    <IconComponent className="h-5 w-5" />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
         
         {/* معلومات نوع الخريطة الحالي */}
-        <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-2 py-1 rounded text-xs text-muted-foreground z-[1000]" dir="rtl">
-          {mapLayers[mapType].name}
+        <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-2 rounded-lg text-sm text-gray-700 z-[1000] shadow-sm border border-gray-200/50" dir="rtl">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+            <span className="font-medium">{mapLayers[mapType].name}</span>
+          </div>
         </div>
       </div>
       
       {/* معلومات الميزات */}
       {features.length > 0 && (
-        <div className="text-sm text-muted-foreground bg-muted p-3 rounded" dir="rtl">
-          <strong>الميزات المرسومة:</strong> {features.length}
-          {features.some(f => f.properties?.area) && (
-            <span className="mr-4">
-              <strong>إجمالي المساحة:</strong> {' '}
-              {Math.round(features.reduce((sum, f) => sum + (f.properties?.area || 0), 0) / 1000000).toLocaleString()} كم²
-            </span>
-          )}
-          {features.some(f => f.properties?.length) && (
-            <span className="mr-4">
-              <strong>إجمالي الطول:</strong> {' '}
-              {Math.round(features.reduce((sum, f) => sum + (f.properties?.length || 0), 0) / 1000).toLocaleString()} كم
-            </span>
-          )}
+        <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50 p-4" dir="rtl">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                <Shapes className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-gray-800">
+                  الميزات المرسومة: <span className="text-blue-600">{features.length}</span>
+                </div>
+                <div className="text-xs text-gray-600">
+                  {features.some(f => f.properties?.area) && (
+                    <span className="mr-4">
+                      المساحة الإجمالية: {Math.round(features.reduce((sum, f) => sum + (f.properties?.area || 0), 0) / 1000000).toLocaleString()} كم²
+                    </span>
+                  )}
+                  {features.some(f => f.properties?.length) && (
+                    <span className="mr-4">
+                      الطول الإجمالي: {Math.round(features.reduce((sum, f) => sum + (f.properties?.length || 0), 0) / 1000).toLocaleString()} كم
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button className="px-3 py-1 bg-green-100 text-green-700 rounded-lg text-xs font-medium hover:bg-green-200 transition-colors">
+                حفظ
+              </button>
+              <button className="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-200 transition-colors">
+                تصدير
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

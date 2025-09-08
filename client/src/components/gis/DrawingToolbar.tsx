@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -10,7 +10,9 @@ import {
   Shapes,
   Trash2,
   Download,
-  Upload
+  Upload,
+  Layers,
+  Settings
 } from 'lucide-react';
 
 export type DrawingMode = 'pan' | 'point' | 'line' | 'polygon' | 'rectangle' | 'circle';
@@ -71,107 +73,174 @@ export default function DrawingToolbar({
   onImport,
   isEnabled = true
 }: DrawingToolbarProps) {
+  const [showLayers, setShowLayers] = useState(false);
+
   return (
-    <Card className="mb-4" data-testid="drawing-toolbar">
-      <CardContent className="p-4">
-        <div className="flex flex-wrap gap-2">
-          {/* أدوات الرسم */}
-          <div className="flex gap-1 border-l pl-2 ml-2">
+    <div className="mb-4 space-y-3" data-testid="drawing-toolbar">
+      {/* شريط الأدوات الرئيسي */}
+      <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50 p-4">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          
+          {/* أدوات الرسم الأساسية */}
+          <div className="flex items-center gap-2">
             {tools.map((tool) => {
               const IconComponent = tool.icon;
               const isActive = currentMode === tool.id;
               
               return (
-                <Button
-                  key={tool.id}
-                  variant={isActive ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => onModeChange(tool.id)}
-                  disabled={!isEnabled}
-                  title={tool.description}
-                  data-testid={`button-drawing-tool-${tool.id}`}
-                  className={`
-                    ${isActive ? 'bg-primary text-primary-foreground' : ''}
-                    hover:bg-primary hover:text-primary-foreground
-                    transition-colors
-                  `}
-                >
-                  <IconComponent className="h-4 w-4 ml-1" />
-                  <span className="text-sm">{tool.label}</span>
-                </Button>
+                <div key={tool.id} className="flex flex-col items-center">
+                  <Button
+                    variant={isActive ? 'default' : 'outline'}
+                    size="lg"
+                    onClick={() => onModeChange(tool.id)}
+                    disabled={!isEnabled}
+                    title={tool.description}
+                    data-testid={`button-drawing-tool-${tool.id}`}
+                    className={`
+                      w-14 h-14 rounded-xl transition-all duration-200 border-2
+                      ${isActive 
+                        ? 'bg-green-600 border-green-600 text-white shadow-lg shadow-green-600/25 scale-105' 
+                        : 'bg-white border-gray-200 text-gray-600 hover:border-green-500 hover:text-green-600 hover:bg-green-50'
+                      }
+                    `}
+                  >
+                    <IconComponent className="h-6 w-6" />
+                  </Button>
+                  <span className="text-xs text-gray-600 mt-1 font-medium">
+                    {tool.label}
+                  </span>
+                </div>
               );
             })}
           </div>
           
+          {/* الفاصل */}
+          <div className="h-16 w-px bg-gray-200"></div>
+          
           {/* أدوات الإدارة */}
-          <div className="flex gap-1 border-r pr-2 mr-2">
+          <div className="flex items-center gap-2">
             {onClear && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onClear}
-                disabled={!isEnabled}
-                title="مسح جميع الرسومات"
-                data-testid="button-clear-drawings"
-                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-              >
-                <Trash2 className="h-4 w-4 ml-1" />
-                <span className="text-sm">مسح</span>
-              </Button>
+              <div className="flex flex-col items-center">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={onClear}
+                  disabled={!isEnabled}
+                  title="مسح جميع الرسومات"
+                  data-testid="button-clear-drawings"
+                  className="w-14 h-14 rounded-xl border-2 border-red-200 text-red-600 hover:border-red-500 hover:bg-red-50 transition-all duration-200"
+                >
+                  <Trash2 className="h-6 w-6" />
+                </Button>
+                <span className="text-xs text-gray-600 mt-1 font-medium">
+                  مسح
+                </span>
+              </div>
             )}
             
             {onExport && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onExport}
-                disabled={!isEnabled}
-                title="تصدير الرسومات"
-                data-testid="button-export-drawings"
-              >
-                <Download className="h-4 w-4 ml-1" />
-                <span className="text-sm">تصدير</span>
-              </Button>
+              <div className="flex flex-col items-center">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={onExport}
+                  disabled={!isEnabled}
+                  title="تصدير الرسومات"
+                  data-testid="button-export-drawings"
+                  className="w-14 h-14 rounded-xl border-2 border-blue-200 text-blue-600 hover:border-blue-500 hover:bg-blue-50 transition-all duration-200"
+                >
+                  <Download className="h-6 w-6" />
+                </Button>
+                <span className="text-xs text-gray-600 mt-1 font-medium">
+                  تصدير
+                </span>
+              </div>
             )}
             
-            {onImport && (
+            {/* طبقات الخريطة */}
+            <div className="flex flex-col items-center">
               <Button
                 variant="outline"
-                size="sm"
-                onClick={onImport}
+                size="lg"
+                onClick={() => setShowLayers(!showLayers)}
                 disabled={!isEnabled}
-                title="استيراد رسومات"
-                data-testid="button-import-drawings"
+                title="طبقات الخريطة"
+                data-testid="button-map-layers"
+                className={`
+                  w-14 h-14 rounded-xl border-2 transition-all duration-200
+                  ${showLayers 
+                    ? 'border-purple-500 bg-purple-50 text-purple-600' 
+                    : 'border-purple-200 text-purple-600 hover:border-purple-500 hover:bg-purple-50'
+                  }
+                `}
               >
-                <Upload className="h-4 w-4 ml-1" />
-                <span className="text-sm">استيراد</span>
+                <Layers className="h-6 w-6" />
               </Button>
-            )}
-          </div>
-        </div>
-        
-        {/* معلومات الأداة المختارة */}
-        <div className="mt-3 pt-3 border-t">
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <span className="font-medium">الأداة النشطة:</span>
-              <span className="text-primary font-medium">
-                {tools.find(t => t.id === currentMode)?.label || 'غير محدد'}
+              <span className="text-xs text-gray-600 mt-1 font-medium">
+                طبقات الخريطة
               </span>
             </div>
             
-            {currentMode !== 'pan' && (
-              <div className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
-                {currentMode === 'point' && 'انقر على الخريطة لإضافة نقطة'}
-                {currentMode === 'line' && 'انقر لبدء الخط وانقر مزدوجاً لإنهائه'}
-                {currentMode === 'polygon' && 'انقر لإضافة نقاط وانقر مزدوجاً لإنهاء المضلع'}
-                {currentMode === 'rectangle' && 'انقر واسحب لرسم مستطيل'}
-                {currentMode === 'circle' && 'انقر للمركز وانقر مرة أخرى لتحديد النصف قطر'}
+            {onImport && (
+              <div className="flex flex-col items-center">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={onImport}
+                  disabled={!isEnabled}
+                  title="استيراد رسومات"
+                  data-testid="button-import-drawings"
+                  className="w-14 h-14 rounded-xl border-2 border-gray-200 text-gray-600 hover:border-gray-500 hover:bg-gray-50 transition-all duration-200"
+                >
+                  <Upload className="h-6 w-6" />
+                </Button>
+                <span className="text-xs text-gray-600 mt-1 font-medium">
+                  استيراد
+                </span>
               </div>
             )}
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+      
+      {/* شريط النشاط الحالي */}
+      <div className="flex items-center justify-center">
+        <div className="bg-white/90 backdrop-blur-sm rounded-full px-4 py-2 shadow-sm border border-gray-200/50">
+          <span className="text-sm text-gray-600 font-medium">
+            الأداة النشطة: <span className="text-green-600 font-semibold">
+              {tools.find(t => t.id === currentMode)?.label || 'غير محدد'}
+            </span>
+          </span>
+        </div>
+      </div>
+      
+      {/* لوحة طبقات الخريطة (قابلة للطي) */}
+      {showLayers && (
+        <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50 p-4 transition-all duration-300">
+          <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+            <Layers className="h-4 w-4 ml-2" />
+            طبقات الخريطة
+          </h4>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50">
+              <span className="text-sm text-gray-600">الخريطة الأساسية</span>
+              <input type="checkbox" defaultChecked className="rounded" />
+            </div>
+            <div className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50">
+              <span className="text-sm text-gray-600">صور الأقمار الصناعية</span>
+              <input type="checkbox" className="rounded" />
+            </div>
+            <div className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50">
+              <span className="text-sm text-gray-600">التضاريس</span>
+              <input type="checkbox" className="rounded" />
+            </div>
+            <div className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50">
+              <span className="text-sm text-gray-600">الحدود الإدارية</span>
+              <input type="checkbox" className="rounded" />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
