@@ -4,6 +4,7 @@ import {
   applications, surveyingDecisions, tasks, systemSettings,
   serviceTemplates, dynamicForms, workflowDefinitions, serviceBuilder,
   applicationAssignments, applicationStatusHistory, applicationReviews, notifications,
+  appointments, contactAttempts, surveyAssignmentForms,
   type User, type InsertUser, type Department, type InsertDepartment,
   type Position, type InsertPosition, type LawRegulation, type InsertLawRegulation,
   type LawSection, type InsertLawSection, type LawArticle, type InsertLawArticle,
@@ -18,7 +19,10 @@ import {
   type ApplicationAssignment, type InsertApplicationAssignment,
   type ApplicationStatusHistory, type InsertApplicationStatusHistory,
   type ApplicationReview, type InsertApplicationReview,
-  type Notification, type InsertNotification
+  type Notification, type InsertNotification,
+  type Appointment, type InsertAppointment,
+  type ContactAttempt, type InsertContactAttempt,
+  type SurveyAssignmentForm, type InsertSurveyAssignmentForm
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, like, ilike, and, or, desc, asc, sql, count } from "drizzle-orm";
@@ -187,6 +191,43 @@ export interface IStorage {
   createNotification(notification: InsertNotification): Promise<Notification>;
   markNotificationAsRead(notificationId: string): Promise<Notification>;
   markAllNotificationsAsRead(userId: string): Promise<void>;
+
+  // Appointments Management
+  getAppointments(filters?: { 
+    applicationId?: string; 
+    assignedToId?: string; 
+    status?: string;
+    confirmationStatus?: string;
+  }): Promise<Appointment[]>;
+  getAppointment(id: string): Promise<Appointment | undefined>;
+  createAppointment(appointment: InsertAppointment): Promise<Appointment>;
+  updateAppointment(id: string, updates: Partial<InsertAppointment>): Promise<Appointment>;
+  deleteAppointment(id: string): Promise<void>;
+  getUpcomingAppointments(assignedToId: string, daysAhead?: number): Promise<Appointment[]>;
+  confirmAppointment(id: string, confirmedBy: 'citizen' | 'engineer', notes?: string): Promise<Appointment>;
+
+  // Contact Attempts Management
+  getContactAttempts(filters?: {
+    applicationId?: string;
+    appointmentId?: string;
+    attemptedById?: string;
+    isSuccessful?: boolean;
+  }): Promise<ContactAttempt[]>;
+  createContactAttempt(attempt: InsertContactAttempt): Promise<ContactAttempt>;
+  getContactAttemptsForApplication(applicationId: string): Promise<ContactAttempt[]>;
+  markContactAttemptSuccessful(id: string, notes?: string): Promise<ContactAttempt>;
+
+  // Survey Assignment Forms Management
+  getSurveyAssignmentForms(filters?: {
+    applicationId?: string;
+    assignedToId?: string;
+    status?: string;
+  }): Promise<SurveyAssignmentForm[]>;
+  getSurveyAssignmentForm(id: string): Promise<SurveyAssignmentForm | undefined>;
+  createSurveyAssignmentForm(form: InsertSurveyAssignmentForm): Promise<SurveyAssignmentForm>;
+  updateSurveyAssignmentForm(id: string, updates: Partial<InsertSurveyAssignmentForm>): Promise<SurveyAssignmentForm>;
+  markFormAsPrinted(id: string): Promise<SurveyAssignmentForm>;
+  markFormAsSigned(id: string, supervisorSignature: string): Promise<SurveyAssignmentForm>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1180,6 +1221,276 @@ export class DatabaseStorage implements IStorage {
         eq(notifications.userId, userId),
         eq(notifications.isRead, false)
       ));
+  }
+
+  // Appointments Management
+  async getAppointments(filters?: { 
+    applicationId?: string; 
+    assignedToId?: string; 
+    status?: string;
+    confirmationStatus?: string;
+  }): Promise<Appointment[]> {
+    const conditions = [];
+    
+    if (filters?.applicationId) {
+      conditions.push(eq(appointments.applicationId, filters.applicationId));
+    }
+    if (filters?.assignedToId) {
+      conditions.push(eq(appointments.assignedToId, filters.assignedToId));
+    }
+    if (filters?.status) {
+      conditions.push(eq(appointments.status, filters.status));
+    }
+    if (filters?.confirmationStatus) {
+      conditions.push(eq(appointments.confirmationStatus, filters.confirmationStatus));
+    }
+
+    return await db
+      .select()
+      .from(appointments)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(appointments.appointmentDate));
+  }
+
+  async getAppointment(id: string): Promise<Appointment | undefined> {
+    const [appointment] = await db
+      .select()
+      .from(appointments)
+      .where(eq(appointments.id, id));
+    return appointment;
+  }
+
+  async createAppointment(appointment: InsertAppointment): Promise<Appointment> {
+    const [created] = await db
+      .insert(appointments)
+      .values(appointment)
+      .returning();
+    
+    return created;
+  }
+
+  async updateAppointment(id: string, updates: Partial<InsertAppointment>): Promise<Appointment> {
+    const [updated] = await db
+      .update(appointments)
+      .set({ ...updates, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(appointments.id, id))
+      .returning();
+
+    if (!updated) {
+      throw new Error('Appointment not found');
+    }
+
+    return updated;
+  }
+
+  async deleteAppointment(id: string): Promise<void> {
+    await db.delete(appointments).where(eq(appointments.id, id));
+  }
+
+  async getUpcomingAppointments(assignedToId: string, daysAhead: number = 7): Promise<Appointment[]> {
+    const future = new Date();
+    future.setDate(future.getDate() + daysAhead);
+
+    return await db
+      .select()
+      .from(appointments)
+      .where(and(
+        eq(appointments.assignedToId, assignedToId),
+        sql`${appointments.appointmentDate} >= NOW()`,
+        sql`${appointments.appointmentDate} <= ${future.toISOString()}`
+      ))
+      .orderBy(asc(appointments.appointmentDate));
+  }
+
+  async confirmAppointment(id: string, confirmedBy: 'citizen' | 'engineer', notes?: string): Promise<Appointment> {
+    const updates: any = {
+      updatedAt: sql`CURRENT_TIMESTAMP`
+    };
+
+    if (confirmedBy === 'citizen') {
+      updates.citizenConfirmed = true;
+      updates.confirmationStatus = 'confirmed';
+    } else if (confirmedBy === 'engineer') {
+      updates.engineerConfirmed = true;
+    }
+
+    if (notes) {
+      updates.contactNotes = notes;
+    }
+
+    const [updated] = await db
+      .update(appointments)
+      .set(updates)
+      .where(eq(appointments.id, id))
+      .returning();
+
+    if (!updated) {
+      throw new Error('Appointment not found');
+    }
+
+    return updated;
+  }
+
+  // Contact Attempts Management
+  async getContactAttempts(filters?: {
+    applicationId?: string;
+    appointmentId?: string;
+    attemptedById?: string;
+    isSuccessful?: boolean;
+  }): Promise<ContactAttempt[]> {
+    const conditions = [];
+    
+    if (filters?.applicationId) {
+      conditions.push(eq(contactAttempts.applicationId, filters.applicationId));
+    }
+    if (filters?.appointmentId) {
+      conditions.push(eq(contactAttempts.appointmentId, filters.appointmentId));
+    }
+    if (filters?.attemptedById) {
+      conditions.push(eq(contactAttempts.attemptedById, filters.attemptedById));
+    }
+    if (filters?.isSuccessful !== undefined) {
+      conditions.push(eq(contactAttempts.isSuccessful, filters.isSuccessful));
+    }
+
+    return await db
+      .select()
+      .from(contactAttempts)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(contactAttempts.createdAt));
+  }
+
+  async createContactAttempt(attempt: InsertContactAttempt): Promise<ContactAttempt> {
+    const [created] = await db
+      .insert(contactAttempts)
+      .values(attempt)
+      .returning();
+    
+    return created;
+  }
+
+  async getContactAttemptsForApplication(applicationId: string): Promise<ContactAttempt[]> {
+    return await db
+      .select()
+      .from(contactAttempts)
+      .where(eq(contactAttempts.applicationId, applicationId))
+      .orderBy(desc(contactAttempts.createdAt));
+  }
+
+  async markContactAttemptSuccessful(id: string, notes?: string): Promise<ContactAttempt> {
+    const updates: any = {
+      isSuccessful: true,
+      attemptResult: 'success'
+    };
+
+    if (notes) {
+      updates.notes = notes;
+    }
+
+    const [updated] = await db
+      .update(contactAttempts)
+      .set(updates)
+      .where(eq(contactAttempts.id, id))
+      .returning();
+
+    if (!updated) {
+      throw new Error('Contact attempt not found');
+    }
+
+    return updated;
+  }
+
+  // Survey Assignment Forms Management
+  async getSurveyAssignmentForms(filters?: {
+    applicationId?: string;
+    assignedToId?: string;
+    status?: string;
+  }): Promise<SurveyAssignmentForm[]> {
+    const conditions = [];
+    
+    if (filters?.applicationId) {
+      conditions.push(eq(surveyAssignmentForms.applicationId, filters.applicationId));
+    }
+    if (filters?.assignedToId) {
+      conditions.push(eq(surveyAssignmentForms.assignedToId, filters.assignedToId));
+    }
+    if (filters?.status) {
+      conditions.push(eq(surveyAssignmentForms.status, filters.status));
+    }
+
+    return await db
+      .select()
+      .from(surveyAssignmentForms)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(surveyAssignmentForms.createdAt));
+  }
+
+  async getSurveyAssignmentForm(id: string): Promise<SurveyAssignmentForm | undefined> {
+    const [form] = await db
+      .select()
+      .from(surveyAssignmentForms)
+      .where(eq(surveyAssignmentForms.id, id));
+    return form;
+  }
+
+  async createSurveyAssignmentForm(form: InsertSurveyAssignmentForm): Promise<SurveyAssignmentForm> {
+    const [created] = await db
+      .insert(surveyAssignmentForms)
+      .values(form)
+      .returning();
+    
+    return created;
+  }
+
+  async updateSurveyAssignmentForm(id: string, updates: Partial<InsertSurveyAssignmentForm>): Promise<SurveyAssignmentForm> {
+    const [updated] = await db
+      .update(surveyAssignmentForms)
+      .set({ ...updates, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(surveyAssignmentForms.id, id))
+      .returning();
+
+    if (!updated) {
+      throw new Error('Survey assignment form not found');
+    }
+
+    return updated;
+  }
+
+  async markFormAsPrinted(id: string): Promise<SurveyAssignmentForm> {
+    const [updated] = await db
+      .update(surveyAssignmentForms)
+      .set({ 
+        status: 'printed',
+        printedAt: sql`CURRENT_TIMESTAMP`,
+        updatedAt: sql`CURRENT_TIMESTAMP`
+      })
+      .where(eq(surveyAssignmentForms.id, id))
+      .returning();
+
+    if (!updated) {
+      throw new Error('Survey assignment form not found');
+    }
+
+    return updated;
+  }
+
+  async markFormAsSigned(id: string, supervisorSignature: string): Promise<SurveyAssignmentForm> {
+    const [updated] = await db
+      .update(surveyAssignmentForms)
+      .set({ 
+        status: 'signed',
+        signedAt: sql`CURRENT_TIMESTAMP`,
+        supervisorSignature,
+        updatedAt: sql`CURRENT_TIMESTAMP`
+      })
+      .where(eq(surveyAssignmentForms.id, id))
+      .returning();
+
+    if (!updated) {
+      throw new Error('Survey assignment form not found');
+    }
+
+    return updated;
   }
 }
 
