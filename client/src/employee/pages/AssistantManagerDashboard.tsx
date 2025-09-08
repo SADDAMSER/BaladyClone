@@ -26,8 +26,10 @@ import {
   Plus,
   PhoneCall,
   MessageSquare,
-  Users
+  Users,
+  UserPlus
 } from 'lucide-react';
+import { useLocation } from 'wouter';
 
 interface Application {
   id: string;
@@ -81,6 +83,7 @@ interface ContactAttempt {
 export default function AssistantManagerDashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
   
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isScheduleDialogOpen, setIsScheduleDialogOpen] = useState(false);
@@ -250,6 +253,14 @@ export default function AssistantManagerDashboard() {
           <p className="text-muted-foreground">إدارة المواعيد والتواصل مع المواطنين</p>
         </div>
         <div className="flex items-center space-x-4 space-x-reverse">
+          <Button 
+            onClick={() => setLocation('/employee/assignment-form')}
+            className="bg-green-600 hover:bg-green-700 text-white"
+            data-testid="button-new-assignment"
+          >
+            <UserPlus className="ml-2 h-4 w-4" />
+            تكليف مهندس جديد
+          </Button>
           <Badge variant="outline" className="text-lg p-2">
             <Calendar className="h-4 w-4 ml-2" />
             {format(new Date(), 'dd/MM/yyyy', { locale: ar })}
