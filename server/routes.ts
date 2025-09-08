@@ -1919,6 +1919,277 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ======= APPOINTMENTS MANAGEMENT API =======
+
+  // Get appointments with filtering
+  app.get("/api/appointments", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { applicationId, assignedToId, status, confirmationStatus } = req.query;
+      
+      const appointments = await storage.getAppointments({
+        applicationId: applicationId as string,
+        assignedToId: assignedToId as string,
+        status: status as string,
+        confirmationStatus: confirmationStatus as string,
+      });
+
+      res.json(appointments);
+    } catch (error) {
+      console.error("Error fetching appointments:", error);
+      res.status(500).json({ message: "خطأ في استرجاع المواعيد" });
+    }
+  });
+
+  // Get specific appointment
+  app.get("/api/appointments/:id", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const appointment = await storage.getAppointment(req.params.id);
+      
+      if (!appointment) {
+        return res.status(404).json({ message: "الموعد غير موجود" });
+      }
+
+      res.json(appointment);
+    } catch (error) {
+      console.error("Error fetching appointment:", error);
+      res.status(500).json({ message: "خطأ في استرجاع الموعد" });
+    }
+  });
+
+  // Create new appointment
+  app.post("/api/appointments", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const appointment = await storage.createAppointment(req.body);
+      res.status(201).json(appointment);
+    } catch (error) {
+      console.error("Error creating appointment:", error);
+      res.status(500).json({ message: "خطأ في إنشاء الموعد" });
+    }
+  });
+
+  // Update appointment
+  app.put("/api/appointments/:id", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const appointment = await storage.updateAppointment(req.params.id, req.body);
+      res.json(appointment);
+    } catch (error) {
+      console.error("Error updating appointment:", error);
+      res.status(500).json({ message: "خطأ في تحديث الموعد" });
+    }
+  });
+
+  // Confirm appointment (by citizen or engineer)
+  app.post("/api/appointments/:id/confirm", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { confirmedBy, notes } = req.body;
+      
+      if (!confirmedBy || !['citizen', 'engineer'].includes(confirmedBy)) {
+        return res.status(400).json({ message: "نوع التأكيد مطلوب" });
+      }
+
+      const appointment = await storage.confirmAppointment(req.params.id, confirmedBy, notes);
+      res.json(appointment);
+    } catch (error) {
+      console.error("Error confirming appointment:", error);
+      res.status(500).json({ message: "خطأ في تأكيد الموعد" });
+    }
+  });
+
+  // Get upcoming appointments for engineer
+  app.get("/api/appointments/upcoming/:engineerId", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { daysAhead } = req.query;
+      const appointments = await storage.getUpcomingAppointments(
+        req.params.engineerId,
+        daysAhead ? parseInt(daysAhead as string) : 7
+      );
+      res.json(appointments);
+    } catch (error) {
+      console.error("Error fetching upcoming appointments:", error);
+      res.status(500).json({ message: "خطأ في استرجاع المواعيد القادمة" });
+    }
+  });
+
+  // Schedule appointment for application
+  app.post("/api/applications/:id/schedule", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const applicationId = req.params.id;
+      const { assignedToId, appointmentDate, appointmentTime, contactPhone, contactNotes, location } = req.body;
+
+      if (!assignedToId || !appointmentDate || !appointmentTime) {
+        return res.status(400).json({ message: "بيانات الموعد مطلوبة" });
+      }
+
+      const appointment = await storage.createAppointment({
+        applicationId,
+        assignedToId,
+        scheduledById: req.user?.id as string,
+        appointmentDate: new Date(appointmentDate),
+        appointmentTime,
+        contactPhone,
+        contactNotes,
+        location,
+        status: 'scheduled',
+        confirmationStatus: 'pending'
+      });
+
+      // Update application status
+      await storage.updateApplication(applicationId, {
+        status: 'scheduled',
+        currentStage: 'appointment_scheduling'
+      });
+
+      res.status(201).json(appointment);
+    } catch (error) {
+      console.error("Error scheduling appointment:", error);
+      res.status(500).json({ message: "خطأ في تحديد الموعد" });
+    }
+  });
+
+  // ======= CONTACT ATTEMPTS MANAGEMENT API =======
+
+  // Get contact attempts
+  app.get("/api/contact-attempts", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { applicationId, appointmentId, attemptedById, isSuccessful } = req.query;
+      
+      const attempts = await storage.getContactAttempts({
+        applicationId: applicationId as string,
+        appointmentId: appointmentId as string,
+        attemptedById: attemptedById as string,
+        isSuccessful: isSuccessful === 'true' ? true : isSuccessful === 'false' ? false : undefined,
+      });
+
+      res.json(attempts);
+    } catch (error) {
+      console.error("Error fetching contact attempts:", error);
+      res.status(500).json({ message: "خطأ في استرجاع محاولات التواصل" });
+    }
+  });
+
+  // Create contact attempt
+  app.post("/api/contact-attempts", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const attempt = await storage.createContactAttempt({
+        ...req.body,
+        attemptedById: req.user?.id as string,
+      });
+      res.status(201).json(attempt);
+    } catch (error) {
+      console.error("Error creating contact attempt:", error);
+      res.status(500).json({ message: "خطأ في تسجيل محاولة التواصل" });
+    }
+  });
+
+  // Get contact attempts for application
+  app.get("/api/applications/:id/contact-attempts", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const attempts = await storage.getContactAttemptsForApplication(req.params.id);
+      res.json(attempts);
+    } catch (error) {
+      console.error("Error fetching contact attempts for application:", error);
+      res.status(500).json({ message: "خطأ في استرجاع محاولات التواصل للطلب" });
+    }
+  });
+
+  // Mark contact attempt as successful
+  app.put("/api/contact-attempts/:id/success", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { notes } = req.body;
+      const attempt = await storage.markContactAttemptSuccessful(req.params.id, notes);
+      res.json(attempt);
+    } catch (error) {
+      console.error("Error marking contact attempt as successful:", error);
+      res.status(500).json({ message: "خطأ في تحديث حالة محاولة التواصل" });
+    }
+  });
+
+  // ======= SURVEY ASSIGNMENT FORMS API =======
+
+  // Get survey assignment forms
+  app.get("/api/assignment-forms", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { applicationId, assignedToId, status } = req.query;
+      
+      const forms = await storage.getSurveyAssignmentForms({
+        applicationId: applicationId as string,
+        assignedToId: assignedToId as string,
+        status: status as string,
+      });
+
+      res.json(forms);
+    } catch (error) {
+      console.error("Error fetching assignment forms:", error);
+      res.status(500).json({ message: "خطأ في استرجاع نماذج التكليف" });
+    }
+  });
+
+  // Get specific assignment form
+  app.get("/api/assignment-forms/:id", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const form = await storage.getSurveyAssignmentForm(req.params.id);
+      
+      if (!form) {
+        return res.status(404).json({ message: "نموذج التكليف غير موجود" });
+      }
+
+      res.json(form);
+    } catch (error) {
+      console.error("Error fetching assignment form:", error);
+      res.status(500).json({ message: "خطأ في استرجاع نموذج التكليف" });
+    }
+  });
+
+  // Create survey assignment form
+  app.post("/api/assignment-forms", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const form = await storage.createSurveyAssignmentForm(req.body);
+      res.status(201).json(form);
+    } catch (error) {
+      console.error("Error creating assignment form:", error);
+      res.status(500).json({ message: "خطأ في إنشاء نموذج التكليف" });
+    }
+  });
+
+  // Update assignment form
+  app.put("/api/assignment-forms/:id", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const form = await storage.updateSurveyAssignmentForm(req.params.id, req.body);
+      res.json(form);
+    } catch (error) {
+      console.error("Error updating assignment form:", error);
+      res.status(500).json({ message: "خطأ في تحديث نموذج التكليف" });
+    }
+  });
+
+  // Mark form as printed
+  app.put("/api/assignment-forms/:id/print", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const form = await storage.markFormAsPrinted(req.params.id);
+      res.json(form);
+    } catch (error) {
+      console.error("Error marking form as printed:", error);
+      res.status(500).json({ message: "خطأ في تحديث حالة الطباعة" });
+    }
+  });
+
+  // Mark form as signed
+  app.put("/api/assignment-forms/:id/sign", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { supervisorSignature } = req.body;
+      
+      if (!supervisorSignature) {
+        return res.status(400).json({ message: "توقيع المشرف مطلوب" });
+      }
+
+      const form = await storage.markFormAsSigned(req.params.id, supervisorSignature);
+      res.json(form);
+    } catch (error) {
+      console.error("Error marking form as signed:", error);
+      res.status(500).json({ message: "خطأ في تحديث حالة التوقيع" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
