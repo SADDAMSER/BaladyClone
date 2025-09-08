@@ -2190,6 +2190,250 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ======= ENGINEER APIS =======
+
+  // Get engineer workload dashboard data
+  app.get('/api/engineer/workload/:engineerId', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { engineerId } = req.params;
+      const workload = await storage.getEngineerWorkload(engineerId);
+      res.json(workload);
+    } catch (error) {
+      console.error('Error fetching engineer workload:', error);
+      res.status(500).json({ error: 'فشل في استرجاع أعباء المهندس' });
+    }
+  });
+
+  // Get engineer appointments
+  app.get('/api/engineer/appointments/:engineerId', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { engineerId } = req.params;
+      const { status } = req.query;
+      
+      const appointments = await storage.getAppointments({
+        assignedToId: engineerId,
+        status: status as string
+      });
+      
+      res.json(appointments);
+    } catch (error) {
+      console.error('Error fetching engineer appointments:', error);
+      res.status(500).json({ error: 'فشل في استرجاع مواعيد المهندس' });
+    }
+  });
+
+  // Confirm appointment by engineer
+  app.put('/api/engineer/appointments/:appointmentId/confirm', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { appointmentId } = req.params;
+      const { notes } = req.body;
+      
+      const appointment = await storage.updateAppointment(appointmentId, {
+        status: 'confirmed',
+        notes
+      });
+      
+      res.json(appointment);
+    } catch (error) {
+      console.error('Error confirming appointment:', error);
+      res.status(500).json({ error: 'فشل في تأكيد الموعد' });
+    }
+  });
+
+  // ======= FIELD VISITS APIS =======
+
+  // Get field visits for engineer
+  app.get('/api/field-visits/engineer/:engineerId', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { engineerId } = req.params;
+      const { status } = req.query;
+      
+      const visits = await storage.getEngineerFieldVisits(engineerId, status as string);
+      res.json(visits);
+    } catch (error) {
+      console.error('Error fetching field visits:', error);
+      res.status(500).json({ error: 'فشل في استرجاع الزيارات الميدانية' });
+    }
+  });
+
+  // Get field visit by ID
+  app.get('/api/field-visits/:visitId', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { visitId } = req.params;
+      const visit = await storage.getFieldVisit(visitId);
+      
+      if (!visit) {
+        return res.status(404).json({ error: 'الزيارة الميدانية غير موجودة' });
+      }
+      
+      res.json(visit);
+    } catch (error) {
+      console.error('Error fetching field visit:', error);
+      res.status(500).json({ error: 'فشل في استرجاع الزيارة الميدانية' });
+    }
+  });
+
+  // Create field visit
+  app.post('/api/field-visits', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const visitData = req.body;
+      const visit = await storage.createFieldVisit(visitData);
+      res.status(201).json(visit);
+    } catch (error) {
+      console.error('Error creating field visit:', error);
+      res.status(500).json({ error: 'فشل في إنشاء الزيارة الميدانية' });
+    }
+  });
+
+  // Start field visit
+  app.put('/api/field-visits/:visitId/start', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { visitId } = req.params;
+      const { gpsLocation } = req.body;
+      
+      const visit = await storage.startFieldVisit(visitId, gpsLocation);
+      res.json(visit);
+    } catch (error) {
+      console.error('Error starting field visit:', error);
+      res.status(500).json({ error: 'فشل في بدء الزيارة الميدانية' });
+    }
+  });
+
+  // Complete field visit
+  app.put('/api/field-visits/:visitId/complete', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { visitId } = req.params;
+      const { notes, requiresFollowUp, followUpReason } = req.body;
+      
+      const visit = await storage.completeFieldVisit(visitId, notes, requiresFollowUp, followUpReason);
+      res.json(visit);
+    } catch (error) {
+      console.error('Error completing field visit:', error);
+      res.status(500).json({ error: 'فشل في إكمال الزيارة الميدانية' });
+    }
+  });
+
+  // Update field visit
+  app.put('/api/field-visits/:visitId', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { visitId } = req.params;
+      const updates = req.body;
+      
+      const visit = await storage.updateFieldVisit(visitId, updates);
+      res.json(visit);
+    } catch (error) {
+      console.error('Error updating field visit:', error);
+      res.status(500).json({ error: 'فشل في تحديث الزيارة الميدانية' });
+    }
+  });
+
+  // ======= SURVEY RESULTS APIS =======
+
+  // Get survey results
+  app.get('/api/survey-results', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const filters = req.query;
+      const results = await storage.getSurveyResults(filters);
+      res.json(results);
+    } catch (error) {
+      console.error('Error fetching survey results:', error);
+      res.status(500).json({ error: 'فشل في استرجاع نتائج المساحة' });
+    }
+  });
+
+  // Get survey result by ID
+  app.get('/api/survey-results/:resultId', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { resultId } = req.params;
+      const result = await storage.getSurveyResult(resultId);
+      
+      if (!result) {
+        return res.status(404).json({ error: 'نتيجة المساحة غير موجودة' });
+      }
+      
+      res.json(result);
+    } catch (error) {
+      console.error('Error fetching survey result:', error);
+      res.status(500).json({ error: 'فشل في استرجاع نتيجة المساحة' });
+    }
+  });
+
+  // Create survey result
+  app.post('/api/survey-results', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const resultData = req.body;
+      const result = await storage.createSurveyResult(resultData);
+      res.status(201).json(result);
+    } catch (error) {
+      console.error('Error creating survey result:', error);
+      res.status(500).json({ error: 'فشل في إنشاء نتيجة المساحة' });
+    }
+  });
+
+  // Update survey result
+  app.put('/api/survey-results/:resultId', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { resultId } = req.params;
+      const updates = req.body;
+      
+      const result = await storage.updateSurveyResult(resultId, updates);
+      res.json(result);
+    } catch (error) {
+      console.error('Error updating survey result:', error);
+      res.status(500).json({ error: 'فشل في تحديث نتيجة المساحة' });
+    }
+  });
+
+  // Complete survey result
+  app.put('/api/survey-results/:resultId/complete', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { resultId } = req.params;
+      const result = await storage.completeSurveyResult(resultId);
+      res.json(result);
+    } catch (error) {
+      console.error('Error completing survey result:', error);
+      res.status(500).json({ error: 'فشل في إكمال نتيجة المساحة' });
+    }
+  });
+
+  // ======= SURVEY REPORTS APIS =======
+
+  // Get survey reports
+  app.get('/api/survey-reports', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const filters = req.query;
+      const reports = await storage.getSurveyReports(filters);
+      res.json(reports);
+    } catch (error) {
+      console.error('Error fetching survey reports:', error);
+      res.status(500).json({ error: 'فشل في استرجاع تقارير المساحة' });
+    }
+  });
+
+  // Create survey report
+  app.post('/api/survey-reports', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const reportData = req.body;
+      const report = await storage.createSurveyReport(reportData);
+      res.status(201).json(report);
+    } catch (error) {
+      console.error('Error creating survey report:', error);
+      res.status(500).json({ error: 'فشل في إنشاء تقرير المساحة' });
+    }
+  });
+
+  // Get public reports for application (for citizens)
+  app.get('/api/applications/:applicationId/public-reports', async (req, res) => {
+    try {
+      const { applicationId } = req.params;
+      const reports = await storage.getPublicReportsForApplication(applicationId);
+      res.json(reports);
+    } catch (error) {
+      console.error('Error fetching public reports:', error);
+      res.status(500).json({ error: 'فشل في استرجاع التقارير العامة' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
