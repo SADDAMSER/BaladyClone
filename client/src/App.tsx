@@ -30,6 +30,7 @@ import PublicServiceDashboard from "@/employee/pages/PublicServiceDashboard";
 import TreasuryDashboard from "@/employee/pages/TreasuryDashboard";
 import PaymentInvoice from "@/employee/pages/PaymentInvoice";
 import DepartmentManagerDashboard from "@/employee/pages/DepartmentManagerDashboard";
+import AssistantManagerDashboard from "@/employee/pages/AssistantManagerDashboard";
 import SurveyorDashboard from "@/employee/pages/SurveyorDashboard";
 import UnifiedFormPrint from "@/employee/pages/UnifiedFormPrint";
 import ApplicationStatus from "@/citizen/pages/ApplicationStatus";
@@ -72,6 +73,7 @@ function AuthenticatedRouter() {
         <Route path="/employee/invoice/:id" component={PaymentInvoice} />
         <Route path="/employee/unified-form/:id" component={UnifiedFormPrint} />
         <Route path="/employee/department-manager" component={DepartmentManagerDashboard} />
+        <Route path="/employee/assistant-manager" component={AssistantManagerDashboard} />
         <Route path="/employee/surveyor" component={SurveyorDashboard} />
         <Route component={NotFound} />
       </Switch>
