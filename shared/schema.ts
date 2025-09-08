@@ -1095,6 +1095,60 @@ export const applicationReviews = pgTable("application_reviews", {
   reviewedAt: timestamp("reviewed_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
+// Appointments System
+export const appointments = pgTable("appointments", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  applicationId: uuid("application_id").notNull(),
+  assignedToId: uuid("assigned_to_id").notNull(), // المهندس المكلف
+  scheduledById: uuid("scheduled_by_id").notNull(), // مساعد رئيس القسم
+  appointmentDate: timestamp("appointment_date").notNull(),
+  appointmentTime: text("appointment_time").notNull(), // "09:00 AM"
+  contactPhone: text("contact_phone"),
+  contactNotes: text("contact_notes"),
+  location: text("location"),
+  status: text("status").default("scheduled"), // scheduled, confirmed, cancelled, completed, rescheduled
+  confirmationStatus: text("confirmation_status").default("pending"), // pending, confirmed, failed
+  reminderSent: boolean("reminder_sent").default(false),
+  citizenConfirmed: boolean("citizen_confirmed").default(false),
+  engineerConfirmed: boolean("engineer_confirmed").default(false),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Contact Attempts System
+export const contactAttempts = pgTable("contact_attempts", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  applicationId: uuid("application_id").notNull(),
+  appointmentId: uuid("appointment_id"),
+  attemptedById: uuid("attempted_by_id").notNull(), // من قام بمحاولة التواصل
+  contactMethod: text("contact_method").notNull(), // phone, sms, email
+  contactDetails: text("contact_details"), // رقم الهاتف أو البريد
+  attemptResult: text("attempt_result").notNull(), // success, no_answer, busy, invalid_number, citizen_unavailable
+  notes: text("notes"),
+  nextAttemptDate: timestamp("next_attempt_date"),
+  attemptCount: integer("attempt_count").default(1),
+  isSuccessful: boolean("is_successful").default(false),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Survey Assignment Forms (for printable assignment documents)
+export const surveyAssignmentForms = pgTable("survey_assignment_forms", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  applicationId: uuid("application_id").notNull(),
+  appointmentId: uuid("appointment_id"),
+  assignedToId: uuid("assigned_to_id").notNull(),
+  formData: jsonb("form_data").notNull(), // البيانات الكاملة للنموذج
+  geoReferenceData: jsonb("geo_reference_data"), // بيانات المرجع الجغرافي
+  mapData: jsonb("map_data"), // بيانات الخريطة والموقع
+  qrCode: text("qr_code"),
+  printedAt: timestamp("printed_at"),
+  signedAt: timestamp("signed_at"),
+  supervisorSignature: text("supervisor_signature"),
+  status: text("status").default("draft"), // draft, printed, signed, completed
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
 // Relations for new tables
 export const applicationStatusHistoryRelations = relations(applicationStatusHistory, ({ one }) => ({
   application: one(applications, {
@@ -1103,6 +1157,51 @@ export const applicationStatusHistoryRelations = relations(applicationStatusHist
   }),
   changedBy: one(users, {
     fields: [applicationStatusHistory.changedById],
+    references: [users.id],
+  }),
+}));
+
+export const appointmentsRelations = relations(appointments, ({ one }) => ({
+  application: one(applications, {
+    fields: [appointments.applicationId],
+    references: [applications.id],
+  }),
+  assignedTo: one(users, {
+    fields: [appointments.assignedToId],
+    references: [users.id],
+  }),
+  scheduledBy: one(users, {
+    fields: [appointments.scheduledById],
+    references: [users.id],
+  }),
+}));
+
+export const contactAttemptsRelations = relations(contactAttempts, ({ one }) => ({
+  application: one(applications, {
+    fields: [contactAttempts.applicationId],
+    references: [applications.id],
+  }),
+  appointment: one(appointments, {
+    fields: [contactAttempts.appointmentId],
+    references: [appointments.id],
+  }),
+  attemptedBy: one(users, {
+    fields: [contactAttempts.attemptedById],
+    references: [users.id],
+  }),
+}));
+
+export const surveyAssignmentFormsRelations = relations(surveyAssignmentForms, ({ one }) => ({
+  application: one(applications, {
+    fields: [surveyAssignmentForms.applicationId],
+    references: [applications.id],
+  }),
+  appointment: one(appointments, {
+    fields: [surveyAssignmentForms.appointmentId],
+    references: [appointments.id],
+  }),
+  assignedTo: one(users, {
+    fields: [surveyAssignmentForms.assignedToId],
     references: [users.id],
   }),
 }));
@@ -1167,6 +1266,23 @@ export const insertApplicationReviewSchema = createInsertSchema(applicationRevie
   reviewedAt: true 
 });
 
+export const insertAppointmentSchema = createInsertSchema(appointments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertContactAttemptSchema = createInsertSchema(contactAttempts).omit({
+  id: true,
+  createdAt: true
+});
+
+export const insertSurveyAssignmentFormSchema = createInsertSchema(surveyAssignmentForms).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
 // Types
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
@@ -1179,3 +1295,12 @@ export type InsertApplicationAssignment = z.infer<typeof insertApplicationAssign
 
 export type ApplicationReview = typeof applicationReviews.$inferSelect;
 export type InsertApplicationReview = z.infer<typeof insertApplicationReviewSchema>;
+
+export type Appointment = typeof appointments.$inferSelect;
+export type InsertAppointment = z.infer<typeof insertAppointmentSchema>;
+
+export type ContactAttempt = typeof contactAttempts.$inferSelect;
+export type InsertContactAttempt = z.infer<typeof insertContactAttemptSchema>;
+
+export type SurveyAssignmentForm = typeof surveyAssignmentForms.$inferSelect;
+export type InsertSurveyAssignmentForm = z.infer<typeof insertSurveyAssignmentFormSchema>;
