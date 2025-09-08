@@ -125,12 +125,9 @@ export default function AssistantManagerDashboard() {
   // Schedule appointment mutation
   const scheduleAppointmentMutation = useMutation({
     mutationFn: async (data: any) => {
-      return apiRequest(`/api/applications/${selectedApplication?.id}/schedule`, {
-        method: 'POST',
-        body: JSON.stringify({
-          ...data,
-          appointmentDate: selectedDate.toISOString(),
-        }),
+      return apiRequest(`/api/applications/${selectedApplication?.id}/schedule`, 'POST', {
+        ...data,
+        appointmentDate: selectedDate.toISOString(),
       });
     },
     onSuccess: () => {
@@ -161,12 +158,9 @@ export default function AssistantManagerDashboard() {
   // Contact attempt mutation
   const createContactAttemptMutation = useMutation({
     mutationFn: async (data: any) => {
-      return apiRequest('/api/contact-attempts', {
-        method: 'POST',
-        body: JSON.stringify({
-          ...data,
-          applicationId: selectedApplication?.id,
-        }),
+      return apiRequest('/api/contact-attempts', 'POST', {
+        ...data,
+        applicationId: selectedApplication?.id,
       });
     },
     onSuccess: () => {
@@ -293,7 +287,7 @@ export default function AssistantManagerDashboard() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-4">
-                {assignedApplications?.map((application: Application) => (
+                {(assignedApplications as Application[] || []).map((application: Application) => (
                   <Card key={application.id} className="border-2">
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
@@ -348,7 +342,7 @@ export default function AssistantManagerDashboard() {
                     </CardContent>
                   </Card>
                 ))}
-                {!assignedApplications?.length && (
+                {!(assignedApplications as Application[] || []).length && (
                   <div className="text-center py-8 text-muted-foreground">
                     لا توجد طلبات في انتظار تحديد الموعد
                   </div>
@@ -368,7 +362,7 @@ export default function AssistantManagerDashboard() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-4">
-                {appointments?.map((appointment: Appointment) => (
+                {(appointments as Appointment[] || []).map((appointment: Appointment) => (
                   <Card key={appointment.id} className="border-2">
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
@@ -424,7 +418,7 @@ export default function AssistantManagerDashboard() {
                     </CardContent>
                   </Card>
                 ))}
-                {!appointments?.length && (
+                {!(appointments as Appointment[] || []).length && (
                   <div className="text-center py-8 text-muted-foreground">
                     لا توجد مواعيد مجدولة
                   </div>
@@ -444,7 +438,7 @@ export default function AssistantManagerDashboard() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-4">
-                {contactAttempts?.map((attempt: ContactAttempt) => (
+                {(contactAttempts as ContactAttempt[] || []).map((attempt: ContactAttempt) => (
                   <Card key={attempt.id} className="border-2">
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
@@ -478,7 +472,7 @@ export default function AssistantManagerDashboard() {
                     </CardContent>
                   </Card>
                 ))}
-                {!contactAttempts?.length && (
+                {!(contactAttempts as ContactAttempt[] || []).length && (
                   <div className="text-center py-8 text-muted-foreground">
                     لا توجد محاولات تواصل مسجلة
                   </div>
@@ -496,7 +490,7 @@ export default function AssistantManagerDashboard() {
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{assignedApplications?.length || 0}</div>
+                <div className="text-2xl font-bold">{(assignedApplications as Application[] || []).length}</div>
               </CardContent>
             </Card>
             
@@ -506,7 +500,7 @@ export default function AssistantManagerDashboard() {
                 <CalendarIcon className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{appointments?.length || 0}</div>
+                <div className="text-2xl font-bold">{(appointments as Appointment[] || []).length}</div>
               </CardContent>
             </Card>
             
@@ -517,7 +511,7 @@ export default function AssistantManagerDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {appointments?.filter((apt: Appointment) => apt.confirmationStatus === 'confirmed').length || 0}
+                  {(appointments as Appointment[] || []).filter((apt: Appointment) => apt.confirmationStatus === 'confirmed').length}
                 </div>
               </CardContent>
             </Card>
@@ -529,7 +523,7 @@ export default function AssistantManagerDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {contactAttempts?.filter((attempt: ContactAttempt) => attempt.isSuccessful).length || 0}
+                  {(contactAttempts as ContactAttempt[] || []).filter((attempt: ContactAttempt) => attempt.isSuccessful).length}
                 </div>
               </CardContent>
             </Card>
@@ -570,7 +564,7 @@ export default function AssistantManagerDashboard() {
                     <SelectValue placeholder="اختر المهندس" />
                   </SelectTrigger>
                   <SelectContent>
-                    {engineers?.map((engineer: any) => (
+                    {(engineers as any[] || []).map((engineer: any) => (
                       <SelectItem key={engineer.id} value={engineer.id}>{engineer.fullName}</SelectItem>
                     ))}
                   </SelectContent>
