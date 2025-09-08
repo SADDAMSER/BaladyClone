@@ -5,6 +5,7 @@ import {
   serviceTemplates, dynamicForms, workflowDefinitions, serviceBuilder,
   applicationAssignments, applicationStatusHistory, applicationReviews, notifications,
   appointments, contactAttempts, surveyAssignmentForms,
+  fieldVisits, surveyResults, surveyReports,
   type User, type InsertUser, type Department, type InsertDepartment,
   type Position, type InsertPosition, type LawRegulation, type InsertLawRegulation,
   type LawSection, type InsertLawSection, type LawArticle, type InsertLawArticle,
@@ -22,7 +23,10 @@ import {
   type Notification, type InsertNotification,
   type Appointment, type InsertAppointment,
   type ContactAttempt, type InsertContactAttempt,
-  type SurveyAssignmentForm, type InsertSurveyAssignmentForm
+  type SurveyAssignmentForm, type InsertSurveyAssignmentForm,
+  type FieldVisit, type InsertFieldVisit,
+  type SurveyResult, type InsertSurveyResult,
+  type SurveyReport, type InsertSurveyReport
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, like, ilike, and, or, desc, asc, sql, count } from "drizzle-orm";
@@ -1491,6 +1495,408 @@ export class DatabaseStorage implements IStorage {
     }
 
     return updated;
+  }
+
+  // ======= FIELD VISITS MANAGEMENT =======
+
+  async getFieldVisits(filters?: {
+    appointmentId?: string;
+    applicationId?: string;
+    engineerId?: string;
+    status?: string;
+  }): Promise<FieldVisit[]> {
+    const conditions = [];
+    
+    if (filters?.appointmentId) {
+      conditions.push(eq(fieldVisits.appointmentId, filters.appointmentId));
+    }
+    if (filters?.applicationId) {
+      conditions.push(eq(fieldVisits.applicationId, filters.applicationId));
+    }
+    if (filters?.engineerId) {
+      conditions.push(eq(fieldVisits.engineerId, filters.engineerId));
+    }
+    if (filters?.status) {
+      conditions.push(eq(fieldVisits.status, filters.status));
+    }
+
+    return await db
+      .select()
+      .from(fieldVisits)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(fieldVisits.visitDate));
+  }
+
+  async getFieldVisit(id: string): Promise<FieldVisit | undefined> {
+    const [visit] = await db
+      .select()
+      .from(fieldVisits)
+      .where(eq(fieldVisits.id, id));
+    return visit;
+  }
+
+  async createFieldVisit(visit: InsertFieldVisit): Promise<FieldVisit> {
+    const [created] = await db
+      .insert(fieldVisits)
+      .values(visit)
+      .returning();
+    
+    return created;
+  }
+
+  async updateFieldVisit(id: string, updates: Partial<InsertFieldVisit>): Promise<FieldVisit> {
+    const [updated] = await db
+      .update(fieldVisits)
+      .set({ ...updates, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(fieldVisits.id, id))
+      .returning();
+
+    if (!updated) {
+      throw new Error('Field visit not found');
+    }
+
+    return updated;
+  }
+
+  async startFieldVisit(id: string, gpsLocation?: any): Promise<FieldVisit> {
+    const [updated] = await db
+      .update(fieldVisits)
+      .set({ 
+        status: 'in_progress',
+        arrivalTime: sql`CURRENT_TIMESTAMP`,
+        gpsLocation,
+        updatedAt: sql`CURRENT_TIMESTAMP`
+      })
+      .where(eq(fieldVisits.id, id))
+      .returning();
+
+    if (!updated) {
+      throw new Error('Field visit not found');
+    }
+
+    return updated;
+  }
+
+  async completeFieldVisit(id: string, notes?: string, requiresFollowUp?: boolean, followUpReason?: string): Promise<FieldVisit> {
+    const [updated] = await db
+      .update(fieldVisits)
+      .set({ 
+        status: 'completed',
+        departureTime: sql`CURRENT_TIMESTAMP`,
+        visitNotes: notes,
+        requiresFollowUp: requiresFollowUp || false,
+        followUpReason,
+        updatedAt: sql`CURRENT_TIMESTAMP`
+      })
+      .where(eq(fieldVisits.id, id))
+      .returning();
+
+    if (!updated) {
+      throw new Error('Field visit not found');
+    }
+
+    return updated;
+  }
+
+  async getEngineerFieldVisits(engineerId: string, status?: string): Promise<FieldVisit[]> {
+    const conditions = [eq(fieldVisits.engineerId, engineerId)];
+    
+    if (status) {
+      conditions.push(eq(fieldVisits.status, status));
+    }
+
+    return await db
+      .select()
+      .from(fieldVisits)
+      .where(and(...conditions))
+      .orderBy(desc(fieldVisits.visitDate));
+  }
+
+  // ======= SURVEY RESULTS MANAGEMENT =======
+
+  async getSurveyResults(filters?: {
+    fieldVisitId?: string;
+    applicationId?: string;
+    engineerId?: string;
+    completionStatus?: string;
+    qualityCheckStatus?: string;
+  }): Promise<SurveyResult[]> {
+    const conditions = [];
+    
+    if (filters?.fieldVisitId) {
+      conditions.push(eq(surveyResults.fieldVisitId, filters.fieldVisitId));
+    }
+    if (filters?.applicationId) {
+      conditions.push(eq(surveyResults.applicationId, filters.applicationId));
+    }
+    if (filters?.engineerId) {
+      conditions.push(eq(surveyResults.engineerId, filters.engineerId));
+    }
+    if (filters?.completionStatus) {
+      conditions.push(eq(surveyResults.completionStatus, filters.completionStatus));
+    }
+    if (filters?.qualityCheckStatus) {
+      conditions.push(eq(surveyResults.qualityCheckStatus, filters.qualityCheckStatus));
+    }
+
+    return await db
+      .select()
+      .from(surveyResults)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(surveyResults.createdAt));
+  }
+
+  async getSurveyResult(id: string): Promise<SurveyResult | undefined> {
+    const [result] = await db
+      .select()
+      .from(surveyResults)
+      .where(eq(surveyResults.id, id));
+    return result;
+  }
+
+  async createSurveyResult(result: InsertSurveyResult): Promise<SurveyResult> {
+    const [created] = await db
+      .insert(surveyResults)
+      .values(result)
+      .returning();
+    
+    return created;
+  }
+
+  async updateSurveyResult(id: string, updates: Partial<InsertSurveyResult>): Promise<SurveyResult> {
+    const [updated] = await db
+      .update(surveyResults)
+      .set({ ...updates, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(surveyResults.id, id))
+      .returning();
+
+    if (!updated) {
+      throw new Error('Survey result not found');
+    }
+
+    return updated;
+  }
+
+  async completeSurveyResult(id: string): Promise<SurveyResult> {
+    const [updated] = await db
+      .update(surveyResults)
+      .set({ 
+        completionStatus: 'completed',
+        updatedAt: sql`CURRENT_TIMESTAMP`
+      })
+      .where(eq(surveyResults.id, id))
+      .returning();
+
+    if (!updated) {
+      throw new Error('Survey result not found');
+    }
+
+    return updated;
+  }
+
+  async approveSurveyResult(id: string, approvedById: string, reviewNotes?: string): Promise<SurveyResult> {
+    const [updated] = await db
+      .update(surveyResults)
+      .set({ 
+        qualityCheckStatus: 'approved',
+        approvedById,
+        approvedAt: sql`CURRENT_TIMESTAMP`,
+        reviewNotes,
+        updatedAt: sql`CURRENT_TIMESTAMP`
+      })
+      .where(eq(surveyResults.id, id))
+      .returning();
+
+    if (!updated) {
+      throw new Error('Survey result not found');
+    }
+
+    return updated;
+  }
+
+  async rejectSurveyResult(id: string, reviewNotes: string): Promise<SurveyResult> {
+    const [updated] = await db
+      .update(surveyResults)
+      .set({ 
+        qualityCheckStatus: 'rejected',
+        reviewNotes,
+        completionStatus: 'needs_revision',
+        updatedAt: sql`CURRENT_TIMESTAMP`
+      })
+      .where(eq(surveyResults.id, id))
+      .returning();
+
+    if (!updated) {
+      throw new Error('Survey result not found');
+    }
+
+    return updated;
+  }
+
+  // ======= SURVEY REPORTS MANAGEMENT =======
+
+  async getSurveyReports(filters?: {
+    surveyResultId?: string;
+    fieldVisitId?: string;
+    applicationId?: string;
+    engineerId?: string;
+    reportType?: string;
+    approvalStatus?: string;
+  }): Promise<SurveyReport[]> {
+    const conditions = [];
+    
+    if (filters?.surveyResultId) {
+      conditions.push(eq(surveyReports.surveyResultId, filters.surveyResultId));
+    }
+    if (filters?.fieldVisitId) {
+      conditions.push(eq(surveyReports.fieldVisitId, filters.fieldVisitId));
+    }
+    if (filters?.applicationId) {
+      conditions.push(eq(surveyReports.applicationId, filters.applicationId));
+    }
+    if (filters?.engineerId) {
+      conditions.push(eq(surveyReports.engineerId, filters.engineerId));
+    }
+    if (filters?.reportType) {
+      conditions.push(eq(surveyReports.reportType, filters.reportType));
+    }
+    if (filters?.approvalStatus) {
+      conditions.push(eq(surveyReports.approvalStatus, filters.approvalStatus));
+    }
+
+    return await db
+      .select()
+      .from(surveyReports)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(surveyReports.createdAt));
+  }
+
+  async getSurveyReport(id: string): Promise<SurveyReport | undefined> {
+    const [report] = await db
+      .select()
+      .from(surveyReports)
+      .where(eq(surveyReports.id, id));
+    return report;
+  }
+
+  async createSurveyReport(report: InsertSurveyReport): Promise<SurveyReport> {
+    const [created] = await db
+      .insert(surveyReports)
+      .values(report)
+      .returning();
+    
+    return created;
+  }
+
+  async updateSurveyReport(id: string, updates: Partial<InsertSurveyReport>): Promise<SurveyReport> {
+    const [updated] = await db
+      .update(surveyReports)
+      .set({ ...updates, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(surveyReports.id, id))
+      .returning();
+
+    if (!updated) {
+      throw new Error('Survey report not found');
+    }
+
+    return updated;
+  }
+
+  async approveSurveyReport(id: string, approvedById: string): Promise<SurveyReport> {
+    const [updated] = await db
+      .update(surveyReports)
+      .set({ 
+        approvalStatus: 'approved',
+        approvedById,
+        approvedAt: sql`CURRENT_TIMESTAMP`,
+        updatedAt: sql`CURRENT_TIMESTAMP`
+      })
+      .where(eq(surveyReports.id, id))
+      .returning();
+
+    if (!updated) {
+      throw new Error('Survey report not found');
+    }
+
+    return updated;
+  }
+
+  async rejectSurveyReport(id: string, rejectionReason: string): Promise<SurveyReport> {
+    const [updated] = await db
+      .update(surveyReports)
+      .set({ 
+        approvalStatus: 'rejected',
+        rejectionReason,
+        updatedAt: sql`CURRENT_TIMESTAMP`
+      })
+      .where(eq(surveyReports.id, id))
+      .returning();
+
+    if (!updated) {
+      throw new Error('Survey report not found');
+    }
+
+    return updated;
+  }
+
+  async getPublicReportsForApplication(applicationId: string): Promise<SurveyReport[]> {
+    return await db
+      .select()
+      .from(surveyReports)
+      .where(and(
+        eq(surveyReports.applicationId, applicationId),
+        eq(surveyReports.isPublic, true),
+        eq(surveyReports.approvalStatus, 'approved')
+      ))
+      .orderBy(desc(surveyReports.createdAt));
+  }
+
+  // ======= ENGINEER DASHBOARD HELPERS =======
+
+  async getEngineerWorkload(engineerId: string): Promise<{
+    upcomingAppointments: number;
+    inProgressVisits: number;
+    pendingReports: number;
+    completedSurveys: number;
+  }> {
+    const [upcomingAppointments] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(appointments)
+      .where(and(
+        eq(appointments.assignedToId, engineerId),
+        eq(appointments.status, 'scheduled')
+      ));
+
+    const [inProgressVisits] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(fieldVisits)
+      .where(and(
+        eq(fieldVisits.engineerId, engineerId),
+        eq(fieldVisits.status, 'in_progress')
+      ));
+
+    const [pendingReports] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(surveyReports)
+      .where(and(
+        eq(surveyReports.engineerId, engineerId),
+        eq(surveyReports.approvalStatus, 'pending')
+      ));
+
+    const [completedSurveys] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(surveyResults)
+      .where(and(
+        eq(surveyResults.engineerId, engineerId),
+        eq(surveyResults.completionStatus, 'completed')
+      ));
+
+    return {
+      upcomingAppointments: upcomingAppointments.count,
+      inProgressVisits: inProgressVisits.count,
+      pendingReports: pendingReports.count,
+      completedSurveys: completedSurveys.count
+    };
   }
 }
 
