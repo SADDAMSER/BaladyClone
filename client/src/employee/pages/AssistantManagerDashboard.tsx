@@ -299,7 +299,94 @@ export default function AssistantManagerDashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4">
+              {/* جدول تفاصيل الطلبات */}
+              <div className="rounded-md border">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-gray-50 dark:bg-gray-800">
+                        <th className="h-12 px-4 text-right align-middle font-medium">رقم الطلب</th>
+                        <th className="h-12 px-4 text-right align-middle font-medium">اسم المستفيد</th>
+                        <th className="h-12 px-4 text-right align-middle font-medium">نوع الخدمة</th>
+                        <th className="h-12 px-4 text-right align-middle font-medium">المهندس المكلف</th>
+                        <th className="h-12 px-4 text-right align-middle font-medium">الحالة</th>
+                        <th className="h-12 px-4 text-right align-middle font-medium">تاريخ الإنشاء</th>
+                        <th className="h-12 px-4 text-right align-middle font-medium">الإجراءات</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(assignedApplications as Application[] || []).map((application: Application) => (
+                        <tr key={application.id} className="border-b transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                          <td className="p-4 align-middle">
+                            <Badge variant="outline" data-testid={`app-number-${application.id}`}>
+                              {application.applicationNumber}
+                            </Badge>
+                          </td>
+                          <td className="p-4 align-middle" data-testid={`app-applicant-${application.id}`}>
+                            <div className="flex items-center">
+                              <User className="h-4 w-4 ml-2 text-gray-500" />
+                              {application.applicantName || 'غير محدد'}
+                            </div>
+                          </td>
+                          <td className="p-4 align-middle" data-testid={`app-service-${application.id}`}>
+                            {application.serviceName || 'خدمة مساحة الأراضي'}
+                          </td>
+                          <td className="p-4 align-middle" data-testid={`app-engineer-${application.id}`}>
+                            <div className="flex items-center">
+                              <User className="h-4 w-4 ml-2 text-gray-500" />
+                              {application.engineerName || 'غير محدد'}
+                            </div>
+                          </td>
+                          <td className="p-4 align-middle">
+                            <Badge className={getStatusColor(application.status)} data-testid={`app-status-${application.id}`}>
+                              {application.status}
+                            </Badge>
+                          </td>
+                          <td className="p-4 align-middle text-gray-600 dark:text-gray-400">
+                            {format(new Date(application.createdAt), 'dd/MM/yyyy', { locale: ar })}
+                          </td>
+                          <td className="p-4 align-middle">
+                            <div className="flex space-x-2 space-x-reverse">
+                              <Button 
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedApplication(application);
+                                  setIsScheduleDialogOpen(true);
+                                }}
+                                data-testid={`button-schedule-${application.id}`}
+                              >
+                                <CalendarIcon className="h-4 w-4 ml-1" />
+                                تحديد موعد
+                              </Button>
+                              <Button 
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setSelectedApplication(application);
+                                  setIsContactDialogOpen(true);
+                                }}
+                                data-testid={`button-contact-${application.id}`}
+                              >
+                                <PhoneCall className="h-4 w-4 ml-1" />
+                                تواصل
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {!(assignedApplications as Application[] || []).length && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                    <p>لا توجد طلبات في انتظار تحديد الموعد</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
                 {(assignedApplications as Application[] || []).map((application: Application) => (
                   <Card key={application.id} className="border-2">
                     <CardContent className="p-4">
@@ -546,7 +633,7 @@ export default function AssistantManagerDashboard() {
 
       {/* Schedule Appointment Dialog */}
       <Dialog open={isScheduleDialogOpen} onOpenChange={setIsScheduleDialogOpen}>
-        <DialogContent className="max-w-2xl" dir="rtl">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" dir="rtl">
           <DialogHeader>
             <DialogTitle>تحديد موعد المساحة</DialogTitle>
             <DialogDescription>
@@ -554,8 +641,10 @@ export default function AssistantManagerDashboard() {
             </DialogDescription>
           </DialogHeader>
           
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="space-y-4">
+              <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+                <h3 className="font-medium mb-3">اختيار التاريخ</h3>
               <div>
                 <Label htmlFor="appointmentDate">تاريخ الموعد</Label>
                 <Calendar
@@ -563,13 +652,35 @@ export default function AssistantManagerDashboard() {
                   selected={selectedDate}
                   onSelect={(date) => date && setSelectedDate(date)}
                   disabled={(date) => date < new Date()}
-                  className="rounded-md border"
+                  className="rounded-md border w-full max-w-[280px] text-sm"
                   data-testid="calendar-appointment-date"
+                  classNames={{
+                    months: "flex w-full",
+                    month: "space-y-2 w-full",
+                    caption: "flex justify-center pt-1 relative items-center",
+                    caption_label: "text-sm font-medium",
+                    nav: "space-x-1 flex items-center",
+                    nav_button: "h-7 w-7 bg-transparent p-0 hover:bg-muted",
+                    table: "w-full border-collapse",
+                    head_row: "flex",
+                    head_cell: "text-muted-foreground rounded-md w-8 font-normal text-[0.8rem]",
+                    row: "flex w-full mt-2",
+                    cell: "text-center text-sm p-0 relative [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
+                    day: "h-8 w-8 p-0 font-normal aria-selected:opacity-100 hover:bg-muted text-xs",
+                    day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
+                    day_today: "bg-accent text-accent-foreground",
+                    day_outside: "text-muted-foreground opacity-50",
+                    day_disabled: "text-muted-foreground opacity-50",
+                    day_hidden: "invisible"
+                  }}
                 />
+              </div>
               </div>
             </div>
             
             <div className="space-y-4">
+              <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+                <h3 className="font-medium mb-3">تفاصيل الموعد</h3>
               <div>
                 <Label htmlFor="assignedToId">المهندس المكلف</Label>
                 <Select value={scheduleForm.assignedToId} onValueChange={(value) => setScheduleForm(prev => ({ ...prev, assignedToId: value }))}>
@@ -634,6 +745,7 @@ export default function AssistantManagerDashboard() {
                   data-testid="textarea-contact-notes"
                 />
               </div>
+              </div>
             </div>
           </div>
           
@@ -654,7 +766,7 @@ export default function AssistantManagerDashboard() {
 
       {/* Contact Attempt Dialog */}
       <Dialog open={isContactDialogOpen} onOpenChange={setIsContactDialogOpen}>
-        <DialogContent className="max-w-md" dir="rtl">
+        <DialogContent className="max-w-lg" dir="rtl">
           <DialogHeader>
             <DialogTitle>تسجيل محاولة تواصل</DialogTitle>
             <DialogDescription>
