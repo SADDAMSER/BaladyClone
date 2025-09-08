@@ -1304,3 +1304,188 @@ export type InsertContactAttempt = z.infer<typeof insertContactAttemptSchema>;
 
 export type SurveyAssignmentForm = typeof surveyAssignmentForms.$inferSelect;
 export type InsertSurveyAssignmentForm = z.infer<typeof insertSurveyAssignmentFormSchema>;
+
+// Field Visits (tracking engineer field work)
+export const fieldVisits = pgTable("field_visits", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  appointmentId: uuid("appointment_id").notNull(),
+  applicationId: uuid("application_id").notNull(),
+  engineerId: uuid("engineer_id").notNull(),
+  visitDate: timestamp("visit_date").notNull(),
+  visitTime: text("visit_time"),
+  status: text("status").default("scheduled"), // scheduled, in_progress, completed, cancelled, rescheduled
+  arrivalTime: timestamp("arrival_time"),
+  departureTime: timestamp("departure_time"),
+  gpsLocation: jsonb("gps_location"), // latitude, longitude
+  weatherConditions: text("weather_conditions"),
+  accessIssues: text("access_issues"),
+  equipmentUsed: jsonb("equipment_used"), // قائمة المعدات المستخدمة
+  visitNotes: text("visit_notes"),
+  requiresFollowUp: boolean("requires_follow_up").default(false),
+  followUpReason: text("follow_up_reason"),
+  citizenPresent: boolean("citizen_present").default(false),
+  citizenSignature: text("citizen_signature"),
+  witnessInfo: jsonb("witness_info"), // معلومات الشهود إن وجدوا
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Survey Results (actual survey measurements and findings)
+export const surveyResults = pgTable("survey_results", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  fieldVisitId: uuid("field_visit_id").notNull(),
+  applicationId: uuid("application_id").notNull(),
+  engineerId: uuid("engineer_id").notNull(),
+  landArea: decimal("land_area", { precision: 10, scale: 2 }), // المساحة بالمتر المربع
+  boundaries: jsonb("boundaries"), // إحداثيات الحدود
+  measurements: jsonb("measurements"), // القياسات التفصيلية
+  landmarks: jsonb("landmarks"), // المعالم المرجعية
+  neighboringProperties: jsonb("neighboring_properties"), // العقارات المجاورة
+  accessRoads: jsonb("access_roads"), // الطرق المؤدية للأرض
+  utilities: jsonb("utilities"), // المرافق (كهرباء، ماء، صرف)
+  elevationData: jsonb("elevation_data"), // بيانات الارتفاع
+  soilType: text("soil_type"),
+  topography: text("topography"), // طبوغرافية الأرض
+  existingStructures: jsonb("existing_structures"), // المباني الموجودة
+  violations: jsonb("violations"), // المخالفات إن وجدت
+  recommendations: text("recommendations"),
+  surveyMethod: text("survey_method"), // طريقة المساحة المستخدمة
+  accuracyLevel: text("accuracy_level"), // مستوى دقة المساحة
+  referencePoints: jsonb("reference_points"), // النقاط المرجعية
+  mapSheet: text("map_sheet"), // رقم اللوحة المساحية
+  coordinateSystem: text("coordinate_system"), // نظام الإحداثيات المستخدم
+  completionStatus: text("completion_status").default("in_progress"), // in_progress, completed, needs_revision
+  qualityCheckStatus: text("quality_check_status").default("pending"), // pending, approved, rejected
+  reviewNotes: text("review_notes"),
+  approvedAt: timestamp("approved_at"),
+  approvedById: uuid("approved_by_id"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Survey Reports (reports, documents, and media files)
+export const surveyReports = pgTable("survey_reports", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  surveyResultId: uuid("survey_result_id").notNull(),
+  fieldVisitId: uuid("field_visit_id").notNull(),
+  applicationId: uuid("application_id").notNull(),
+  engineerId: uuid("engineer_id").notNull(),
+  reportType: text("report_type").notNull(), // technical_report, photo_documentation, sketch_map, measurements_sheet
+  title: text("title").notNull(),
+  description: text("description"),
+  filePath: text("file_path"), // مسار الملف المرفوع
+  fileType: text("file_type"), // pdf, jpg, png, dwg, etc.
+  fileSize: integer("file_size"), // حجم الملف بالبايت
+  thumbnailPath: text("thumbnail_path"), // مسار الصورة المصغرة
+  coordinates: jsonb("coordinates"), // إحداثيات التقاط الصورة/المستند
+  captureTimestamp: timestamp("capture_timestamp"),
+  deviceInfo: jsonb("device_info"), // معلومات الجهاز المستخدم
+  tags: jsonb("tags"), // علامات للتصنيف والبحث
+  isPublic: boolean("is_public").default(false), // هل يمكن للمواطن رؤيته
+  requiresApproval: boolean("requires_approval").default(true),
+  approvalStatus: text("approval_status").default("pending"), // pending, approved, rejected
+  approvedById: uuid("approved_by_id"),
+  approvedAt: timestamp("approved_at"),
+  rejectionReason: text("rejection_reason"),
+  version: integer("version").default(1), // إصدار المستند
+  parentReportId: uuid("parent_report_id"), // للمراجعات والتحديثات
+  metadata: jsonb("metadata"), // بيانات إضافية
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Relations for new tables
+export const fieldVisitsRelations = relations(fieldVisits, ({ one, many }) => ({
+  appointment: one(appointments, {
+    fields: [fieldVisits.appointmentId],
+    references: [appointments.id],
+  }),
+  application: one(applications, {
+    fields: [fieldVisits.applicationId],
+    references: [applications.id],
+  }),
+  engineer: one(users, {
+    fields: [fieldVisits.engineerId],
+    references: [users.id],
+  }),
+  surveyResults: many(surveyResults),
+  surveyReports: many(surveyReports),
+}));
+
+export const surveyResultsRelations = relations(surveyResults, ({ one, many }) => ({
+  fieldVisit: one(fieldVisits, {
+    fields: [surveyResults.fieldVisitId],
+    references: [fieldVisits.id],
+  }),
+  application: one(applications, {
+    fields: [surveyResults.applicationId],
+    references: [applications.id],
+  }),
+  engineer: one(users, {
+    fields: [surveyResults.engineerId],
+    references: [users.id],
+  }),
+  approvedBy: one(users, {
+    fields: [surveyResults.approvedById],
+    references: [users.id],
+  }),
+  surveyReports: many(surveyReports),
+}));
+
+export const surveyReportsRelations = relations(surveyReports, ({ one }) => ({
+  surveyResult: one(surveyResults, {
+    fields: [surveyReports.surveyResultId],
+    references: [surveyResults.id],
+  }),
+  fieldVisit: one(fieldVisits, {
+    fields: [surveyReports.fieldVisitId],
+    references: [fieldVisits.id],
+  }),
+  application: one(applications, {
+    fields: [surveyReports.applicationId],
+    references: [applications.id],
+  }),
+  engineer: one(users, {
+    fields: [surveyReports.engineerId],
+    references: [users.id],
+  }),
+  approvedBy: one(users, {
+    fields: [surveyReports.approvedById],
+    references: [users.id],
+  }),
+  parentReport: one(surveyReports, {
+    fields: [surveyReports.parentReportId],
+    references: [surveyReports.id],
+  }),
+}));
+
+// Insert Schemas for new tables
+export const insertFieldVisitSchema = createInsertSchema(fieldVisits).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertSurveyResultSchema = createInsertSchema(surveyResults).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  approvedAt: true
+});
+
+export const insertSurveyReportSchema = createInsertSchema(surveyReports).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  approvedAt: true
+});
+
+// Types for new tables
+export type FieldVisit = typeof fieldVisits.$inferSelect;
+export type InsertFieldVisit = z.infer<typeof insertFieldVisitSchema>;
+
+export type SurveyResult = typeof surveyResults.$inferSelect;
+export type InsertSurveyResult = z.infer<typeof insertSurveyResultSchema>;
+
+export type SurveyReport = typeof surveyReports.$inferSelect;
+export type InsertSurveyReport = z.infer<typeof insertSurveyReportSchema>;
