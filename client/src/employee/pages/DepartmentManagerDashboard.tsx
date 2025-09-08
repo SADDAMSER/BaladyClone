@@ -6,10 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Users, 
   UserCheck, 
@@ -19,10 +15,13 @@ import {
   Eye,
   AlertCircle,
   Target,
-  Activity
+  Activity,
+  ArrowRight
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { toast } from "@/hooks/use-toast";
+import { useLocation } from 'wouter';
+import AdvancedAssignmentDialog from '../components/AdvancedAssignmentDialog';
 
 interface Application {
   id: string;
@@ -44,11 +43,10 @@ interface Employee {
 }
 
 export default function DepartmentManagerDashboard() {
+  const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
-  const [selectedEmployee, setSelectedEmployee] = useState("");
-  const [assignmentNotes, setAssignmentNotes] = useState("");
-  const [priority, setPriority] = useState("medium");
+  const [assignmentDialogOpen, setAssignmentDialogOpen] = useState(false);
   const queryClient = useQueryClient();
 
   // Get paid applications awaiting assignment
@@ -94,28 +92,27 @@ export default function DepartmentManagerDashboard() {
 
   // Assignment mutation
   const assignApplicationMutation = useMutation({
-    mutationFn: async ({ 
-      applicationId, 
-      assignedToId, 
-      notes,
-      priority 
-    }: { 
-      applicationId: string; 
-      assignedToId: string;
-      notes: string;
-      priority: string;
-    }) => {
+    mutationFn: async (data: any) => {
       const token = localStorage.getItem('employee_token');
       localStorage.setItem("auth-token", token || '');
       
       try {
-        const response = await apiRequest('POST', `/api/applications/${applicationId}/assign`, {
-          assignedToId,
-          assignmentType: 'specialist', // تعيين مهندس مختص للمسح الميداني
-          departmentId: '550e8400-e29b-41d4-a716-446655440002', // قسم المساحة
-          stage: 'initial_review', // مرحلة المراجعة الأولية
-          notes,
-          priority
+        const response = await apiRequest('POST', `/api/applications/${data.applicationId}/assign`, {
+          assignedToId: data.assignedToId,
+          assignmentType: 'specialist',
+          departmentId: '550e8400-e29b-41d4-a716-446655440002',
+          stage: 'initial_review',
+          notes: data.departmentManagerNotes,
+          priority: data.priority,
+          appointmentDate: data.appointmentDate,
+          appointmentTime: data.appointmentTime,
+          estimatedDuration: data.estimatedDuration,
+          specialInstructions: data.specialInstructions,
+          propertyLocation: data.propertyLocation,
+          coordinates: data.coordinatesLat && data.coordinatesLng ? {
+            lat: data.coordinatesLat,
+            lng: data.coordinatesLng
+          } : null
         });
         return await response.json();
       } finally {
@@ -126,13 +123,10 @@ export default function DepartmentManagerDashboard() {
       queryClient.invalidateQueries({ queryKey: ['/api/manager-applications'] });
       toast({
         title: "تم تعيين الطلب بنجاح",
-        description: `تم تعيين الطلب رقم ${selectedApplication?.applicationNumber} للمهندس المختص`,
+        description: `تم تعيين الطلب رقم ${selectedApplication?.applicationNumber} للمهندس المختص مع جميع التفاصيل`,
         variant: "default",
       });
       setSelectedApplication(null);
-      setSelectedEmployee("");
-      setAssignmentNotes("");
-      setPriority("medium");
     },
     onError: () => {
       toast({
@@ -165,15 +159,8 @@ export default function DepartmentManagerDashboard() {
     };
   });
 
-  const handleAssignment = async () => {
-    if (!selectedApplication || !selectedEmployee) return;
-
-    await assignApplicationMutation.mutateAsync({
-      applicationId: selectedApplication.id,
-      assignedToId: selectedEmployee,
-      notes: assignmentNotes,
-      priority
-    });
+  const handleAdvancedAssignment = async (data: any) => {
+    await assignApplicationMutation.mutateAsync(data);
   };
 
   const getPriorityBadge = (priority: string) => {
@@ -190,10 +177,21 @@ export default function DepartmentManagerDashboard() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir="rtl">
       {/* Header */}
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">لوحة مدير القسم</h1>
+        <div className="flex items-center space-x-4 space-x-reverse">
+          <Button
+            variant="ghost"
+            onClick={() => setLocation('/employee')}
+            data-testid="button-back"
+          >
+            <ArrowRight className="ml-2 h-4 w-4" />
+            العودة للرئيسية
+          </Button>
+          <div className="border-r border-gray-300 dark:border-gray-600 h-6"></div>
+          <h1 className="text-3xl font-bold">لوحة مدير القسم</h1>
+        </div>
         <div className="text-sm text-muted-foreground">
           {new Date().toLocaleDateString('ar-YE', {
             weekday: 'long',
@@ -343,109 +341,18 @@ export default function DepartmentManagerDashboard() {
                           {new Date(application.createdAt).toLocaleDateString('ar-YE')}
                         </TableCell>
                         <TableCell>
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setSelectedApplication(application)}
-                                data-testid={`button-assign-${application.id}`}
-                              >
-                                <UserCheck className="h-4 w-4 ml-1" />
-                                تعيين
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-3xl">
-                              <DialogHeader>
-                                <DialogTitle>تعيين طلب للمهندس المختص</DialogTitle>
-                              </DialogHeader>
-                              {selectedApplication && (
-                                <div className="space-y-4">
-                                  <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                      <Label>رقم الطلب</Label>
-                                      <p className="text-sm font-medium">{selectedApplication.applicationNumber}</p>
-                                    </div>
-                                    <div>
-                                      <Label>مقدم الطلب</Label>
-                                      <p className="text-sm">{selectedApplication.applicationData?.applicantName}</p>
-                                    </div>
-                                    <div>
-                                      <Label>الموقع</Label>
-                                      <p className="text-sm">{selectedApplication.applicationData?.location}</p>
-                                    </div>
-                                    <div>
-                                      <Label>نوع المسح</Label>
-                                      <p className="text-sm">{selectedApplication.applicationData?.surveyInfo?.surveyType}</p>
-                                    </div>
-                                  </div>
-
-                                  <div className="space-y-2">
-                                    <Label>تفاصيل الطلب</Label>
-                                    <div className="p-4 bg-muted rounded-lg">
-                                      <p><strong>الغرض:</strong> {selectedApplication.applicationData?.surveyInfo?.purpose}</p>
-                                      <p><strong>رقم قطعة الأرض:</strong> {selectedApplication.applicationData?.plotInfo?.landNumber}</p>
-                                      <p><strong>رقم القطعة:</strong> {selectedApplication.applicationData?.plotInfo?.plotNumber}</p>
-                                      <p><strong>المنطقة:</strong> {selectedApplication.applicationData?.plotInfo?.governorate} - {selectedApplication.applicationData?.plotInfo?.district} - {selectedApplication.applicationData?.plotInfo?.area}</p>
-                                    </div>
-                                  </div>
-                                  
-                                  <div className="space-y-2">
-                                    <Label>المهندس المختص</Label>
-                                    <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
-                                      <SelectTrigger data-testid="select-surveyor">
-                                        <SelectValue placeholder="اختر المهندس المساح" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {surveyorWorkload.map((surveyor: any) => (
-                                          <SelectItem key={surveyor.id} value={surveyor.id}>
-                                            {surveyor.fullName} (معين له {surveyor.assignedCount} طلب)
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-
-                                  <div className="space-y-2">
-                                    <Label>أولوية المهمة</Label>
-                                    <Select value={priority} onValueChange={setPriority}>
-                                      <SelectTrigger data-testid="select-priority">
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="high">عالية</SelectItem>
-                                        <SelectItem value="medium">متوسطة</SelectItem>
-                                        <SelectItem value="low">منخفضة</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-
-                                  <div className="space-y-2">
-                                    <Label>ملاحظات التعيين</Label>
-                                    <Textarea
-                                      placeholder="أدخل ملاحظات أو تعليمات للمهندس..."
-                                      value={assignmentNotes}
-                                      onChange={(e) => setAssignmentNotes(e.target.value)}
-                                      data-testid="textarea-assignment-notes"
-                                      rows={4}
-                                    />
-                                  </div>
-
-                                  <div className="flex gap-2 pt-4">
-                                    <Button
-                                      onClick={handleAssignment}
-                                      disabled={assignApplicationMutation.isPending || !selectedEmployee}
-                                      className="flex-1"
-                                      data-testid="button-confirm-assignment"
-                                    >
-                                      <UserCheck className="h-4 w-4 ml-2" />
-                                      {assignApplicationMutation.isPending ? 'جاري التعيين...' : 'تعيين الطلب'}
-                                    </Button>
-                                  </div>
-                                </div>
-                              )}
-                            </DialogContent>
-                          </Dialog>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedApplication(application);
+                              setAssignmentDialogOpen(true);
+                            }}
+                            data-testid={`button-assign-${application.id}`}
+                          >
+                            <UserCheck className="h-4 w-4 ml-1" />
+                            تعيين متقدم
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -514,6 +421,16 @@ export default function DepartmentManagerDashboard() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Advanced Assignment Dialog */}
+      <AdvancedAssignmentDialog
+        open={assignmentDialogOpen}
+        onOpenChange={setAssignmentDialogOpen}
+        application={selectedApplication}
+        surveyors={surveyors}
+        onAssign={handleAdvancedAssignment}
+        isLoading={assignApplicationMutation.isPending}
+      />
     </div>
   );
 }
