@@ -2204,6 +2204,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get engineer operation details
+  app.get('/api/engineer/operations/:engineerId', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { engineerId } = req.params;
+      const operations = await storage.getEngineerOperationDetails(engineerId);
+      res.json(operations);
+    } catch (error) {
+      console.error('Error fetching engineer operations:', error);
+      res.status(500).json({ error: 'فشل في استرجاع تفاصيل العمليات' });
+    }
+  });
+
   // Get engineer appointments
   app.get('/api/engineer/appointments/:engineerId', authenticateToken, async (req: AuthenticatedRequest, res) => {
     try {

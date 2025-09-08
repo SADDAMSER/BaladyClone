@@ -86,6 +86,23 @@ interface SurveyResult {
   updatedAt: string;
 }
 
+interface OperationDetail {
+  applicationId: string;
+  applicationNumber: string;
+  citizenName: string;
+  citizenPhone: string;
+  serviceType: string;
+  purpose: string;
+  status: string;
+  currentStage: string;
+  scheduledDate?: string;
+  assignmentDate: string;
+  location: string;
+  priority: string;
+  deadline?: string;
+  completionStatus: string;
+}
+
 export default function EngineerDashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -120,6 +137,12 @@ export default function EngineerDashboard() {
   // Fetch survey results
   const { data: surveyResults = [], isLoading: resultsLoading } = useQuery<SurveyResult[]>({
     queryKey: ['/api/survey-results', { engineerId }],
+    enabled: !!engineerId
+  });
+
+  // Fetch operation details
+  const { data: operationDetails = [], isLoading: operationsLoading } = useQuery<OperationDetail[]>({
+    queryKey: ['/api/engineer/operations', engineerId],
     enabled: !!engineerId
   });
 
@@ -264,7 +287,7 @@ export default function EngineerDashboard() {
     return <Badge variant={status_info.variant}>{status_info.label}</Badge>;
   };
 
-  if (workloadLoading || appointmentsLoading || visitsLoading || resultsLoading) {
+  if (workloadLoading || appointmentsLoading || visitsLoading || resultsLoading || operationsLoading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
@@ -307,9 +330,10 @@ export default function EngineerDashboard() {
           <nav className="flex space-x-8 space-x-reverse">
             {[
               { id: 'overview', label: 'نظرة عامة', icon: BarChart3 },
+              { id: 'operations', label: 'تفاصيل العمليات', icon: FileText },
               { id: 'appointments', label: 'المواعيد', icon: Calendar },
               { id: 'visits', label: 'الزيارات الميدانية', icon: MapPin },
-              { id: 'results', label: 'نتائج المساحة', icon: FileText }
+              { id: 'results', label: 'نتائج المساحة', icon: Eye }
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -446,6 +470,120 @@ export default function EngineerDashboard() {
                 </CardContent>
               </Card>
             </div>
+          </div>
+        )}
+
+        {selectedTab === 'operations' && (
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>تفاصيل العمليات المكلف بها</CardTitle>
+                <CardDescription>
+                  جدول شامل بجميع الطلبات والعمليات المسندة إليك
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse border border-gray-300 dark:border-gray-700">
+                    <thead>
+                      <tr className="bg-green-600 text-white">
+                        <th className="border border-gray-300 dark:border-gray-700 px-4 py-3 text-right">الإجراءات</th>
+                        <th className="border border-gray-300 dark:border-gray-700 px-4 py-3 text-right">رقم الطلب</th>
+                        <th className="border border-gray-300 dark:border-gray-700 px-4 py-3 text-right">اسم المستفيد</th>
+                        <th className="border border-gray-300 dark:border-gray-700 px-4 py-3 text-right">الخدمة</th>
+                        <th className="border border-gray-300 dark:border-gray-700 px-4 py-3 text-right">الغرض</th>
+                        <th className="border border-gray-300 dark:border-gray-700 px-4 py-3 text-right">حالة الطلب</th>
+                        <th className="border border-gray-300 dark:border-gray-700 px-4 py-3 text-right">تاريخ الإنتهاء</th>
+                        <th className="border border-gray-300 dark:border-gray-700 px-4 py-3 text-right">حالة التسليم للمهندس</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {operationDetails.map((operation, index) => (
+                        <tr 
+                          key={operation.applicationId} 
+                          className={`${index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700'} hover:bg-gray-100 dark:hover:bg-gray-600`}
+                          data-testid={`operation-row-${operation.applicationId}`}
+                        >
+                          <td className="border border-gray-300 dark:border-gray-700 px-4 py-3">
+                            <div className="flex items-center space-x-2 space-x-reverse">
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                data-testid={`button-view-${operation.applicationId}`}
+                              >
+                                <Eye className="ml-1 h-4 w-4" />
+                                عرض
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="default"
+                                data-testid={`button-start-work-${operation.applicationId}`}
+                              >
+                                <Edit className="ml-1 h-4 w-4" />
+                                بدء العمل
+                              </Button>
+                            </div>
+                          </td>
+                          <td className="border border-gray-300 dark:border-gray-700 px-4 py-3 font-medium text-blue-600 dark:text-blue-400">
+                            {operation.applicationNumber}
+                          </td>
+                          <td className="border border-gray-300 dark:border-gray-700 px-4 py-3">
+                            {operation.citizenName}
+                          </td>
+                          <td className="border border-gray-300 dark:border-gray-700 px-4 py-3">
+                            {operation.serviceType}
+                          </td>
+                          <td className="border border-gray-300 dark:border-gray-700 px-4 py-3">
+                            {operation.purpose}
+                          </td>
+                          <td className="border border-gray-300 dark:border-gray-700 px-4 py-3">
+                            {getStatusBadge(operation.status)}
+                          </td>
+                          <td className="border border-gray-300 dark:border-gray-700 px-4 py-3">
+                            {operation.deadline ? new Date(operation.deadline).toLocaleDateString('ar-SA') : 'غير محدد'}
+                          </td>
+                          <td className="border border-gray-300 dark:border-gray-700 px-4 py-3">
+                            {getStatusBadge(operation.completionStatus)}
+                          </td>
+                        </tr>
+                      ))}
+                      {operationDetails.length === 0 && (
+                        <tr>
+                          <td colSpan={8} className="border border-gray-300 dark:border-gray-700 px-4 py-8 text-center text-gray-500">
+                            <div className="flex flex-col items-center space-y-3">
+                              <FileText className="h-12 w-12 text-gray-400" />
+                              <p>لا توجد عمليات مكلف بها حالياً</p>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                
+                {/* Summary Information */}
+                {operationDetails.length > 0 && (
+                  <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                      <div className="text-sm text-blue-600 dark:text-blue-400">إجمالي العمليات</div>
+                      <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{operationDetails.length}</div>
+                    </div>
+                    <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
+                      <div className="text-sm text-green-600 dark:text-green-400">العمليات المكتملة</div>
+                      <div className="text-2xl font-bold text-green-700 dark:text-green-300">
+                        {operationDetails.filter(op => op.completionStatus === 'مكتمل').length}
+                      </div>
+                    </div>
+                    <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-lg">
+                      <div className="text-sm text-orange-600 dark:text-orange-400">العمليات الجارية</div>
+                      <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">
+                        {operationDetails.filter(op => op.completionStatus === 'قيد التنفيذ').length}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         )}
 

@@ -1898,6 +1898,73 @@ export class DatabaseStorage implements IStorage {
       completedSurveys: completedSurveys.count
     };
   }
+
+  async getEngineerOperationDetails(engineerId: string): Promise<Array<{
+    applicationId: string;
+    applicationNumber: string;
+    citizenName: string;
+    citizenPhone: string;
+    serviceType: string;
+    purpose: string;
+    status: string;
+    currentStage: string;
+    scheduledDate?: string;
+    assignmentDate: string;
+    location: string;
+    priority: string;
+    deadline?: string;
+    completionStatus: string;
+  }>> {
+    // Get all applications assigned to this engineer through appointments
+    const results = await db
+      .select({
+        applicationId: applications.id,
+        applicationNumber: applications.applicationNumber,
+        status: applications.status,
+        currentStage: applications.currentStage,
+        appointmentDate: appointments.appointmentDate,
+        appointmentTime: appointments.appointmentTime,
+        assignmentDate: appointments.createdAt,
+        appointmentStatus: appointments.status,
+        location: appointments.location,
+        contactPhone: appointments.contactPhone,
+      })
+      .from(applications)
+      .innerJoin(appointments, eq(applications.id, appointments.applicationId))
+      .where(eq(appointments.assignedToId, engineerId))
+      .orderBy(desc(appointments.createdAt));
+
+    return results.map(result => ({
+      applicationId: result.applicationId,
+      applicationNumber: result.applicationNumber,
+      citizenName: 'المواطن المستفيد',
+      citizenPhone: result.contactPhone || 'غير محدد',
+      serviceType: 'خدمة مساحة الأراضي',
+      purpose: 'تحديد حدود الأرض ومساحتها',
+      status: result.status || 'في الانتظار',
+      currentStage: result.currentStage || 'تحديد موعد',
+      scheduledDate: result.appointmentDate ? new Date(result.appointmentDate).toISOString().split('T')[0] : undefined,
+      assignmentDate: result.assignmentDate ? new Date(result.assignmentDate).toISOString() : new Date().toISOString(),
+      location: result.location || 'غير محدد',
+      priority: 'عادي',
+      deadline: undefined,
+      completionStatus: this.getOperationCompletionStatus(result.appointmentStatus || 'scheduled', result.currentStage || 'pending')
+    }));
+  }
+
+  private getOperationCompletionStatus(appointmentStatus: string, applicationStage: string): string {
+    if (appointmentStatus === 'completed' && applicationStage === 'completed') {
+      return 'مكتمل';
+    } else if (appointmentStatus === 'in_progress' || applicationStage === 'in_progress') {
+      return 'قيد التنفيذ';
+    } else if (appointmentStatus === 'confirmed') {
+      return 'جاهز للتنفيذ';
+    } else if (appointmentStatus === 'scheduled') {
+      return 'مجدول';
+    } else {
+      return 'في الانتظار';
+    }
+  }
 }
 
 export const storage = new DatabaseStorage();
