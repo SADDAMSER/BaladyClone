@@ -158,9 +158,9 @@ export default function PublicServiceDashboard() {
     });
   };
 
-  // Fetch all applications (simulated with search API for now)
+  // Fetch all applications from citizen applications endpoint
   const { data: allApplications, isLoading } = useQuery<ApplicationDetails[]>({
-    queryKey: ['/api/all-applications'],
+    queryKey: ['/api/citizen-applications'],
     queryFn: async () => {
       // For now, we'll use multiple search calls to get sample data
       // In real implementation, this would be a dedicated endpoint
