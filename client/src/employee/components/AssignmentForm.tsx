@@ -92,8 +92,18 @@ export default function AssignmentForm({
   };
 
   const handleFeatureDrawn = (feature: any) => {
-    // Handle drawn features if needed for advanced mapping functionality
     console.log('Feature drawn:', feature);
+    
+    // إذا كانت النقطة، نحديث الإحداثيات في النموذج
+    if (feature.type === 'point' && feature.coordinates) {
+      const [lng, lat] = feature.coordinates;
+      setSelectedLocation({ lat, lng });
+      setFormData(prev => ({
+        ...prev,
+        coordinatesLat: lat,
+        coordinatesLng: lng
+      }));
+    }
   };
 
   const handleSave = () => {
@@ -283,12 +293,11 @@ export default function AssignmentForm({
               
               {/* الخريطة التفاعلية */}
               <InteractiveDrawingMap
-                onLocationSelect={handleMapClick}
                 onFeatureDrawn={handleFeatureDrawn}
+                features={[]}
                 center={selectedLocation ? [selectedLocation.lat, selectedLocation.lng] : [15.3694, 44.1910]}
                 zoom={13}
                 height="400px"
-                enableDrawing={true}
               />
             </div>
           </CardContent>
