@@ -162,77 +162,40 @@ export default function PublicServiceDashboard() {
   const { data: allApplications, isLoading } = useQuery<ApplicationDetails[]>({
     queryKey: ['/api/citizen-applications'],
     queryFn: async () => {
-      // For now, we'll use multiple search calls to get sample data
-      // In real implementation, this would be a dedicated endpoint
-      const sampleNumbers = ['APP-2025-886087'];
-      const applications = [];
-      
-      for (const appNumber of sampleNumbers) {
-        try {
-          const response = await apiRequest('GET', `/api/track-application?search_term=${appNumber}&search_by=application_number`);
-          const app = await response.json();
-          applications.push(app);
-        } catch (error) {
-          // Ignore errors for demo
+      try {
+        // Set authentication token temporarily for the API call
+        const originalToken = localStorage.getItem("auth-token");
+        localStorage.setItem("auth-token", authToken);
+        
+        // Call the citizen applications endpoint to get real applications
+        const response = await apiRequest('GET', '/api/citizen-applications?limit=50');
+        const result = await response.json();
+        
+        // Restore original token
+        if (originalToken) {
+          localStorage.setItem("auth-token", originalToken);
+        } else {
+          localStorage.removeItem("auth-token");
         }
+        
+        // Transform the data to match expected format
+        return result.data?.map((app: any) => ({
+          id: app.id,
+          applicationNumber: app.application_number || 'غير محدد',
+          serviceType: app.service_name || app.service_type || 'غير محدد',
+          status: app.status || 'submitted',
+          currentStage: app.current_stage || 'review',
+          submittedAt: app.submitted_at || app.created_at,
+          applicantName: app.applicant_name || 'غير محدد',
+          applicantId: app.applicant_id,
+          contactPhone: app.contact_phone,
+          fees: app.calculated_fees || '5000',
+          applicationData: app.application_data || {}
+        })) || [];
+      } catch (error) {
+        console.error('Error fetching applications:', error);
+        return [];
       }
-      
-      // Add some simulated applications for demonstration
-      const mockApplications = [
-        {
-          id: 'mock-1',
-          applicationNumber: 'APP-2025-123456',
-          serviceType: 'قرار المساحة',
-          status: 'submitted',
-          currentStage: 'review',
-          submittedAt: new Date(Date.now() - 86400000).toISOString(),
-          applicantName: 'أحمد محمد علي',
-          applicantId: '1234567890',
-          contactPhone: '777123456',
-          fees: '5000',
-          applicationData: {
-            governorate: 'صنعاء',
-            district: 'شعوب',
-            purpose: 'بناء منزل'
-          }
-        },
-        {
-          id: 'mock-2',
-          applicationNumber: 'APP-2025-789012',
-          serviceType: 'ترخيص بناء',
-          status: 'in_review',
-          currentStage: 'technical_review',
-          submittedAt: new Date(Date.now() - 172800000).toISOString(),
-          applicantName: 'فاطمة حسن أحمد',
-          applicantId: '9876543210',
-          contactPhone: '777987654',
-          fees: '15000',
-          applicationData: {
-            governorate: 'عدن',
-            district: 'كريتر',
-            purpose: 'بناء تجاري'
-          }
-        },
-        {
-          id: 'mock-3',
-          applicationNumber: 'APP-2025-345678',
-          serviceType: 'ترخيص هدم',
-          status: 'approved',
-          currentStage: 'completed',
-          submittedAt: new Date(Date.now() - 259200000).toISOString(),
-          applicantName: 'محمد عبدالله سالم',
-          applicantId: '5555555555',
-          contactPhone: '777555555',
-          fees: '8000',
-          applicationData: {
-            governorate: 'تعز',
-            district: 'صالة',
-            purpose: 'هدم بناء قديم'
-          }
-        }
-      ];
-      
-      return [...applications, ...mockApplications];
     },
     enabled: isLoggedIn,
     retry: false,
@@ -262,7 +225,7 @@ export default function PublicServiceDashboard() {
         description: reviewData.decision === 'approved' ? "تم اعتماد الطلب بنجاح" : "تم رفض الطلب",
         variant: reviewData.decision === 'approved' ? "default" : "destructive",
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/all-applications'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/citizen-applications'] });
       setSelectedApplication(null);
       setReviewData({ decision: 'approved', notes: '', calculatedFees: 0, reviewerComments: '' });
     },
