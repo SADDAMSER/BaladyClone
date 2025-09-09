@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Calendar, MapPin, User, Clock, FileText, Printer, Save, Send } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import InteractiveDrawingMap from '@/components/gis/InteractiveDrawingMap';
 
 interface AssignmentFormProps {
   applicationId?: string;
@@ -81,13 +82,18 @@ export default function AssignmentForm({
     }));
   };
 
-  const handleMapClick = (lat: number, lng: number) => {
-    setSelectedLocation({ lat, lng });
+  const handleMapClick = (coordinates: { lat: number; lng: number }) => {
+    setSelectedLocation(coordinates);
     setFormData(prev => ({
       ...prev,
-      coordinatesLat: lat,
-      coordinatesLng: lng
+      coordinatesLat: coordinates.lat,
+      coordinatesLng: coordinates.lng
     }));
+  };
+
+  const handleFeatureDrawn = (feature: any) => {
+    // Handle drawn features if needed for advanced mapping functionality
+    console.log('Feature drawn:', feature);
   };
 
   const handleSave = () => {
@@ -259,17 +265,31 @@ export default function AssignmentForm({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-80 bg-gray-100 dark:bg-gray-800 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center">
-              <div className="text-center">
-                <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500 mb-2">انقر على الخريطة لتحديد الموقع</p>
-                <p className="text-sm text-gray-400">
-                  الموقع الحالي: {selectedLocation?.lat.toFixed(6)}, {selectedLocation?.lng.toFixed(6)}
-                </p>
-                <Button variant="outline" className="mt-4" data-testid="button-open-map">
-                  فتح الخريطة
-                </Button>
-              </div>
+            <div className="space-y-4">
+              {/* معلومات الموقع المحدد */}
+              {selectedLocation && (
+                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-green-600" />
+                      <span className="font-medium text-green-800 dark:text-green-300">الموقع المحدد:</span>
+                    </div>
+                    <div className="text-green-700 dark:text-green-400 font-mono">
+                      {selectedLocation.lat.toFixed(6)}, {selectedLocation.lng.toFixed(6)}
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* الخريطة التفاعلية */}
+              <InteractiveDrawingMap
+                onLocationSelect={handleMapClick}
+                onFeatureDrawn={handleFeatureDrawn}
+                center={selectedLocation ? [selectedLocation.lat, selectedLocation.lng] : [15.3694, 44.1910]}
+                zoom={13}
+                height="400px"
+                enableDrawing={true}
+              />
             </div>
           </CardContent>
         </Card>
