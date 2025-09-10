@@ -171,6 +171,10 @@ export default function PublicServiceDashboard() {
         const response = await apiRequest('GET', '/api/applications');
         const result = await response.json();
         
+        // Debug: Log the actual data received
+        console.log('🔍 Raw API response:', result);
+        console.log('🔍 Number of applications:', result?.length);
+        
         // Restore original token
         if (originalToken) {
           localStorage.setItem("auth-token", originalToken);
@@ -193,7 +197,7 @@ export default function PublicServiceDashboard() {
             }
           }
           
-          return {
+          const transformedApp = {
             id: app.id,
             applicationNumber: app.application_number || 'غير محدد',
             serviceType: appData.serviceType === 'surveying_decision' ? 'قرار المساحة' : 
@@ -207,6 +211,13 @@ export default function PublicServiceDashboard() {
             fees: app.fees?.toString() || '50000',
             applicationData: appData
           };
+          
+          // Debug: Log each application transformation
+          console.log('🔍 Original app:', app);
+          console.log('🔍 Parsed appData:', appData);
+          console.log('🔍 Transformed app:', transformedApp);
+          
+          return transformedApp;
         }) || [];
       } catch (error) {
         console.error('Error fetching applications:', error);
