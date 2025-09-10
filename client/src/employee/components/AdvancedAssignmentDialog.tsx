@@ -24,6 +24,7 @@ import {
   Building
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import InteractiveMap from '@/components/gis/InteractiveMap';
 
 interface Application {
   id: string;
@@ -82,22 +83,35 @@ export default function AdvancedAssignmentDialog({
 }: AssignmentDialogProps) {
   const { toast } = useToast();
   
-  const [formData, setFormData] = useState<AssignmentData>({
-    applicationId: application?.id || '',
-    assignedToId: '',
-    appointmentDate: '',
-    appointmentTime: '',
-    priority: 'medium',
-    estimatedDuration: '4',
-    specialInstructions: '',
-    departmentManagerNotes: '',
-    propertyLocation: application?.applicationData?.propertyLocation || '',
-    coordinatesLat: mockCoordinates.lat,
-    coordinatesLng: mockCoordinates.lng
+  const [formData, setFormData] = useState<AssignmentData>(() => {
+    const realCoordinates = getApplicationCoordinates();
+    return {
+      applicationId: application?.id || '',
+      assignedToId: '',
+      appointmentDate: '',
+      appointmentTime: '',
+      priority: 'medium',
+      estimatedDuration: '4',
+      specialInstructions: '',
+      departmentManagerNotes: '',
+      propertyLocation: application?.applicationData?.location || 
+                       application?.applicationData?.surveyInfo?.description || '',
+      coordinatesLat: realCoordinates?.lat || mockCoordinates.lat,
+      coordinatesLng: realCoordinates?.lng || mockCoordinates.lng
+    };
   });
 
+  // استخراج الإحداثيات الحقيقية من بيانات الطلب
+  const getApplicationCoordinates = () => {
+    if (application?.applicationData?.surveyInfo?.drawnFeatures?.[0]?.coordinates) {
+      const coords = application.applicationData.surveyInfo.drawnFeatures[0].coordinates;
+      return { lat: coords[1], lng: coords[0] }; // GeoJSON format: [lng, lat]
+    }
+    return null;
+  };
+
   const [selectedLocation, setSelectedLocation] = useState<{lat: number; lng: number} | null>(
-    application ? mockCoordinates : null
+    getApplicationCoordinates() || (application ? mockCoordinates : null)
   );
 
   const handleInputChange = (field: keyof AssignmentData, value: string | number) => {
@@ -262,21 +276,24 @@ export default function AdvancedAssignmentDialog({
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div 
-                  className="h-64 bg-gray-100 dark:bg-gray-800 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                  onClick={() => handleMapClick(mockCoordinates.lat + Math.random() * 0.01, mockCoordinates.lng + Math.random() * 0.01)}
-                >
-                  <div className="text-center">
-                    <MapPin className="h-12 w-12 mx-auto mb-2 text-gray-400" />
-                    <p className="text-sm text-gray-500 mb-1">انقر لتحديد الموقع على الخريطة</p>
-                    {selectedLocation && (
-                      <div className="text-xs text-gray-600">
-                        <p>خط الطول: {selectedLocation.lng.toFixed(6)}</p>
-                        <p>خط العرض: {selectedLocation.lat.toFixed(6)}</p>
-                      </div>
-                    )}
-                  </div>
+                <div className="h-64 rounded-lg overflow-hidden border">
+                  <InteractiveMap
+                    center={selectedLocation ? [selectedLocation.lat, selectedLocation.lng] : 
+                           application?.applicationData?.surveyInfo?.drawnFeatures?.[0]?.coordinates ? 
+                           [application.applicationData.surveyInfo.drawnFeatures[0].coordinates[1], 
+                            application.applicationData.surveyInfo.drawnFeatures[0].coordinates[0]] : 
+                           [15.3694, 44.1910]}
+                    zoom={selectedLocation ? 15 : 7}
+                    height="256px"
+                    onLocationSelect={(coordinates) => handleMapClick(coordinates.lat, coordinates.lng)}
+                  />
                 </div>
+                {selectedLocation && (
+                  <div className="text-xs text-gray-600 mt-2 p-2 bg-gray-50 dark:bg-gray-800 rounded">
+                    <p>خط الطول: {selectedLocation.lng.toFixed(6)}</p>
+                    <p>خط العرض: {selectedLocation.lat.toFixed(6)}</p>
+                  </div>
+                )}
                 <div className="mt-3">
                   <Label htmlFor="propertyLocation">عنوان الموقع</Label>
                   <Input
