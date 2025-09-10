@@ -165,7 +165,13 @@ export default function PublicServiceDashboard() {
       try {
         // Set authentication token temporarily for the API call
         const originalToken = localStorage.getItem("auth-token");
-        localStorage.setItem("auth-token", authToken);
+        const employeeToken = localStorage.getItem("employee_token");
+        
+        console.log('🔍 Employee token:', employeeToken);
+        console.log('🔍 Auth token from state:', authToken);
+        
+        // Use employee token for authentication
+        localStorage.setItem("auth-token", employeeToken || authToken);
         
         // Call the applications endpoint to get real applications
         const response = await apiRequest('GET', '/api/applications');
