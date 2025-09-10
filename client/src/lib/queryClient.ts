@@ -40,7 +40,35 @@ export const getQueryFn: <T>(options: {
       ...(token ? { "Authorization": `Bearer ${token}` } : {}),
     };
 
-    const res = await fetch(queryKey.join("/") as string, {
+    // Build URL from first segment only, treat objects as query parameters
+    const baseUrl = String(queryKey[0]);
+    let url = baseUrl;
+    
+    // If second element is an object, convert to query parameters
+    if (queryKey.length > 1 && typeof queryKey[1] === 'object' && queryKey[1] !== null) {
+      const params = new URLSearchParams();
+      const queryObj = queryKey[1] as Record<string, string>;
+      Object.entries(queryObj).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          params.append(key, String(value));
+        }
+      });
+      const queryString = params.toString();
+      if (queryString) {
+        url += (baseUrl.includes('?') ? '&' : '?') + queryString;
+      }
+    }
+
+    // Log potentially problematic queries for debugging
+    if (process.env.NODE_ENV === 'development' && url.includes('/applications/assign')) {
+      console.error('🚨 Problematic query detected:', {
+        queryKey,
+        constructedUrl: url,
+        stackTrace: new Error().stack
+      });
+    }
+
+    const res = await fetch(url, {
       headers,
       credentials: "include",
     });
