@@ -186,6 +186,15 @@ export default function PublicServiceDashboard() {
         console.log('🔍 Number of applications:', result?.length);
         console.log('🔍 First application sample:', result?.[0]);
         
+        // Debug individual field access
+        if (result?.[0]) {
+          const firstApp = result[0];
+          console.log('🔍 First app keys:', Object.keys(firstApp));
+          console.log('🔍 application_number field:', firstApp.application_number);
+          console.log('🔍 application_data field:', firstApp.application_data);
+          console.log('🔍 application_data type:', typeof firstApp.application_data);
+        }
+        
         // Restore original token
         if (originalToken) {
           localStorage.setItem("auth-token", originalToken);
@@ -193,31 +202,21 @@ export default function PublicServiceDashboard() {
           localStorage.removeItem("auth-token");
         }
         
-        // Transform the data to match expected format (from applications table)
+        // Transform the data to match expected format 
         return result?.map((app: any) => {
-          // Parse application_data if it's a string
-          let appData: any = {};
-          if (app.application_data) {
-            try {
-              appData = typeof app.application_data === 'string' 
-                ? JSON.parse(app.application_data) 
-                : app.application_data;
-            } catch (e) {
-              console.error('Error parsing application_data:', e);
-              appData = {};
-            }
-          }
+          // Data is already transformed by the API
+          const appData = app.applicationData || {};
           
           const transformedApp = {
             id: app.id,
-            applicationNumber: app.application_number || 'غير محدد',
+            applicationNumber: app.applicationNumber || 'غير محدد',
             serviceType: appData.serviceType === 'surveying_decision' ? 'قرار المساحة' : 
                         (appData.serviceType || 'غير محدد'),
             status: app.status || 'submitted',
-            currentStage: app.current_stage || 'review',
-            submittedAt: app.created_at,
+            currentStage: app.currentStage || 'review',
+            submittedAt: app.createdAt,
             applicantName: appData.applicantName || 'غير محدد',
-            applicantId: app.applicant_id || 'غير محدد',
+            applicantId: app.applicantId || 'غير محدد',
             contactPhone: appData.contactPhone || 'غير محدد',
             fees: app.fees?.toString() || '50000',
             applicationData: appData
