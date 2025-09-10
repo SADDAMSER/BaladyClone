@@ -250,13 +250,6 @@ export default function UnifiedSurveyingForm({ application, barcode }: UnifiedSu
         </div>
       </div>
 
-      <style jsx>{`
-        @media print {
-          body { margin: 0; }
-          .print\\:p-6 { padding: 1.5rem; }
-          .print\\:shadow-none { box-shadow: none; }
-        }
-      `}</style>
     </div>
   );
 }
