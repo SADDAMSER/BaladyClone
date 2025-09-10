@@ -158,17 +158,17 @@ export default function PublicServiceDashboard() {
     });
   };
 
-  // Fetch all applications from citizen applications endpoint
+  // Fetch all applications from applications endpoint
   const { data: allApplications, isLoading } = useQuery<ApplicationDetails[]>({
-    queryKey: ['/api/citizen-applications'],
+    queryKey: ['/api/applications'],
     queryFn: async () => {
       try {
         // Set authentication token temporarily for the API call
         const originalToken = localStorage.getItem("auth-token");
         localStorage.setItem("auth-token", authToken);
         
-        // Call the citizen applications endpoint to get real applications
-        const response = await apiRequest('GET', '/api/citizen-applications?limit=50');
+        // Call the applications endpoint to get real applications
+        const response = await apiRequest('GET', '/api/applications');
         const result = await response.json();
         
         // Restore original token
@@ -225,7 +225,7 @@ export default function PublicServiceDashboard() {
         description: reviewData.decision === 'approved' ? "تم اعتماد الطلب بنجاح" : "تم رفض الطلب",
         variant: reviewData.decision === 'approved' ? "default" : "destructive",
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/citizen-applications'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/applications'] });
       setSelectedApplication(null);
       setReviewData({ decision: 'approved', notes: '', calculatedFees: 0, reviewerComments: '' });
     },
