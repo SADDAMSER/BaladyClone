@@ -181,7 +181,7 @@ export default function PublicServiceDashboard() {
         // Transform the data to match expected format (from applications table)
         return result?.map((app: any) => {
           // Parse application_data if it's a string
-          let appData = {};
+          let appData: any = {};
           if (app.application_data) {
             try {
               appData = typeof app.application_data === 'string' 
