@@ -29,7 +29,7 @@ import {
   type SurveyReport, type InsertSurveyReport
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, like, ilike, and, or, desc, asc, sql, count } from "drizzle-orm";
+import { eq, like, ilike, and, or, desc, asc, sql, count, inArray } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -914,12 +914,12 @@ export class DatabaseStorage implements IStorage {
     const serviceStats = await db
       .select({
         serviceId: serviceTemplates.id,
-        serviceName: serviceTemplates.nameAr,
+        serviceName: serviceTemplates.name,
         usageCount: count()
       })
       .from(serviceTemplates)
       .leftJoin(applications, eq(applications.serviceId, serviceTemplates.id))
-      .groupBy(serviceTemplates.id, serviceTemplates.nameAr)
+      .groupBy(serviceTemplates.id, serviceTemplates.name)
       .orderBy(desc(count()));
 
     const totalServices = await db.select({ count: count() }).from(serviceTemplates);
@@ -943,7 +943,7 @@ export class DatabaseStorage implements IStorage {
       .select({
         workflowId: workflowDefinitions.id,
         workflowName: workflowDefinitions.name,
-        stepCount: sql<number>`jsonb_array_length(${workflowDefinitions.workflowSteps})`
+        stepCount: sql<number>`jsonb_array_length(${workflowDefinitions.stages})`
       })
       .from(workflowDefinitions);
 
@@ -1073,13 +1073,9 @@ export class DatabaseStorage implements IStorage {
         application: {
           id: applications.id,
           applicationNumber: applications.applicationNumber,
-          serviceType: applications.serviceType,
-          applicantName: applications.applicantName,
           applicantId: applications.applicantId,
           status: applications.status,
           currentStage: applications.currentStage,
-          submittedAt: applications.submittedAt,
-          description: applications.description,
         }
       })
       .from(applicationAssignments)
@@ -1109,13 +1105,13 @@ export class DatabaseStorage implements IStorage {
     const totalAssignments = await db
       .select({ count: count() })
       .from(applicationAssignments)
-      .where(sql`${applicationAssignments.assignedToId} IN (${userIds.map(() => '?').join(',')})`, ...userIds);
+      .where(inArray(applicationAssignments.assignedToId, userIds));
 
     const pendingAssignments = await db
       .select({ count: count() })
       .from(applicationAssignments)
       .where(and(
-        sql`${applicationAssignments.assignedToId} IN (${userIds.map(() => '?').join(',')})`, ...userIds,
+        inArray(applicationAssignments.assignedToId, userIds),
         eq(applicationAssignments.status, 'pending')
       ));
 
@@ -1123,7 +1119,7 @@ export class DatabaseStorage implements IStorage {
       .select({ count: count() })
       .from(applicationAssignments)
       .where(and(
-        sql`${applicationAssignments.assignedToId} IN (${userIds.map(() => '?').join(',')})`, ...userIds,
+        inArray(applicationAssignments.assignedToId, userIds),
         eq(applicationAssignments.status, 'completed')
       ));
 
