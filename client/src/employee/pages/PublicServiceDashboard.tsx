@@ -181,7 +181,10 @@ export default function PublicServiceDashboard() {
         const response = await apiRequest('GET', '/api/applications');
         const result = await response.json();
         
-        // API call successful
+        // Debug: Log the actual data received
+        console.log('🔍 Raw API response:', result);
+        console.log('🔍 Number of applications:', result?.length);
+        console.log('🔍 First application sample:', result?.[0]);
         
         // Restore original token
         if (originalToken) {
