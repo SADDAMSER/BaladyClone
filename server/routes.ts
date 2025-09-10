@@ -1849,6 +1849,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Permanent endpoint to handle malformed GET requests gracefully
+  app.get('/api/applications/assign', (req, res) => {
+    console.warn('⚠️ GET request to /api/applications/assign - redirecting to proper usage');
+    res.status(405).json({ 
+      error: 'Method not allowed',
+      message: 'This endpoint requires POST method with application ID',
+      correctUsage: 'POST /api/applications/:id/assign',
+      timestamp: new Date().toISOString()
+    });
+  });
+
   // Assign engineer to application
   app.post('/api/applications/:id/assign', authenticateToken, async (req: AuthenticatedRequest, res) => {
     try {
