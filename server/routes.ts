@@ -1172,12 +1172,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/applications/:id/assign", authenticateToken, async (req: AuthenticatedRequest, res) => {
     try {
+      // Extract appointment data from request body
+      const { appointmentDate, appointmentTime, estimatedDuration, specialInstructions, propertyLocation, coordinates, ...assignmentBody } = req.body;
+      
+      // Create assignment data (only fields that exist in the schema)
       const assignmentData = insertApplicationAssignmentSchema.parse({
-        ...req.body,
+        ...assignmentBody,
         applicationId: req.params.id,
         assignedById: req.user?.id,
       });
+      
       const assignment = await storage.createApplicationAssignment(assignmentData);
+      
+      // Create appointment if appointment data is provided
+      if (appointmentDate && appointmentTime) {
+        await storage.createAppointment({
+          applicationId: req.params.id,
+          assignedToId: assignmentData.assignedToId,
+          scheduledById: req.user?.id || '',
+          appointmentDate: new Date(appointmentDate + ' ' + appointmentTime),
+          appointmentTime: appointmentTime,
+          location: propertyLocation || '',
+          contactNotes: specialInstructions || '',
+          status: 'scheduled',
+          confirmationStatus: 'pending'
+        });
+      }
       
       // Create notification for assigned employee
       await storage.createNotification({
@@ -1190,12 +1210,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         relatedEntityType: 'application'
       });
       
-      res.status(201).json(assignment);
+      res.status(201).json({ assignment, message: 'تم تعيين الطلب بنجاح' });
     } catch (error) {
+      console.error('Assignment error:', error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Validation error", errors: error.errors });
       }
-      res.status(500).json({ message: "Internal server error" });
+      res.status(500).json({ message: "Internal server error", error: error instanceof Error ? error.message : 'Unknown error' });
     }
   });
 
