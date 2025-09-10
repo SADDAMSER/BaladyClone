@@ -572,12 +572,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Applications
-  async getApplications(filters?: { status?: string; applicantId?: string; assignedToId?: string }): Promise<Application[]> {
+  async getApplications(filters?: { status?: string; applicantId?: string; assignedToId?: string; currentStage?: string }): Promise<Application[]> {
     if (filters) {
       const conditions = [];
       if (filters.status) conditions.push(eq(applications.status, filters.status));
       if (filters.applicantId) conditions.push(eq(applications.applicantId, filters.applicantId));
       if (filters.assignedToId) conditions.push(eq(applications.assignedToId, filters.assignedToId));
+      if (filters.currentStage) conditions.push(eq(applications.currentStage, filters.currentStage));
       
       if (conditions.length > 0) {
         return await db.select().from(applications)

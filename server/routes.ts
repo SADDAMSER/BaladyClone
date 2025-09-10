@@ -552,11 +552,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Applications routes
   app.get("/api/applications", authenticateToken, async (req, res) => {
     try {
-      const { status, applicantId, assignedToId } = req.query;
+      const { status, applicantId, assignedToId, currentStage } = req.query;
       const applications = await storage.getApplications({
         status: status as string,
         applicantId: applicantId as string,
         assignedToId: assignedToId as string,
+        currentStage: currentStage as string,
       });
       res.json(applications);
     } catch (error) {
@@ -1848,35 +1849,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Diagnostic endpoint for catching problematic GET requests
-  app.get('/api/applications/assign', (req, res) => {
-    console.log('🔍 GET /api/applications/assign called - This should not happen!');
-    console.log('  Query params:', req.query);
-    console.log('  Headers authorization:', req.headers.authorization ? 'Present' : 'Missing');
-    console.log('  User agent:', req.headers['user-agent']);
-    console.log('  Referer:', req.headers.referer);
-    console.log('  Stack trace for debugging:');
-    console.trace('GET /api/applications/assign');
-    
-    res.status(200).json({ 
-      message: 'This endpoint exists for debugging only',
-      note: 'Use POST /api/applications/:id/assign to assign applications',
-      receivedMethod: 'GET',
-      expectedMethod: 'POST'
-    });
-  });
-
   // Assign engineer to application
   app.post('/api/applications/:id/assign', authenticateToken, async (req: AuthenticatedRequest, res) => {
     try {
       const { assignedToId, notes, priority } = req.body;
       const applicationId = req.params.id;
 
-      // Update application assignment
+      // Update application assignment - send to assistant manager first
       await storage.updateApplication(applicationId, {
         assignedToId,
         status: 'assigned',
-        currentStage: 'field_survey'
+        currentStage: 'waiting_scheduling'
       });
 
       // Create a task for the assigned engineer
@@ -1899,9 +1882,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         previousStatus: 'paid',
         newStatus: 'assigned',
         previousStage: 'awaiting_assignment',
-        newStage: 'field_survey',
+        newStage: 'waiting_scheduling',
         changedById: req.user?.id || '',
-        notes: `تم تكليف مهندس: ${notes || ''}`
+        notes: `تم تكليف مهندس ونقل الطلب لمساعد المدير للجدولة: ${notes || ''}`
       });
 
       res.json({ success: true, message: "تم تكليف المهندس بنجاح" });
