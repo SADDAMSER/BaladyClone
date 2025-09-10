@@ -167,7 +167,7 @@ export default function PublicServiceDashboard() {
         const originalToken = localStorage.getItem("auth-token");
         const employeeToken = localStorage.getItem("employee_token");
         
-        // Check token availability
+        // Use authentication token
         
         // Use employee token for authentication - it's already a valid JWT
         if (employeeToken) {
@@ -181,19 +181,7 @@ export default function PublicServiceDashboard() {
         const response = await apiRequest('GET', '/api/applications');
         const result = await response.json();
         
-        // Debug: Log the actual data received
-        console.log('🔍 Raw API response:', result);
-        console.log('🔍 Number of applications:', result?.length);
-        console.log('🔍 First application sample:', result?.[0]);
-        
-        // Debug individual field access
-        if (result?.[0]) {
-          const firstApp = result[0];
-          console.log('🔍 First app keys:', Object.keys(firstApp));
-          console.log('🔍 application_number field:', firstApp.application_number);
-          console.log('🔍 application_data field:', firstApp.application_data);
-          console.log('🔍 application_data type:', typeof firstApp.application_data);
-        }
+        // API call successful
         
         // Restore original token
         if (originalToken) {
@@ -222,7 +210,7 @@ export default function PublicServiceDashboard() {
             applicationData: appData
           };
           
-          // Transformation successful
+          // Data transformation completed
           
           return transformedApp;
         }) || [];
