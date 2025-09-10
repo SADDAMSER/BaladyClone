@@ -1690,14 +1690,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         currentStage: 'payment'
       });
 
+      const appData = application.applicationData as any;
       const invoiceData = {
         invoiceNumber,
         applicationId,
         applicationNumber: application.applicationNumber,
-        applicantName: application.applicantName,
+        applicantName: appData?.applicantName || 'غير محدد',
         applicantId: application.applicantId,
-        contactPhone: application.contactPhone,
-        serviceType: application.serviceType,
+        contactPhone: appData?.phoneNumber || appData?.contactPhone || 'غير محدد',
+        serviceType: appData?.serviceType || 'خدمة عامة',
         fees: application.fees,
         issueDate: issueDate.toISOString(),
         dueDate: dueDate.toISOString(),
@@ -1762,8 +1763,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update application status to awaiting assignment after payment
       await storage.updateApplication(applicationId, {
         status: 'paid',
-        currentStage: 'awaiting_assignment',
-        paymentStatus: 'paid',
         paymentDate: new Date()
       });
 
@@ -1812,16 +1811,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const treasuryApplications = applications.map(app => {
         const fees = app.fees || 57000; // Default fee if not set
         
+        const appData = app.applicationData as any;
         return {
           ...app,
           fees: fees.toString(),
-          invoiceNumber: app.invoiceNumber || `INV-${Date.now().toString().slice(-6)}`,
+          invoiceNumber: `INV-${Date.now().toString().slice(-6)}`,
           paymentStatus: app.status === 'paid' ? 'paid' : 'pending',
-          invoiceDate: app.updatedAt || app.submittedAt,
+          invoiceDate: app.updatedAt || app.createdAt,
           dueDate: new Date(Date.now() + (15 * 24 * 60 * 60 * 1000)), // 15 days from now
           applicationData: {
-            ...app.applicationData,
-            area: app.applicationData?.area || '700'
+            ...appData,
+            area: appData?.area || '700'
           }
         };
       });
@@ -1838,8 +1838,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Get applications that are paid and awaiting assignment
       const applications = await storage.getApplications({
-        status: 'paid',
-        currentStage: 'awaiting_assignment'
+        status: 'paid'
       });
 
       res.json(applications);
@@ -2273,8 +2272,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { notes } = req.body;
       
       const appointment = await storage.updateAppointment(appointmentId, {
-        status: 'confirmed',
-        notes
+        status: 'confirmed'
       });
       
       res.json(appointment);
