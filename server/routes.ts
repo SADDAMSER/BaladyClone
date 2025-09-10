@@ -1848,6 +1848,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Diagnostic endpoint for catching problematic GET requests
+  app.get('/api/applications/assign', (req, res) => {
+    console.log('🔍 GET /api/applications/assign called - This should not happen!');
+    console.log('  Query params:', req.query);
+    console.log('  Headers authorization:', req.headers.authorization ? 'Present' : 'Missing');
+    console.log('  User agent:', req.headers['user-agent']);
+    console.log('  Referer:', req.headers.referer);
+    console.log('  Stack trace for debugging:');
+    console.trace('GET /api/applications/assign');
+    
+    res.status(200).json({ 
+      message: 'This endpoint exists for debugging only',
+      note: 'Use POST /api/applications/:id/assign to assign applications',
+      receivedMethod: 'GET',
+      expectedMethod: 'POST'
+    });
+  });
+
   // Assign engineer to application
   app.post('/api/applications/:id/assign', authenticateToken, async (req: AuthenticatedRequest, res) => {
     try {
