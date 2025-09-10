@@ -180,21 +180,31 @@ export default function PublicServiceDashboard() {
         
         // Transform the data to match expected format (from applications table)
         return result?.map((app: any) => {
-          const appData = typeof app.application_data === 'string' 
-            ? JSON.parse(app.application_data) 
-            : app.application_data || {};
+          // Parse application_data if it's a string
+          let appData = {};
+          if (app.application_data) {
+            try {
+              appData = typeof app.application_data === 'string' 
+                ? JSON.parse(app.application_data) 
+                : app.application_data;
+            } catch (e) {
+              console.error('Error parsing application_data:', e);
+              appData = {};
+            }
+          }
           
           return {
             id: app.id,
             applicationNumber: app.application_number || 'غير محدد',
-            serviceType: appData.serviceType === 'surveying_decision' ? 'قرار المساحة' : (appData.serviceType || 'غير محدد'),
+            serviceType: appData.serviceType === 'surveying_decision' ? 'قرار المساحة' : 
+                        (appData.serviceType || 'غير محدد'),
             status: app.status || 'submitted',
             currentStage: app.current_stage || 'review',
             submittedAt: app.created_at,
             applicantName: appData.applicantName || 'غير محدد',
-            applicantId: app.applicant_id,
-            contactPhone: appData.contactPhone,
-            fees: app.fees || '50000',
+            applicantId: app.applicant_id || 'غير محدد',
+            contactPhone: appData.contactPhone || 'غير محدد',
+            fees: app.fees?.toString() || '50000',
             applicationData: appData
           };
         }) || [];
