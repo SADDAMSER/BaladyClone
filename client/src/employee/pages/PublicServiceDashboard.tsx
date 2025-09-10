@@ -178,20 +178,26 @@ export default function PublicServiceDashboard() {
           localStorage.removeItem("auth-token");
         }
         
-        // Transform the data to match expected format
-        return result.data?.map((app: any) => ({
-          id: app.id,
-          applicationNumber: app.application_number || 'غير محدد',
-          serviceType: app.service_name || app.service_type || 'غير محدد',
-          status: app.status || 'submitted',
-          currentStage: app.current_stage || 'review',
-          submittedAt: app.submitted_at || app.created_at,
-          applicantName: app.applicant_name || 'غير محدد',
-          applicantId: app.applicant_id,
-          contactPhone: app.contact_phone,
-          fees: app.calculated_fees || '5000',
-          applicationData: app.application_data || {}
-        })) || [];
+        // Transform the data to match expected format (from applications table)
+        return result?.map((app: any) => {
+          const appData = typeof app.application_data === 'string' 
+            ? JSON.parse(app.application_data) 
+            : app.application_data || {};
+          
+          return {
+            id: app.id,
+            applicationNumber: app.application_number || 'غير محدد',
+            serviceType: appData.serviceType === 'surveying_decision' ? 'قرار المساحة' : (appData.serviceType || 'غير محدد'),
+            status: app.status || 'submitted',
+            currentStage: app.current_stage || 'review',
+            submittedAt: app.created_at,
+            applicantName: appData.applicantName || 'غير محدد',
+            applicantId: app.applicant_id,
+            contactPhone: appData.contactPhone,
+            fees: app.fees || '50000',
+            applicationData: appData
+          };
+        }) || [];
       } catch (error) {
         console.error('Error fetching applications:', error);
         return [];
