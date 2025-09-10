@@ -83,6 +83,15 @@ export default function AdvancedAssignmentDialog({
 }: AssignmentDialogProps) {
   const { toast } = useToast();
   
+  // استخراج الإحداثيات الحقيقية من بيانات الطلب
+  const getApplicationCoordinates = () => {
+    if (application?.applicationData?.surveyInfo?.drawnFeatures?.[0]?.coordinates) {
+      const coords = application.applicationData.surveyInfo.drawnFeatures[0].coordinates;
+      return { lat: coords[1], lng: coords[0] }; // GeoJSON format: [lng, lat]
+    }
+    return null;
+  };
+
   const [formData, setFormData] = useState<AssignmentData>(() => {
     const realCoordinates = getApplicationCoordinates();
     return {
@@ -100,15 +109,6 @@ export default function AdvancedAssignmentDialog({
       coordinatesLng: realCoordinates?.lng || mockCoordinates.lng
     };
   });
-
-  // استخراج الإحداثيات الحقيقية من بيانات الطلب
-  const getApplicationCoordinates = () => {
-    if (application?.applicationData?.surveyInfo?.drawnFeatures?.[0]?.coordinates) {
-      const coords = application.applicationData.surveyInfo.drawnFeatures[0].coordinates;
-      return { lat: coords[1], lng: coords[0] }; // GeoJSON format: [lng, lat]
-    }
-    return null;
-  };
 
   const [selectedLocation, setSelectedLocation] = useState<{lat: number; lng: number} | null>(
     getApplicationCoordinates() || (application ? mockCoordinates : null)
