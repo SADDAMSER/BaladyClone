@@ -73,6 +73,15 @@ const mockCoordinates = {
   lng: 44.1910
 };
 
+// استخراج الإحداثيات الحقيقية من بيانات الطلب
+const getApplicationCoordinates = (app: Application | null) => {
+  if (app?.applicationData?.surveyInfo?.drawnFeatures?.[0]?.coordinates) {
+    const coords = app.applicationData.surveyInfo.drawnFeatures[0].coordinates;
+    return { lat: coords[1], lng: coords[0] }; // GeoJSON format: [lng, lat]
+  }
+  return null;
+};
+
 export default function AdvancedAssignmentDialog({
   open,
   onOpenChange,
@@ -82,18 +91,9 @@ export default function AdvancedAssignmentDialog({
   isLoading
 }: AssignmentDialogProps) {
   const { toast } = useToast();
-  
-  // استخراج الإحداثيات الحقيقية من بيانات الطلب
-  const getApplicationCoordinates = () => {
-    if (application?.applicationData?.surveyInfo?.drawnFeatures?.[0]?.coordinates) {
-      const coords = application.applicationData.surveyInfo.drawnFeatures[0].coordinates;
-      return { lat: coords[1], lng: coords[0] }; // GeoJSON format: [lng, lat]
-    }
-    return null;
-  };
 
   const [formData, setFormData] = useState<AssignmentData>(() => {
-    const realCoordinates = getApplicationCoordinates();
+    const realCoordinates = getApplicationCoordinates(application);
     return {
       applicationId: application?.id || '',
       assignedToId: '',
@@ -111,7 +111,7 @@ export default function AdvancedAssignmentDialog({
   });
 
   const [selectedLocation, setSelectedLocation] = useState<{lat: number; lng: number} | null>(
-    getApplicationCoordinates() || (application ? mockCoordinates : null)
+    getApplicationCoordinates(application) || (application ? mockCoordinates : null)
   );
 
   const handleInputChange = (field: keyof AssignmentData, value: string | number) => {
