@@ -160,7 +160,12 @@ export default function DepartmentManagerDashboard() {
   });
 
   const handleAdvancedAssignment = async (data: any) => {
-    await assignApplicationMutation.mutateAsync(data);
+    // Ensure applicationId is correctly set from selectedApplication
+    const assignmentData = {
+      ...data,
+      applicationId: selectedApplication?.id
+    };
+    await assignApplicationMutation.mutateAsync(assignmentData);
   };
 
   const getPriorityBadge = (priority: string) => {
