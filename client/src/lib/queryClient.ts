@@ -59,20 +59,8 @@ export const getQueryFn: <T>(options: {
       }
     }
 
-    // Comprehensive debugging for problematic URLs
+    // Log all application-related requests for monitoring (debugging removed)
     if (process.env.NODE_ENV === 'development') {
-      if (url.includes('/applications/assign')) {
-        console.error('🚨 BLOCKED PROBLEMATIC QUERY:', {
-          queryKey,
-          constructedUrl: url,
-          timestamp: new Date().toISOString(),
-          stackTrace: new Error().stack
-        });
-        // Prevent this request entirely
-        throw new Error(`Blocked malformed request to ${url}. Use POST /api/applications/:id/assign instead.`);
-      }
-      
-      // Log all application-related requests for monitoring
       if (url.includes('/applications') && !url.includes('/api/applications')) {
         console.warn('⚠️ Suspicious application URL:', { queryKey, url });
       }
