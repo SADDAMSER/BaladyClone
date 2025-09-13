@@ -408,6 +408,22 @@ export const governorates = pgTable("governorates", {
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
+// Districts table - linked to governorates
+export const districts = pgTable("districts", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: text("code"),
+  nameAr: text("name_ar").notNull(),
+  nameEn: text("name_en"),
+  governorateId: uuid("governorate_id")
+    .references(() => governorates.id, { onDelete: "cascade" })
+    .notNull(),
+  geometry: jsonb("geometry"),
+  properties: jsonb("properties"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ one, many }) => ({
   department: one(departments, {
@@ -1511,3 +1527,13 @@ export type InsertSurveyResult = z.infer<typeof insertSurveyResultSchema>;
 
 export type SurveyReport = typeof surveyReports.$inferSelect;
 export type InsertSurveyReport = z.infer<typeof insertSurveyReportSchema>;
+
+// Districts schemas
+export const insertDistrictSchema = createInsertSchema(districts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type District = typeof districts.$inferSelect;
+export type InsertDistrict = z.infer<typeof insertDistrictSchema>;

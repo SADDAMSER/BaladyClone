@@ -10,7 +10,8 @@ import {
   insertLawRegulationSchema, insertLawSectionSchema, insertLawArticleSchema,
   insertRequirementCategorySchema, insertRequirementSchema, insertServiceSchema,
   insertApplicationSchema, insertSurveyingDecisionSchema, insertTaskSchema,
-  insertSystemSettingSchema, insertGovernorateSchema, insertServiceTemplateSchema, insertDynamicFormSchema,
+  insertSystemSettingSchema, insertGovernorateSchema, insertDistrictSchema, 
+  insertServiceTemplateSchema, insertDynamicFormSchema,
   insertWorkflowDefinitionSchema, insertServiceBuilderSchema,
   insertNotificationSchema, insertApplicationStatusHistorySchema,
   insertApplicationAssignmentSchema, insertApplicationReviewSchema
@@ -383,6 +384,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/governorates/:id", authenticateToken, async (req, res) => {
     try {
       await storage.deleteGovernorate(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Districts endpoints (Geographic data - public access for read operations)
+  app.get("/api/districts", async (req, res) => {
+    try {
+      const { governorateId } = req.query;
+      const districts = await storage.getDistricts(governorateId as string);
+      res.json(districts);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/districts/:id", async (req, res) => {
+    try {
+      const district = await storage.getDistrict(req.params.id);
+      if (!district) {
+        return res.status(404).json({ message: "District not found" });
+      }
+      res.json(district);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/districts/code/:code", async (req, res) => {
+    try {
+      const district = await storage.getDistrictByCode(req.params.code);
+      if (!district) {
+        return res.status(404).json({ message: "District not found" });
+      }
+      res.json(district);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/governorates/:id/districts", async (req, res) => {
+    try {
+      const districts = await storage.getDistrictsByGovernorateId(req.params.id);
+      res.json(districts);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/districts", authenticateToken, async (req, res) => {
+    try {
+      const validatedData = insertDistrictSchema.parse(req.body);
+      const district = await storage.createDistrict(validatedData);
+      res.status(201).json(district);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid request data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/districts/:id", authenticateToken, async (req, res) => {
+    try {
+      const district = await storage.updateDistrict(req.params.id, req.body);
+      res.json(district);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/districts/:id", authenticateToken, async (req, res) => {
+    try {
+      await storage.deleteDistrict(req.params.id);
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: "Internal server error" });

@@ -1,7 +1,7 @@
 import {
   users, departments, positions, lawsRegulations, lawSections, lawArticles,
   requirementCategories, requirements, services, serviceRequirements,
-  applications, surveyingDecisions, tasks, systemSettings, governorates,
+  applications, surveyingDecisions, tasks, systemSettings, governorates, districts,
   serviceTemplates, dynamicForms, workflowDefinitions, serviceBuilder,
   applicationAssignments, applicationStatusHistory, applicationReviews, notifications,
   appointments, contactAttempts, surveyAssignmentForms,
@@ -13,7 +13,7 @@ import {
   type Requirement, type InsertRequirement, type Service, type InsertService,
   type Application, type InsertApplication, type SurveyingDecision, type InsertSurveyingDecision,
   type Task, type InsertTask, type SystemSetting, type InsertSystemSetting,
-  type Governorate, type InsertGovernorate,
+  type Governorate, type InsertGovernorate, type District, type InsertDistrict,
   type ServiceTemplate, type InsertServiceTemplate,
   type DynamicForm, type InsertDynamicForm,
   type WorkflowDefinition, type InsertWorkflowDefinition,
@@ -62,6 +62,14 @@ export interface IStorage {
   createGovernorate(governorate: InsertGovernorate): Promise<Governorate>;
   updateGovernorate(id: string, updates: Partial<InsertGovernorate>): Promise<Governorate>;
   deleteGovernorate(id: string): Promise<void>;
+
+  getDistricts(governorateId?: string): Promise<District[]>;
+  getDistrict(id: string): Promise<District | undefined>;
+  getDistrictByCode(code: string): Promise<District | undefined>;
+  getDistrictsByGovernorateId(governorateId: string): Promise<District[]>;
+  createDistrict(district: InsertDistrict): Promise<District>;
+  updateDistrict(id: string, updates: Partial<InsertDistrict>): Promise<District>;
+  deleteDistrict(id: string): Promise<void>;
 
   // Legal framework
   getLawsRegulations(): Promise<LawRegulation[]>;
@@ -383,6 +391,52 @@ export class DatabaseStorage implements IStorage {
 
   async deleteGovernorate(id: string): Promise<void> {
     await db.delete(governorates).where(eq(governorates.id, id));
+  }
+
+  // Districts
+  async getDistricts(governorateId?: string): Promise<District[]> {
+    if (governorateId) {
+      return await db.select().from(districts)
+        .where(and(eq(districts.governorateId, governorateId), eq(districts.isActive, true)))
+        .orderBy(asc(districts.nameAr));
+    }
+    return await db.select().from(districts)
+      .where(eq(districts.isActive, true))
+      .orderBy(asc(districts.nameAr));
+  }
+
+  async getDistrict(id: string): Promise<District | undefined> {
+    const [district] = await db.select().from(districts).where(eq(districts.id, id));
+    return district || undefined;
+  }
+
+  async getDistrictByCode(code: string): Promise<District | undefined> {
+    const [district] = await db.select().from(districts).where(eq(districts.code, code));
+    return district || undefined;
+  }
+
+  async getDistrictsByGovernorateId(governorateId: string): Promise<District[]> {
+    return await db.select().from(districts)
+      .where(and(eq(districts.governorateId, governorateId), eq(districts.isActive, true)))
+      .orderBy(asc(districts.nameAr));
+  }
+
+  async createDistrict(district: InsertDistrict): Promise<District> {
+    const [result] = await db.insert(districts).values(district).returning();
+    return result;
+  }
+
+  async updateDistrict(id: string, updates: Partial<InsertDistrict>): Promise<District> {
+    const [district] = await db
+      .update(districts)
+      .set({ ...updates, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(districts.id, id))
+      .returning();
+    return district;
+  }
+
+  async deleteDistrict(id: string): Promise<void> {
+    await db.delete(districts).where(eq(districts.id, id));
   }
 
   // Legal framework
