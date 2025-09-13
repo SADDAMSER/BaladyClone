@@ -1,0 +1,1109 @@
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Switch } from '@/components/ui/switch';
+import { 
+  MapPin, 
+  Plus, 
+  Edit3, 
+  Trash2, 
+  Search,
+  Save,
+  X,
+  Map,
+  Globe,
+  Building
+} from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import Header from '@/components/Header';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { apiRequest } from '@/lib/queryClient';
+
+// Form schemas
+const governorateFormSchema = z.object({
+  code: z.string().min(1, 'رمز المحافظة مطلوب'),
+  nameAr: z.string().min(1, 'الاسم العربي مطلوب'),
+  nameEn: z.string().min(1, 'الاسم الإنجليزي مطلوب'),
+  geometry: z.string().optional(),
+  properties: z.string().optional(),
+  isActive: z.boolean().default(true),
+});
+
+const districtFormSchema = z.object({
+  code: z.string().optional(),
+  nameAr: z.string().min(1, 'الاسم العربي مطلوب'),
+  nameEn: z.string().optional(),
+  governorateId: z.string().min(1, 'المحافظة مطلوبة'),
+  geometry: z.string().optional(),
+  properties: z.string().optional(),
+  isActive: z.boolean().default(true),
+});
+
+type GovernorateFormData = z.infer<typeof governorateFormSchema>;
+type DistrictFormData = z.infer<typeof districtFormSchema>;
+
+interface Governorate {
+  id: string;
+  code: string;
+  nameAr: string;
+  nameEn: string;
+  geometry?: any;
+  properties?: any;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface District {
+  id: string;
+  code?: string;
+  nameAr: string;
+  nameEn?: string;
+  governorateId: string;
+  geometry?: any;
+  properties?: any;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export default function GeographicDataManager() {
+  const [activeTab, setActiveTab] = useState('governorates');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showAddGovernorate, setShowAddGovernorate] = useState(false);
+  const [showEditGovernorate, setShowEditGovernorate] = useState(false);
+  const [showAddDistrict, setShowAddDistrict] = useState(false);
+  const [showEditDistrict, setShowEditDistrict] = useState(false);
+  const [selectedGovernorate, setSelectedGovernorate] = useState<Governorate | null>(null);
+  const [selectedDistrict, setSelectedDistrict] = useState<District | null>(null);
+  const [selectedGovernorateFilter, setSelectedGovernorateFilter] = useState<string>('all');
+
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Fetch governorates
+  const { data: governorates = [], isLoading: loadingGovernorates } = useQuery<Governorate[]>({
+    queryKey: ['/api/governorates'],
+  });
+
+  // Fetch districts
+  const { data: districts = [], isLoading: loadingDistricts } = useQuery<District[]>({
+    queryKey: ['/api/districts'],
+  });
+
+  // Create governorate mutation
+  const createGovernorateMutation = useMutation({
+    mutationFn: async (data: GovernorateFormData) => {
+      const response = await apiRequest('POST', '/api/governorates', {
+        ...data,
+        geometry: data.geometry ? JSON.parse(data.geometry) : null,
+        properties: data.properties ? JSON.parse(data.properties) : null,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/governorates'] });
+      setShowAddGovernorate(false);
+      toast({ title: 'تم إضافة المحافظة بنجاح' });
+    },
+    onError: () => {
+      toast({ title: 'خطأ في إضافة المحافظة', variant: 'destructive' });
+    },
+  });
+
+  // Update governorate mutation
+  const updateGovernorateMutation = useMutation({
+    mutationFn: async (data: GovernorateFormData & { id: string }) => {
+      const response = await apiRequest('PUT', `/api/governorates/${data.id}`, {
+        ...data,
+        geometry: data.geometry ? JSON.parse(data.geometry) : null,
+        properties: data.properties ? JSON.parse(data.properties) : null,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/governorates'] });
+      setShowEditGovernorate(false);
+      setSelectedGovernorate(null);
+      toast({ title: 'تم تحديث المحافظة بنجاح' });
+    },
+    onError: () => {
+      toast({ title: 'خطأ في تحديث المحافظة', variant: 'destructive' });
+    },
+  });
+
+  // Delete governorate mutation
+  const deleteGovernorateMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest('DELETE', `/api/governorates/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/governorates'] });
+      toast({ title: 'تم حذف المحافظة بنجاح' });
+    },
+    onError: () => {
+      toast({ title: 'خطأ في حذف المحافظة', variant: 'destructive' });
+    },
+  });
+
+  // Create district mutation
+  const createDistrictMutation = useMutation({
+    mutationFn: async (data: DistrictFormData) => {
+      const response = await apiRequest('POST', '/api/districts', {
+        ...data,
+        geometry: data.geometry ? JSON.parse(data.geometry) : null,
+        properties: data.properties ? JSON.parse(data.properties) : null,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/districts'] });
+      setShowAddDistrict(false);
+      toast({ title: 'تم إضافة المديرية بنجاح' });
+    },
+    onError: () => {
+      toast({ title: 'خطأ في إضافة المديرية', variant: 'destructive' });
+    },
+  });
+
+  // Update district mutation
+  const updateDistrictMutation = useMutation({
+    mutationFn: async (data: DistrictFormData & { id: string }) => {
+      const response = await apiRequest('PUT', `/api/districts/${data.id}`, {
+        ...data,
+        geometry: data.geometry ? JSON.parse(data.geometry) : null,
+        properties: data.properties ? JSON.parse(data.properties) : null,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/districts'] });
+      setShowEditDistrict(false);
+      setSelectedDistrict(null);
+      toast({ title: 'تم تحديث المديرية بنجاح' });
+    },
+    onError: () => {
+      toast({ title: 'خطأ في تحديث المديرية', variant: 'destructive' });
+    },
+  });
+
+  // Delete district mutation
+  const deleteDistrictMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest('DELETE', `/api/districts/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/districts'] });
+      toast({ title: 'تم حذف المديرية بنجاح' });
+    },
+    onError: () => {
+      toast({ title: 'خطأ في حذف المديرية', variant: 'destructive' });
+    },
+  });
+
+  // Form hooks
+  const governorateForm = useForm<GovernorateFormData>({
+    resolver: zodResolver(governorateFormSchema),
+    defaultValues: {
+      code: '',
+      nameAr: '',
+      nameEn: '',
+      geometry: '',
+      properties: '',
+      isActive: true,
+    },
+  });
+
+  const districtForm = useForm<DistrictFormData>({
+    resolver: zodResolver(districtFormSchema),
+    defaultValues: {
+      code: '',
+      nameAr: '',
+      nameEn: '',
+      governorateId: '',
+      geometry: '',
+      properties: '',
+      isActive: true,
+    },
+  });
+
+  // Filter functions
+  const filteredGovernorates = governorates.filter(gov => 
+    gov.nameAr.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    gov.nameEn.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    gov.code.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const filteredDistricts = districts.filter(dist => {
+    const matchesSearch = dist.nameAr.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (dist.nameEn && dist.nameEn.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (dist.code && dist.code.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    const matchesGovernorate = selectedGovernorateFilter === 'all' || 
+      dist.governorateId === selectedGovernorateFilter;
+    
+    return matchesSearch && matchesGovernorate;
+  });
+
+  // Handle form submissions
+  const onSubmitGovernorate = (data: GovernorateFormData) => {
+    if (selectedGovernorate) {
+      updateGovernorateMutation.mutate({ ...data, id: selectedGovernorate.id });
+    } else {
+      createGovernorateMutation.mutate(data);
+    }
+  };
+
+  const onSubmitDistrict = (data: DistrictFormData) => {
+    if (selectedDistrict) {
+      updateDistrictMutation.mutate({ ...data, id: selectedDistrict.id });
+    } else {
+      createDistrictMutation.mutate(data);
+    }
+  };
+
+  // Handle edit
+  const handleEditGovernorate = (governorate: Governorate) => {
+    setSelectedGovernorate(governorate);
+    governorateForm.reset({
+      code: governorate.code,
+      nameAr: governorate.nameAr,
+      nameEn: governorate.nameEn,
+      geometry: governorate.geometry ? JSON.stringify(governorate.geometry, null, 2) : '',
+      properties: governorate.properties ? JSON.stringify(governorate.properties, null, 2) : '',
+      isActive: governorate.isActive,
+    });
+    setShowEditGovernorate(true);
+  };
+
+  const handleEditDistrict = (district: District) => {
+    setSelectedDistrict(district);
+    districtForm.reset({
+      code: district.code || '',
+      nameAr: district.nameAr,
+      nameEn: district.nameEn || '',
+      governorateId: district.governorateId,
+      geometry: district.geometry ? JSON.stringify(district.geometry, null, 2) : '',
+      properties: district.properties ? JSON.stringify(district.properties, null, 2) : '',
+      isActive: district.isActive,
+    });
+    setShowEditDistrict(true);
+  };
+
+  // Get governorate name
+  const getGovernorateName = (id: string) => {
+    const gov = governorates.find(g => g.id === id);
+    return gov ? gov.nameAr : 'غير محدد';
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900" dir="rtl">
+      <Header />
+      
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center gap-3 mb-8">
+          <Map className="h-8 w-8 text-blue-600" />
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+            إدارة البيانات الجغرافية
+          </h1>
+        </div>
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="governorates" className="flex items-center gap-2" data-testid="tab-governorates">
+              <Globe className="h-4 w-4" />
+              المحافظات
+            </TabsTrigger>
+            <TabsTrigger value="districts" className="flex items-center gap-2" data-testid="tab-districts">
+              <Building className="h-4 w-4" />
+              المديريات
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Governorates Tab */}
+          <TabsContent value="governorates" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <CardTitle className="flex items-center gap-2">
+                    <Globe className="h-5 w-5" />
+                    إدارة المحافظات
+                  </CardTitle>
+                  <Dialog open={showAddGovernorate} onOpenChange={setShowAddGovernorate}>
+                    <DialogTrigger asChild>
+                      <Button 
+                        onClick={() => {
+                          governorateForm.reset();
+                          setSelectedGovernorate(null);
+                        }}
+                        data-testid="button-add-governorate"
+                      >
+                        <Plus className="h-4 w-4 ml-2" />
+                        إضافة محافظة
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl" dir="rtl">
+                      <DialogHeader>
+                        <DialogTitle>
+                          {selectedGovernorate ? 'تعديل المحافظة' : 'إضافة محافظة جديدة'}
+                        </DialogTitle>
+                      </DialogHeader>
+                      <Form {...governorateForm}>
+                        <form onSubmit={governorateForm.handleSubmit(onSubmitGovernorate)} className="space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <FormField
+                              control={governorateForm.control}
+                              name="code"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>رمز المحافظة *</FormLabel>
+                                  <FormControl>
+                                    <Input placeholder="مثال: YE01" {...field} data-testid="input-governorate-code" />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={governorateForm.control}
+                              name="nameAr"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>الاسم العربي *</FormLabel>
+                                  <FormControl>
+                                    <Input placeholder="صنعاء" {...field} data-testid="input-governorate-name-ar" />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={governorateForm.control}
+                              name="nameEn"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>الاسم الإنجليزي *</FormLabel>
+                                  <FormControl>
+                                    <Input placeholder="Sana'a" {...field} data-testid="input-governorate-name-en" />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={governorateForm.control}
+                              name="isActive"
+                              render={({ field }) => (
+                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                                  <div className="space-y-0.5">
+                                    <FormLabel>نشط</FormLabel>
+                                  </div>
+                                  <FormControl>
+                                    <Switch
+                                      checked={field.value}
+                                      onCheckedChange={field.onChange}
+                                      data-testid="switch-governorate-active"
+                                    />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                          <FormField
+                            control={governorateForm.control}
+                            name="geometry"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>البيانات الجغرافية (JSON)</FormLabel>
+                                <FormControl>
+                                  <Textarea 
+                                    placeholder='{"type": "Polygon", "coordinates": [...]}'
+                                    className="h-24"
+                                    {...field}
+                                    data-testid="textarea-governorate-geometry"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={governorateForm.control}
+                            name="properties"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>خصائص إضافية (JSON)</FormLabel>
+                                <FormControl>
+                                  <Textarea 
+                                    placeholder='{"population": 1000000, "area": 1000}'
+                                    className="h-20"
+                                    {...field}
+                                    data-testid="textarea-governorate-properties"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <DialogFooter>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => setShowAddGovernorate(false)}
+                              data-testid="button-cancel-governorate"
+                            >
+                              <X className="h-4 w-4 ml-2" />
+                              إلغاء
+                            </Button>
+                            <Button 
+                              type="submit" 
+                              disabled={createGovernorateMutation.isPending || updateGovernorateMutation.isPending}
+                              data-testid="button-save-governorate"
+                            >
+                              <Save className="h-4 w-4 ml-2" />
+                              {selectedGovernorate ? 'تحديث' : 'حفظ'}
+                            </Button>
+                          </DialogFooter>
+                        </form>
+                      </Form>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-4">
+                  <div className="relative">
+                    <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Input
+                      placeholder="البحث في المحافظات..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pr-10"
+                      data-testid="input-search-governorates"
+                    />
+                  </div>
+                </div>
+
+                {loadingGovernorates ? (
+                  <div className="text-center py-8">جاري التحميل...</div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>الرمز</TableHead>
+                        <TableHead>الاسم العربي</TableHead>
+                        <TableHead>الاسم الإنجليزي</TableHead>
+                        <TableHead>الحالة</TableHead>
+                        <TableHead>الإجراءات</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredGovernorates.map((governorate) => (
+                        <TableRow key={governorate.id} data-testid={`row-governorate-${governorate.id}`}>
+                          <TableCell>
+                            <code className="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
+                              {governorate.code}
+                            </code>
+                          </TableCell>
+                          <TableCell className="font-medium">{governorate.nameAr}</TableCell>
+                          <TableCell>{governorate.nameEn}</TableCell>
+                          <TableCell>
+                            <Badge variant={governorate.isActive ? "default" : "secondary"}>
+                              {governorate.isActive ? 'نشط' : 'غير نشط'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEditGovernorate(governorate)}
+                                data-testid={`button-edit-governorate-${governorate.id}`}
+                              >
+                                <Edit3 className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => deleteGovernorateMutation.mutate(governorate.id)}
+                                disabled={deleteGovernorateMutation.isPending}
+                                data-testid={`button-delete-governorate-${governorate.id}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Districts Tab */}
+          <TabsContent value="districts" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <CardTitle className="flex items-center gap-2">
+                    <Building className="h-5 w-5" />
+                    إدارة المديريات
+                  </CardTitle>
+                  <Dialog open={showAddDistrict} onOpenChange={setShowAddDistrict}>
+                    <DialogTrigger asChild>
+                      <Button 
+                        onClick={() => {
+                          districtForm.reset();
+                          setSelectedDistrict(null);
+                        }}
+                        data-testid="button-add-district"
+                      >
+                        <Plus className="h-4 w-4 ml-2" />
+                        إضافة مديرية
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl" dir="rtl">
+                      <DialogHeader>
+                        <DialogTitle>
+                          {selectedDistrict ? 'تعديل المديرية' : 'إضافة مديرية جديدة'}
+                        </DialogTitle>
+                      </DialogHeader>
+                      <Form {...districtForm}>
+                        <form onSubmit={districtForm.handleSubmit(onSubmitDistrict)} className="space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <FormField
+                              control={districtForm.control}
+                              name="code"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>رمز المديرية</FormLabel>
+                                  <FormControl>
+                                    <Input placeholder="مثال: YE01001" {...field} data-testid="input-district-code" />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={districtForm.control}
+                              name="nameAr"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>الاسم العربي *</FormLabel>
+                                  <FormControl>
+                                    <Input placeholder="الصافية" {...field} data-testid="input-district-name-ar" />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={districtForm.control}
+                              name="nameEn"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>الاسم الإنجليزي</FormLabel>
+                                  <FormControl>
+                                    <Input placeholder="As Safiyah" {...field} data-testid="input-district-name-en" />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={districtForm.control}
+                              name="governorateId"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>المحافظة *</FormLabel>
+                                  <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl>
+                                      <SelectTrigger data-testid="select-district-governorate">
+                                        <SelectValue placeholder="اختر المحافظة" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      {governorates.map((gov) => (
+                                        <SelectItem key={gov.id} value={gov.id}>
+                                          {gov.nameAr}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={districtForm.control}
+                              name="isActive"
+                              render={({ field }) => (
+                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                                  <div className="space-y-0.5">
+                                    <FormLabel>نشط</FormLabel>
+                                  </div>
+                                  <FormControl>
+                                    <Switch
+                                      checked={field.value}
+                                      onCheckedChange={field.onChange}
+                                      data-testid="switch-district-active"
+                                    />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                          <FormField
+                            control={districtForm.control}
+                            name="geometry"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>البيانات الجغرافية (JSON)</FormLabel>
+                                <FormControl>
+                                  <Textarea 
+                                    placeholder='{"type": "Polygon", "coordinates": [...]}'
+                                    className="h-24"
+                                    {...field}
+                                    data-testid="textarea-district-geometry"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={districtForm.control}
+                            name="properties"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>خصائص إضافية (JSON)</FormLabel>
+                                <FormControl>
+                                  <Textarea 
+                                    placeholder='{"population": 50000, "area": 100}'
+                                    className="h-20"
+                                    {...field}
+                                    data-testid="textarea-district-properties"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <DialogFooter>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => setShowAddDistrict(false)}
+                              data-testid="button-cancel-district"
+                            >
+                              <X className="h-4 w-4 ml-2" />
+                              إلغاء
+                            </Button>
+                            <Button 
+                              type="submit" 
+                              disabled={createDistrictMutation.isPending || updateDistrictMutation.isPending}
+                              data-testid="button-save-district"
+                            >
+                              <Save className="h-4 w-4 ml-2" />
+                              {selectedDistrict ? 'تحديث' : 'حفظ'}
+                            </Button>
+                          </DialogFooter>
+                        </form>
+                      </Form>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-4 flex gap-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Input
+                      placeholder="البحث في المديريات..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pr-10"
+                      data-testid="input-search-districts"
+                    />
+                  </div>
+                  <Select value={selectedGovernorateFilter} onValueChange={setSelectedGovernorateFilter}>
+                    <SelectTrigger className="w-48" data-testid="select-filter-governorate">
+                      <SelectValue placeholder="فلترة حسب المحافظة" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">جميع المحافظات</SelectItem>
+                      {governorates.map((gov) => (
+                        <SelectItem key={gov.id} value={gov.id}>
+                          {gov.nameAr}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {loadingDistricts ? (
+                  <div className="text-center py-8">جاري التحميل...</div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>الرمز</TableHead>
+                        <TableHead>الاسم العربي</TableHead>
+                        <TableHead>الاسم الإنجليزي</TableHead>
+                        <TableHead>المحافظة</TableHead>
+                        <TableHead>الحالة</TableHead>
+                        <TableHead>الإجراءات</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredDistricts.map((district) => (
+                        <TableRow key={district.id} data-testid={`row-district-${district.id}`}>
+                          <TableCell>
+                            {district.code ? (
+                              <code className="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
+                                {district.code}
+                              </code>
+                            ) : (
+                              <span className="text-gray-400">غير محدد</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="font-medium">{district.nameAr}</TableCell>
+                          <TableCell>{district.nameEn || 'غير محدد'}</TableCell>
+                          <TableCell>{getGovernorateName(district.governorateId)}</TableCell>
+                          <TableCell>
+                            <Badge variant={district.isActive ? "default" : "secondary"}>
+                              {district.isActive ? 'نشط' : 'غير نشط'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEditDistrict(district)}
+                                data-testid={`button-edit-district-${district.id}`}
+                              >
+                                <Edit3 className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => deleteDistrictMutation.mutate(district.id)}
+                                disabled={deleteDistrictMutation.isPending}
+                                data-testid={`button-delete-district-${district.id}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+
+      {/* Edit Governorate Dialog */}
+      <Dialog open={showEditGovernorate} onOpenChange={setShowEditGovernorate}>
+        <DialogContent className="max-w-2xl" dir="rtl">
+          <DialogHeader>
+            <DialogTitle>تعديل المحافظة</DialogTitle>
+          </DialogHeader>
+          <Form {...governorateForm}>
+            <form onSubmit={governorateForm.handleSubmit(onSubmitGovernorate)} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={governorateForm.control}
+                  name="code"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>رمز المحافظة *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="مثال: YE01" {...field} data-testid="input-edit-governorate-code" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={governorateForm.control}
+                  name="nameAr"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>الاسم العربي *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="صنعاء" {...field} data-testid="input-edit-governorate-name-ar" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={governorateForm.control}
+                  name="nameEn"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>الاسم الإنجليزي *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Sana'a" {...field} data-testid="input-edit-governorate-name-en" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={governorateForm.control}
+                  name="isActive"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                      <div className="space-y-0.5">
+                        <FormLabel>نشط</FormLabel>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          data-testid="switch-edit-governorate-active"
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={governorateForm.control}
+                name="geometry"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>البيانات الجغرافية (JSON)</FormLabel>
+                    <FormControl>
+                      <Textarea 
+                        placeholder='{"type": "Polygon", "coordinates": [...]}'
+                        className="h-24"
+                        {...field}
+                        data-testid="textarea-edit-governorate-geometry"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={governorateForm.control}
+                name="properties"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>خصائص إضافية (JSON)</FormLabel>
+                    <FormControl>
+                      <Textarea 
+                        placeholder='{"population": 1000000, "area": 1000}'
+                        className="h-20"
+                        {...field}
+                        data-testid="textarea-edit-governorate-properties"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setShowEditGovernorate(false);
+                    setSelectedGovernorate(null);
+                  }}
+                  data-testid="button-cancel-edit-governorate"
+                >
+                  <X className="h-4 w-4 ml-2" />
+                  إلغاء
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={updateGovernorateMutation.isPending}
+                  data-testid="button-save-edit-governorate"
+                >
+                  <Save className="h-4 w-4 ml-2" />
+                  تحديث
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit District Dialog */}
+      <Dialog open={showEditDistrict} onOpenChange={setShowEditDistrict}>
+        <DialogContent className="max-w-2xl" dir="rtl">
+          <DialogHeader>
+            <DialogTitle>تعديل المديرية</DialogTitle>
+          </DialogHeader>
+          <Form {...districtForm}>
+            <form onSubmit={districtForm.handleSubmit(onSubmitDistrict)} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={districtForm.control}
+                  name="code"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>رمز المديرية</FormLabel>
+                      <FormControl>
+                        <Input placeholder="مثال: YE01001" {...field} data-testid="input-edit-district-code" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={districtForm.control}
+                  name="nameAr"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>الاسم العربي *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="الصافية" {...field} data-testid="input-edit-district-name-ar" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={districtForm.control}
+                  name="nameEn"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>الاسم الإنجليزي</FormLabel>
+                      <FormControl>
+                        <Input placeholder="As Safiyah" {...field} data-testid="input-edit-district-name-en" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={districtForm.control}
+                  name="governorateId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>المحافظة *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-edit-district-governorate">
+                            <SelectValue placeholder="اختر المحافظة" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {governorates.map((gov) => (
+                            <SelectItem key={gov.id} value={gov.id}>
+                              {gov.nameAr}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={districtForm.control}
+                  name="isActive"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                      <div className="space-y-0.5">
+                        <FormLabel>نشط</FormLabel>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          data-testid="switch-edit-district-active"
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={districtForm.control}
+                name="geometry"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>البيانات الجغرافية (JSON)</FormLabel>
+                    <FormControl>
+                      <Textarea 
+                        placeholder='{"type": "Polygon", "coordinates": [...]}'
+                        className="h-24"
+                        {...field}
+                        data-testid="textarea-edit-district-geometry"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={districtForm.control}
+                name="properties"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>خصائص إضافية (JSON)</FormLabel>
+                    <FormControl>
+                      <Textarea 
+                        placeholder='{"population": 50000, "area": 100}'
+                        className="h-20"
+                        {...field}
+                        data-testid="textarea-edit-district-properties"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setShowEditDistrict(false);
+                    setSelectedDistrict(null);
+                  }}
+                  data-testid="button-cancel-edit-district"
+                >
+                  <X className="h-4 w-4 ml-2" />
+                  إلغاء
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={updateDistrictMutation.isPending}
+                  data-testid="button-save-edit-district"
+                >
+                  <Save className="h-4 w-4 ml-2" />
+                  تحديث
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

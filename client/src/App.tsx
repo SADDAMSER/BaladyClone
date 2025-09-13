@@ -14,6 +14,7 @@ import OrganizationalStructure from "@/pages/OrganizationalStructure";
 import AdvancedOrganizationalStructure from "@/pages/AdvancedOrganizationalStructure";
 import AdvancedAnalytics from "@/pages/AdvancedAnalytics";
 import UserManagement from "@/pages/UserManagement";
+import GeographicDataManager from "@/pages/GeographicDataManager";
 import DocumentArchive from "@/pages/DocumentArchive";
 import SmartSearch from "@/pages/SmartSearch";
 import TaskManagement from "@/pages/TaskManagement";
@@ -61,6 +62,7 @@ function AuthenticatedRouter() {
         <Route path="/advanced-organizational-structure" component={AdvancedOrganizationalStructure} />
         <Route path="/advanced-analytics" component={AdvancedAnalytics} />
         <Route path="/user-management" component={UserManagement} />
+        <Route path="/geographic-data" component={GeographicDataManager} />
         <Route path="/document-archive" component={DocumentArchive} />
         <Route path="/smart-search" component={SmartSearch} />
         <Route path="/task-management" component={TaskManagement} />
