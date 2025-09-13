@@ -395,6 +395,19 @@ export const systemSettings = pgTable("system_settings", {
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
+// Geographic Data
+export const governorates = pgTable("governorates", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: text("code").notNull().unique(), // YE11, YE12, etc.
+  nameAr: text("name_ar").notNull(),
+  nameEn: text("name_en").notNull(),
+  geometry: jsonb("geometry").notNull(), // GeoJSON geometry data
+  properties: jsonb("properties"), // Additional properties from GeoJSON
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ one, many }) => ({
   department: one(departments, {
@@ -1480,7 +1493,16 @@ export const insertSurveyReportSchema = createInsertSchema(surveyReports).omit({
   approvedAt: true
 });
 
+export const insertGovernorateSchema = createInsertSchema(governorates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types for new tables
+export type Governorate = typeof governorates.$inferSelect;
+export type InsertGovernorate = z.infer<typeof insertGovernorateSchema>;
+
 export type FieldVisit = typeof fieldVisits.$inferSelect;
 export type InsertFieldVisit = z.infer<typeof insertFieldVisitSchema>;
 
