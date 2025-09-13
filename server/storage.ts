@@ -1,7 +1,7 @@
 import {
   users, departments, positions, lawsRegulations, lawSections, lawArticles,
   requirementCategories, requirements, services, serviceRequirements,
-  applications, surveyingDecisions, tasks, systemSettings,
+  applications, surveyingDecisions, tasks, systemSettings, governorates,
   serviceTemplates, dynamicForms, workflowDefinitions, serviceBuilder,
   applicationAssignments, applicationStatusHistory, applicationReviews, notifications,
   appointments, contactAttempts, surveyAssignmentForms,
@@ -13,6 +13,7 @@ import {
   type Requirement, type InsertRequirement, type Service, type InsertService,
   type Application, type InsertApplication, type SurveyingDecision, type InsertSurveyingDecision,
   type Task, type InsertTask, type SystemSetting, type InsertSystemSetting,
+  type Governorate, type InsertGovernorate,
   type ServiceTemplate, type InsertServiceTemplate,
   type DynamicForm, type InsertDynamicForm,
   type WorkflowDefinition, type InsertWorkflowDefinition,
@@ -53,6 +54,14 @@ export interface IStorage {
   createPosition(position: InsertPosition): Promise<Position>;
   updatePosition(id: string, updates: Partial<InsertPosition>): Promise<Position>;
   deletePosition(id: string): Promise<void>;
+
+  // Geographic data
+  getGovernorates(): Promise<Governorate[]>;
+  getGovernorate(id: string): Promise<Governorate | undefined>;
+  getGovernorateByCode(code: string): Promise<Governorate | undefined>;
+  createGovernorate(governorate: InsertGovernorate): Promise<Governorate>;
+  updateGovernorate(id: string, updates: Partial<InsertGovernorate>): Promise<Governorate>;
+  deleteGovernorate(id: string): Promise<void>;
 
   // Legal framework
   getLawsRegulations(): Promise<LawRegulation[]>;
@@ -339,6 +348,41 @@ export class DatabaseStorage implements IStorage {
 
   async deletePosition(id: string): Promise<void> {
     await db.delete(positions).where(eq(positions.id, id));
+  }
+
+  // Geographic data
+  async getGovernorates(): Promise<Governorate[]> {
+    return await db.select().from(governorates)
+      .where(eq(governorates.isActive, true))
+      .orderBy(asc(governorates.code));
+  }
+
+  async getGovernorate(id: string): Promise<Governorate | undefined> {
+    const [governorate] = await db.select().from(governorates).where(eq(governorates.id, id));
+    return governorate || undefined;
+  }
+
+  async getGovernorateByCode(code: string): Promise<Governorate | undefined> {
+    const [governorate] = await db.select().from(governorates).where(eq(governorates.code, code));
+    return governorate || undefined;
+  }
+
+  async createGovernorate(governorate: InsertGovernorate): Promise<Governorate> {
+    const [result] = await db.insert(governorates).values(governorate).returning();
+    return result;
+  }
+
+  async updateGovernorate(id: string, updates: Partial<InsertGovernorate>): Promise<Governorate> {
+    const [governorate] = await db
+      .update(governorates)
+      .set({ ...updates, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(governorates.id, id))
+      .returning();
+    return governorate;
+  }
+
+  async deleteGovernorate(id: string): Promise<void> {
+    await db.delete(governorates).where(eq(governorates.id, id));
   }
 
   // Legal framework

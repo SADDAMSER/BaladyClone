@@ -10,7 +10,7 @@ import {
   insertLawRegulationSchema, insertLawSectionSchema, insertLawArticleSchema,
   insertRequirementCategorySchema, insertRequirementSchema, insertServiceSchema,
   insertApplicationSchema, insertSurveyingDecisionSchema, insertTaskSchema,
-  insertSystemSettingSchema, insertServiceTemplateSchema, insertDynamicFormSchema,
+  insertSystemSettingSchema, insertGovernorateSchema, insertServiceTemplateSchema, insertDynamicFormSchema,
   insertWorkflowDefinitionSchema, insertServiceBuilderSchema,
   insertNotificationSchema, insertApplicationStatusHistorySchema,
   insertApplicationAssignmentSchema, insertApplicationReviewSchema
@@ -318,6 +318,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/departments/:id", authenticateToken, async (req, res) => {
     try {
       await storage.deleteDepartment(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Governorates endpoints (Geographic data - public access for read operations)
+  app.get("/api/governorates", async (req, res) => {
+    try {
+      const governorates = await storage.getGovernorates();
+      res.json(governorates);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/governorates/:id", async (req, res) => {
+    try {
+      const governorate = await storage.getGovernorate(req.params.id);
+      if (!governorate) {
+        return res.status(404).json({ message: "Governorate not found" });
+      }
+      res.json(governorate);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/governorates/code/:code", async (req, res) => {
+    try {
+      const governorate = await storage.getGovernorateByCode(req.params.code);
+      if (!governorate) {
+        return res.status(404).json({ message: "Governorate not found" });
+      }
+      res.json(governorate);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/governorates", authenticateToken, async (req, res) => {
+    try {
+      const validatedData = insertGovernorateSchema.parse(req.body);
+      const governorate = await storage.createGovernorate(validatedData);
+      res.status(201).json(governorate);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid request data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/governorates/:id", authenticateToken, async (req, res) => {
+    try {
+      const governorate = await storage.updateGovernorate(req.params.id, req.body);
+      res.json(governorate);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/governorates/:id", authenticateToken, async (req, res) => {
+    try {
+      await storage.deleteGovernorate(req.params.id);
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: "Internal server error" });
