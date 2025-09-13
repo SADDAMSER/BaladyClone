@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Governorate } from '@shared/schema';
+import { Governorate, District } from '@shared/schema';
 import { apiRequest } from '@/lib/queryClient';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { MapPin, FileText, Calculator, Save, Send, AlertCircle } from 'lucide-react';
 import InteractiveDrawingMap from '@/components/gis/InteractiveDrawingMap';
+import InteractiveMap from '@/components/gis/InteractiveMap';
 import { useToast } from '@/hooks/use-toast';
 
 interface SurveyFeature {
@@ -98,6 +99,12 @@ export default function SurveyingDecisionForm() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Fetch districts based on selected governorate
+  const { data: districts = [], isLoading: isLoadingDistricts, error: districtsError } = useQuery<District[]>({
+    queryKey: ['/api/districts', { governorateId: formData.governorate }],
+    enabled: !!formData.governorate,
+  });
+
   // Create application mutation
   const createApplicationMutation = useMutation({
     mutationFn: async (applicationData: any) => {
@@ -157,6 +164,28 @@ export default function SurveyingDecisionForm() {
       ...prev,
       [field]: value
     }));
+  };
+
+  const handleGovernorateChange = (value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      governorate: value,
+      district: '' // Reset district when governorate changes
+    }));
+  };
+
+  const handleLocationSelect = (coordinates: { lat: number; lng: number }) => {
+    const coordinatesString = `${coordinates.lat.toFixed(6)}, ${coordinates.lng.toFixed(6)}`;
+    setFormData(prev => ({
+      ...prev,
+      coordinates: coordinatesString
+    }));
+    
+    toast({
+      title: "تم تحديد الموقع",
+      description: `تم تحديث الإحداثيات: ${coordinatesString}`,
+      variant: "default",
+    });
   };
   
   const handleFeatureDrawn = (feature: SurveyFeature) => {
@@ -389,7 +418,7 @@ export default function SurveyingDecisionForm() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <Label htmlFor="governorate">المحافظة *</Label>
-                  <Select value={formData.governorate} onValueChange={(value) => handleInputChange('governorate', value)}>
+                  <Select value={formData.governorate} onValueChange={handleGovernorateChange}>
                     <SelectTrigger data-testid="select-governorate">
                       <SelectValue placeholder="اختر المحافظة" />
                     </SelectTrigger>
@@ -411,13 +440,26 @@ export default function SurveyingDecisionForm() {
                 
                 <div>
                   <Label htmlFor="district">المديرية *</Label>
-                  <Input
-                    id="district"
-                    value={formData.district}
-                    onChange={(e) => handleInputChange('district', e.target.value)}
-                    placeholder="أدخل اسم المديرية"
-                    data-testid="input-district"
-                  />
+                  <Select value={formData.district} onValueChange={(value) => handleInputChange('district', value)} disabled={!formData.governorate}>
+                    <SelectTrigger data-testid="select-district">
+                      <SelectValue placeholder={!formData.governorate ? "اختر المحافظة أولاً" : "اختر المديرية"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {isLoadingDistricts ? (
+                        <SelectItem value="loading" disabled>جاري التحميل...</SelectItem>
+                      ) : districtsError ? (
+                        <SelectItem value="error" disabled>خطأ في تحميل المديريات</SelectItem>
+                      ) : districts.length === 0 && formData.governorate ? (
+                        <SelectItem value="no-districts" disabled>لا توجد مديريات متاحة</SelectItem>
+                      ) : (
+                        districts.map((district) => (
+                          <SelectItem key={district.id} value={district.code || ''} data-testid={`option-district-${district.code || 'no-code'}`}>
+                            {district.nameAr}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
                 </div>
                 
                 <div>
@@ -463,6 +505,22 @@ export default function SurveyingDecisionForm() {
                     data-testid="input-coordinates"
                   />
                 </div>
+              </div>
+              
+              {/* خريطة تفاعلية لتحديد الموقع */}
+              <div className="mt-6">
+                <Label className="text-base font-semibold mb-3 block">تحديد الموقع على الخريطة</Label>
+                <div className="border rounded-lg overflow-hidden">
+                  <InteractiveMap
+                    center={[15.3694, 44.1910]} // إحداثيات صنعاء، اليمن
+                    zoom={13}
+                    height="400px"
+                    onLocationSelect={handleLocationSelect}
+                  />
+                </div>
+                <p className="text-sm text-muted-foreground mt-2">
+                  انقر على الخريطة لتحديد موقع الأرض أو العقار. سيتم تحديث حقل الإحداثيات تلقائياً.
+                </p>
               </div>
             </div>
           )}
