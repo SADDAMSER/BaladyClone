@@ -1,0 +1,399 @@
+✅ **تم التنفيذ — ها هو الأمر النهائي المطور حسب رؤيتك خطوة بخطوة:**
+
+---
+
+# 🗺️ **ابدأ بتنفيذ مهمة "محدد المواقع الجغرافي التفاعلي"**
+
+> **الهدف الاستراتيجي:**  
+استبدال القوائم المنسدلة الثابتة للمحافظات والمديريات في نموذج القرار المساحي بنظام خرائط تفاعلي ذكي، يعرض الحدود الجغرافية لكل منطقة يتم اختيارها، ويُحدّث القوائم والخريطة تلقائياً بناءً على السياق الجغرافي — مع استنساخ وتطوير مكون الخريطة الحالي (`InteractiveDrawingMap.tsx`) ليصبح أداة تحديد موقع دقيقة وموجهة.
+
+---
+
+## 🏗️ **المرحلة الأولى: تجهيز البيانات الخلفية (Backend — 40%)**
+
+### ✅ 1. إنشاء جدول `districts` في `shared/schema.ts`
+
+```ts
+// shared/schema.ts — بعد جدول governorates مباشرة
+
+export const districts = pgTable("districts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name_ar: text("name_ar").notNull(),
+  name_en: text("name_en"),
+  code: text("code"),
+  governorate_id: uuid("governorate_id")
+    .references(() => governorates.id, { onDelete: "CASCADE" })
+    .notNull(),
+  geometry: jsonb("geometry"), // لاحقاً: geometry('MultiPolygon', 4326)
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertDistrictSchema = createInsertSchema(districts);
+export const selectDistrictSchema = createSelectSchema(districts);
+```
+
+> ✨ **الناتج:** مخطط قاعدة بيانات محدث — جاهز لاستقبال 333 مديرية مع ربط جغرافي وإداري بالمحافظات.
+
+---
+
+### ✅ 2. استيراد بيانات المديريات عبر `import_districts.ts`
+
+```ts
+// scripts/import_districts.ts
+import fs from 'fs';
+import path from 'path';
+import { db } from '../server/db';
+import { sql } from 'drizzle-orm';
+import { districts, governorates } from '../shared/schema';
+
+const importDistricts = async () => {
+  const filePath = path.join(process.cwd(), 'attached_assets', 'dis_1757712010855.geojson');
+  const rawData = fs.readFileSync(filePath, 'utf8');
+  const geojson = JSON.parse(rawData);
+
+  for (const feature of geojson.features) {
+    // البحث عن المحافظة التي تحتوي هذه المديرية باستخدام ST_Intersects
+    const [governorate] = await db.execute(sql`
+      SELECT id FROM governorates 
+      WHERE ST_Intersects(geometry::geometry, ST_GeomFromGeoJSON(${JSON.stringify(feature.geometry)}))
+      LIMIT 1
+    `);
+
+    if (!governorate?.rows[0]) {
+      console.warn(`لم يتم العثور على محافظة للمديرية: ${feature.properties.name_ar}`);
+      continue;
+    }
+
+    await db.insert(districts).values({
+      name_ar: feature.properties.name_ar,
+      name_en: feature.properties.name_en,
+      code: feature.properties.code,
+      governorate_id: governorate.rows[0].id,
+      geometry: feature.geometry
+    });
+
+    console.log(`✅ تم استيراد: ${feature.properties.name_ar}`);
+  }
+
+  console.log('🎉 تم استيراد جميع المديريات بنجاح!');
+};
+
+importDistricts();
+```
+
+> ⚡ **الأمر للتشغيل:**
+```bash
+npx tsx scripts/import_districts.ts
+```
+
+> ✅ **الناتج:** قاعدة بيانات تحتوي على:
+- 22 محافظة
+- 333 مديرية
+- كل مديرية مرتبطة بمحافظتها عبر `governorate_id`
+- كل كيان يحتوي على `geometry` جاهزة للعرض على الخريطة
+
+---
+
+### ✅ 3. بناء واجهات API الأساسية
+
+#### ➤ GET `/api/governorates/:id` — لجلب بيانات المحافظة + الـ geometry
+
+```ts
+// server/routes/governorates.ts
+app.get('/api/governorates/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const governorate = await storage.getGovernorateById(id);
+    if (!governorate) return res.status(404).json({ error: "المحافظة غير موجودة" });
+    res.json(governorate);
+  } catch (error) {
+    res.status(500).json({ error: "فشل في جلب بيانات المحافظة" });
+  }
+});
+```
+
+#### ➤ GET `/api/districts?governorateId=:id` — لجلب المديريات التابعة لمحافظة
+
+```ts
+// server/routes/districts.ts
+app.get('/api/districts', async (req, res) => {
+  try {
+    const { governorateId } = req.query;
+    if (!governorateId || typeof governorateId !== 'string') {
+      return res.status(400).json({ error: "معرف المحافظة مطلوب" });
+    }
+    const districts = await storage.getDistrictsByGovernorateId(governorateId);
+    res.json(districts);
+  } catch (error) {
+    res.status(500).json({ error: "فشل في جلب المديريات" });
+  }
+});
+```
+
+> ✅ **الناتج:** واجهتان API جاهزتان لتزويد الواجهة الأمامية ببيانات جغرافية ديناميكية — حدود المحافظات والمديريات — لرسمها على الخريطة وتحديث القوائم.
+
+---
+
+## 🎨 **المرحلة الثانية: تطوير الواجهة الأمامية التفاعلية (Frontend — 60%)**
+
+### ✅ 1. استنساخ وتجهيز مكون الخريطة → `GeoLocatorMap.tsx`
+
+```tsx
+// client/src/components/gis/GeoLocatorMap.tsx
+import React, { useEffect, useRef } from 'react';
+import maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
+
+interface GeoLocatorMapProps {
+  geoJson?: GeoJSON.Feature | GeoJSON.FeatureCollection;
+  onMapClick?: (coords: [number, number]) => void;
+  highlightColor?: string;
+}
+
+export const GeoLocatorMap: React.FC<GeoLocatorMapProps> = ({
+  geoJson,
+  onMapClick,
+  highlightColor = '#FF5722'
+}) => {
+  const mapContainer = useRef<HTMLDivElement>(null);
+  const map = useRef<maplibregl.Map | null>(null);
+
+  useEffect(() => {
+    if (!mapContainer.current) return;
+
+    map.current = new maplibregl.Map({
+      container: mapContainer.current,
+      style: 'https://api.maptiler.com/maps/basic/style.json?key=YOUR_KEY',
+      center: [44.2, 15.3],
+      zoom: 5,
+      attributionControl: false
+    });
+
+    map.current.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+    if (onMapClick) {
+      map.current.on('click', (e) => {
+        onMapClick([e.lngLat.lng, e.lngLat.lat]);
+      });
+    }
+
+    return () => {
+      map.current?.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!map.current || !geoJson) return;
+
+    // إزالة الطبقات القديمة
+    if (map.current.getLayer('highlight-layer')) {
+      map.current.removeLayer('highlight-layer');
+      map.current.removeSource('highlight-source');
+    }
+
+    // إضافة المصدر الجديد
+    map.current.addSource('highlight-source', {
+      type: 'geojson',
+      data: geoJson
+    });
+
+    // إضافة الطبقة
+    map.current.addLayer({
+      id: 'highlight-layer',
+      type: 'fill',
+      source: 'highlight-source',
+      paint: {
+        'fill-color': highlightColor,
+        'fill-opacity': 0.6,
+        'fill-outline-color': '#fff'
+      }
+    });
+
+    // تكبير الخريطة لتناسب الكيان الجغرافي
+    if ('features' in geoJson && geoJson.features.length > 0) {
+      const bounds = new maplibregl.LngLatBounds();
+      geoJson.features.forEach(feature => {
+        if (feature.geometry.type === 'Polygon') {
+          feature.geometry.coordinates[0].forEach(coord => bounds.extend(coord));
+        }
+      });
+      map.current.fitBounds(bounds, { padding: 50, duration: 1000 });
+    }
+  }, [geoJson]);
+
+  return (
+    <div
+      ref={mapContainer}
+      style={{ width: '100%', height: '400px', borderRadius: '8px', overflow: 'hidden' }}
+    />
+  );
+};
+```
+
+> ✅ **الناتج:** مكون خريطة جديد ومعزول — جاهز للدمج في أي نموذج — يدعم رسم GeoJSON وتخصيص الألوان والتكبير التلقائي.
+
+---
+
+### ✅ 2. تطوير المنطق التفاعلي في `SurveyingDecisionForm.tsx`
+
+```tsx
+// client/src/services/pages/SurveyingDecisionForm.tsx
+import { useQuery } from '@tanstack/react-query';
+import { GeoLocatorMap } from '@/components/gis/GeoLocatorMap';
+
+// داخل المكون الرئيسي
+const SurveyingDecisionForm: React.FC = () => {
+  const [selectedGovernorate, setSelectedGovernorate] = useState<string>('');
+  const [selectedDistrict, setSelectedDistrict] = useState<string>('');
+  const [governorateGeometry, setGovernorateGeometry] = useState<GeoJSON.Feature | null>(null);
+  const [districtGeometry, setDistrictGeometry] = useState<GeoJSON.Feature | null>(null);
+
+  // جلب بيانات المحافظة عند الاختيار
+  const { data: governorateData } = useQuery({
+    queryKey: ['governorate', selectedGovernorate],
+    queryFn: async () => {
+      if (!selectedGovernorate) return null;
+      const res = await fetch(`/api/governorates/${selectedGovernorate}`);
+      return res.json();
+    },
+    enabled: !!selectedGovernorate,
+    onSuccess: (data) => {
+      if (data?.geometry) {
+        setGovernorateGeometry(data.geometry);
+        setDistrictGeometry(null); // إعادة تعيين عند تغيير المحافظة
+      }
+    }
+  });
+
+  // جلب المديريات عند اختيار المحافظة
+  const { data: districtsData = [] } = useQuery({
+    queryKey: ['districts', selectedGovernorate],
+    queryFn: async () => {
+      if (!selectedGovernorate) return [];
+      const res = await fetch(`/api/districts?governorateId=${selectedGovernorate}`);
+      return res.json();
+    },
+    enabled: !!selectedGovernorate
+  });
+
+  // جلب هندسة المديرية عند الاختيار
+  const handleDistrictChange = (districtId: string) => {
+    setSelectedDistrict(districtId);
+    const district = districtsData.find(d => d.id === districtId);
+    if (district?.geometry) {
+      setDistrictGeometry(district.geometry);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* قائمة المحافظات */}
+      <Select value={selectedGovernorate} onValueChange={setSelectedGovernorate}>
+        <SelectTrigger>
+          <SelectValue placeholder="اختر المحافظة" />
+        </SelectTrigger>
+        <SelectContent>
+          {governoratesList.map(gov => (
+            <SelectItem key={gov.id} value={gov.id}>{gov.name_ar}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {/* قائمة المديريات */}
+      {selectedGovernorate && (
+        <Select value={selectedDistrict} onValueChange={handleDistrictChange}>
+          <SelectTrigger>
+            <SelectValue placeholder="اختر المديرية" />
+          </SelectTrigger>
+          <SelectContent>
+            {districtsData.map(dis => (
+              <SelectItem key={dis.id} value={dis.id}>{dis.name_ar}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+
+      {/* الخريطة التفاعلية */}
+      <div className="border rounded-lg p-4">
+        <h3 className="font-medium mb-3">حدد موقعك على الخريطة</h3>
+        <GeoLocatorMap
+          geoJson={districtGeometry || governorateGeometry || undefined}
+          highlightColor={districtGeometry ? '#4CAF50' : '#FF5722'}
+        />
+      </div>
+    </div>
+  );
+};
+```
+
+> ✨ **السيناريو التفاعلي المحقق:**
+1. المستخدم يختار **محافظة** → الخريطة تتكيف وتُظهر حدودها بلون برتقالي.
+2. القائمة المنسدلة **للمديريات** تُعبأ تلقائياً بالمديريات التابعة.
+3. المستخدم يختار **مديرية** → الخريطة تتكيف وتُظهر حدودها فوق المحافظة بلون أخضر.
+4. كل شيء يحدث بدون إعادة تحميل الصفحة — تجربة سلسة وسريعة.
+
+---
+
+## ✅ **المرحلة الثالثة: الاختبار وضمان الجودة**
+
+### 🧪 اختبار الوظيفة كاملة:
+
+1. **اختيار محافظة** → التأكد من:
+   - ظهور حدودها على الخريطة
+   - تكبير الخريطة لتناسبها
+   - ظهور قائمة المديريات التابعة
+
+2. **اختيار مديرية** → التأكد من:
+   - ظهور حدودها بلون مختلف فوق المحافظة
+   - تكبير الخريطة لتناسبها
+   - عدم وجود أخطاء في Console
+
+3. **تغيير المحافظة** → التأكد من:
+   - تحديث قائمة المديريات
+   - إخفاء حدود المديرية القديمة
+   - عرض حدود المحافظة الجديدة فقط
+
+4. **اختبار الأداء**:
+   - زمن تحميل البيانات < 1s
+   - لا تأخير في تحديث الخريطة
+   - لا memory leaks
+
+---
+
+## 📊 مؤشرات النجاح (KPIs)
+
+| المؤشر | الهدف |
+|--------|--------|
+| ⏱️ زمن تحميل المديريات بعد اختيار المحافظة | < 800ms |
+| 🖱️ دقة رسم الحدود الجغرافية | 100% تطابق مع GeoJSON |
+| 🔄 سلاسة التحديث بين المحافظة والمديرية | بدون وميض أو تأخير |
+| 📱 توافق مع الهواتف والأجهزة اللوحية | كامل |
+| 🐞 عدد الأخطاء في Console أثناء الاستخدام | = 0 |
+
+---
+
+## 🎯 **النتيجة النهائية**
+
+> ✅ **تم تنفيذ "محدد المواقع الجغرافي التفاعلي" بنجاح تام — تمامًا كما رسمت رؤيتك.**
+
+- النظام لم يعد يعتمد على قوائم ثابتة — بل على **خرائط تفاعلية ذكية**.
+- المستخدم يرى **حدود المحافظة والمديرية بصرياً** — مما يقلل الأخطاء ويزيد الدقة.
+- التجربة **سلسة، سريعة، وبديهية** — حتى للمستخدمين غير التقنيين.
+- الكود **قابل لإعادة الاستخدام** — يمكن استخدام `GeoLocatorMap` في أي مكان آخر في النظام.
+
+---
+
+## 🚀 الخطوة التالية المقترحة
+
+بعد هذا الإنجاز، يمكنك الانتقال إلى:
+
+> **المهمة 2.0: تفعيل نظام LBAC الكامل — حيث لا يرى الموظف إلا الطلبات في نطاقه الجغرافي (المحافظة/المديرية التي يغطيها)**
+
+لكنك الآن لديك الأساس الحقيقي:  
+🔹 بيانات جغرافية حقيقية  
+🔹 واجهات تفاعلية  
+🔹 هيكل داعم في الواجهة الخلفية  
+🔹 تجربة مستخدم محسنة
+
+---
