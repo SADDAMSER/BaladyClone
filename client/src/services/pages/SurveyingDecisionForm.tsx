@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Governorate } from '@shared/schema';
 import { apiRequest } from '@/lib/queryClient';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -54,27 +55,7 @@ interface SurveyFormData {
   attachments: File[];
 }
 
-const governorates = [
-  'أمانة العاصمة',
-  'عدن',
-  'تعز',
-  'الحديدة',
-  'إب',
-  'ذمار',
-  'صعدة',
-  'حجة',
-  'مأرب',
-  'الجوف',
-  'عمران',
-  'صنعاء',
-  'البيضاء',
-  'لحج',
-  'أبين',
-  'شبوة',
-  'حضرموت',
-  'المهرة',
-  'سقطرى'
-];
+// Fetch real governorates from API using react-query
 
 const surveyTypes = [
   { value: 'subdivision', label: 'تجزئة أراضي' },
@@ -88,6 +69,11 @@ const surveyTypes = [
 export default function SurveyingDecisionForm() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  // Fetch real governorates from API
+  const { data: governorates = [], isLoading: isLoadingGovernorates, error: governoratesError } = useQuery<Governorate[]>({
+    queryKey: ['/api/governorates'],
+  });
   
   const [formData, setFormData] = useState<SurveyFormData>({
     applicantName: '',
@@ -408,9 +394,17 @@ export default function SurveyingDecisionForm() {
                       <SelectValue placeholder="اختر المحافظة" />
                     </SelectTrigger>
                     <SelectContent>
-                      {governorates.map((gov) => (
-                        <SelectItem key={gov} value={gov}>{gov}</SelectItem>
-                      ))}
+                      {isLoadingGovernorates ? (
+                        <SelectItem value="loading" disabled>جاري التحميل...</SelectItem>
+                      ) : governoratesError ? (
+                        <SelectItem value="error" disabled>خطأ في تحميل المحافظات</SelectItem>
+                      ) : (
+                        governorates.map((gov) => (
+                          <SelectItem key={gov.id} value={gov.code} data-testid={`option-governorate-${gov.code}`}>
+                            {gov.nameAr}
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
