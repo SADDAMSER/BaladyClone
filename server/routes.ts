@@ -3135,6 +3135,215 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===========================================
+  // MOBILE SYNC & OFFLINE OPERATIONS API
+  // ===========================================
+
+  // Pull changes from server (differential sync)
+  app.post('/api/sync/pull', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { deviceId, lastSyncTimestamp, tables } = req.body;
+      
+      // Verify device registration
+      const device = await storage.getDeviceByDeviceId(deviceId);
+      if (!device || !device.isActive) {
+        return res.status(404).json({ error: 'جهاز غير مسجل أو غير مفعل' });
+      }
+
+      // Create sync session
+      const session = await storage.createSyncSession({
+        deviceId: device.id,
+        userId: req.user!.id,
+        sessionType: 'pull',
+        status: 'in_progress',
+        startTime: new Date(),
+        lastSyncTimestamp: lastSyncTimestamp ? new Date(lastSyncTimestamp) : undefined
+      });
+
+      const changes: { [tableName: string]: any[] } = {};
+      let totalChanges = 0;
+
+      // Get changes for each requested table
+      for (const tableName of tables) {
+        try {
+          const records = await storage.getChangedRecords(
+            tableName,
+            lastSyncTimestamp ? new Date(lastSyncTimestamp) : new Date(0),
+            1000 // Limit per table
+          );
+          changes[tableName] = records;
+          totalChanges += records.length;
+        } catch (error) {
+          console.error(`Error fetching changes for ${tableName}:`, error);
+          changes[tableName] = [];
+        }
+      }
+
+      // Update session statistics
+      await storage.completeSyncSession(session.id, new Date(), {
+        totalOperations: totalChanges,
+        successfulOperations: totalChanges,
+        failedOperations: 0,
+        conflictOperations: 0
+      });
+
+      // Update device last sync timestamp
+      await storage.updateDeviceLastSync(deviceId);
+
+      res.json({
+        sessionId: session.id,
+        timestamp: new Date().toISOString(),
+        changes,
+        totalChanges,
+        hasMoreChanges: totalChanges >= 1000 * tables.length
+      });
+    } catch (error) {
+      console.error('Error in sync pull:', error);
+      res.status(500).json({ error: 'فشل في مزامنة البيانات' });
+    }
+  });
+
+  // Push local changes to server
+  app.post('/api/sync/push', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { deviceId, operations } = req.body;
+      
+      // Verify device registration
+      const device = await storage.getDeviceByDeviceId(deviceId);
+      if (!device || !device.isActive) {
+        return res.status(404).json({ error: 'جهاز غير مسجل أو غير مفعل' });
+      }
+
+      // Create sync session
+      const session = await storage.createSyncSession({
+        deviceId: device.id,
+        userId: req.user!.id,
+        sessionType: 'push',
+        status: 'in_progress',
+        startTime: new Date()
+      });
+
+      const results = { success: 0, conflicts: 0, errors: 0 };
+
+      // Process each operation
+      for (const op of operations) {
+        try {
+          // Store offline operation for tracking
+          const offlineOp = await storage.createOfflineOperation({
+            deviceId: device.id,
+            userId: req.user!.id,
+            operationType: op.type,
+            tableName: op.tableName,
+            recordId: op.recordId,
+            oldData: op.oldData || null,
+            newData: op.newData,
+            localTimestamp: new Date(op.timestamp),
+            status: 'pending'
+          });
+
+          // Apply bulk changes for this operation
+          const result = await storage.applyBulkChanges(op.tableName, [offlineOp]);
+          results.success += result.success;
+          results.conflicts += result.conflicts;
+          results.errors += result.errors;
+
+        } catch (error) {
+          console.error('Error processing operation:', error);
+          results.errors++;
+        }
+      }
+
+      // Update session with results
+      await storage.completeSyncSession(session.id, new Date(), {
+        totalOperations: operations.length,
+        successfulOperations: results.success,
+        failedOperations: results.errors,
+        conflictOperations: results.conflicts
+      });
+
+      res.json({
+        sessionId: session.id,
+        timestamp: new Date().toISOString(),
+        results,
+        processed: operations.length
+      });
+    } catch (error) {
+      console.error('Error in sync push:', error);
+      res.status(500).json({ error: 'فشل في رفع التغييرات' });
+    }
+  });
+
+  // Resolve sync conflicts
+  app.post('/api/sync/resolve-conflicts', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { sessionId, resolutions } = req.body;
+      
+      // Verify session exists
+      const session = await storage.getSyncSession(sessionId);
+      if (!session) {
+        return res.status(404).json({ error: 'جلسة المزامنة غير موجودة' });
+      }
+
+      const results = { resolved: 0, failed: 0 };
+
+      // Process each conflict resolution
+      for (const resolution of resolutions) {
+        try {
+          await storage.resolveSyncConflict(
+            resolution.conflictId,
+            resolution.strategy, // server_wins, client_wins, merge, manual
+            resolution.resolvedData,
+            req.user!.id
+          );
+          results.resolved++;
+        } catch (error) {
+          console.error('Error resolving conflict:', error);
+          results.failed++;
+        }
+      }
+
+      res.json({
+        sessionId,
+        timestamp: new Date().toISOString(),
+        results,
+        processed: resolutions.length
+      });
+    } catch (error) {
+      console.error('Error resolving conflicts:', error);
+      res.status(500).json({ error: 'فشل في حل التعارضات' });
+    }
+  });
+
+  // Get device sync status (helper endpoint)
+  app.get('/api/sync/status/:deviceId', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { deviceId } = req.params;
+      
+      const device = await storage.getDeviceByDeviceId(deviceId);
+      if (!device) {
+        return res.status(404).json({ error: 'الجهاز غير موجود' });
+      }
+
+      const pendingOps = await storage.getPendingOperations(device.id);
+      const unresolvedConflicts = await storage.getUnresolvedConflicts();
+
+      res.json({
+        device: {
+          id: device.id,
+          deviceId: device.deviceId,
+          lastSync: device.lastSync,
+          isActive: device.isActive
+        },
+        pendingOperations: pendingOps.length,
+        unresolvedConflicts: unresolvedConflicts.length,
+        status: device.isActive ? 'active' : 'inactive'
+      });
+    } catch (error) {
+      console.error('Error getting sync status:', error);
+      res.status(500).json({ error: 'فشل في استرجاع حالة المزامنة' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

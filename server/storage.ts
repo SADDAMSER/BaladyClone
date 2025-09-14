@@ -3,6 +3,7 @@ import {
   requirementCategories, requirements, services, serviceRequirements,
   applications, surveyingDecisions, tasks, systemSettings, governorates, districts,
   subDistricts, neighborhoods, harat, sectors, neighborhoodUnits, blocks, plots, streets, streetSegments,
+  deviceRegistrations, syncSessions, offlineOperations, syncConflicts,
   serviceTemplates, dynamicForms, workflowDefinitions, serviceBuilder,
   applicationAssignments, applicationStatusHistory, applicationReviews, notifications,
   appointments, contactAttempts, surveyAssignmentForms,
@@ -20,6 +21,10 @@ import {
   type NeighborhoodUnit, type InsertNeighborhoodUnit, type Block, type InsertBlock,
   type Plot, type InsertPlot, type Street, type InsertStreet,
   type StreetSegment, type InsertStreetSegment,
+  type DeviceRegistration, type InsertDeviceRegistration,
+  type SyncSession, type InsertSyncSession,
+  type OfflineOperation, type InsertOfflineOperation,
+  type SyncConflict, type InsertSyncConflict,
   type ServiceTemplate, type InsertServiceTemplate,
   type DynamicForm, type InsertDynamicForm,
   type WorkflowDefinition, type InsertWorkflowDefinition,
@@ -328,6 +333,67 @@ export interface IStorage {
   updateSurveyAssignmentForm(id: string, updates: Partial<InsertSurveyAssignmentForm>): Promise<SurveyAssignmentForm>;
   markFormAsPrinted(id: string): Promise<SurveyAssignmentForm>;
   markFormAsSigned(id: string, supervisorSignature: string): Promise<SurveyAssignmentForm>;
+
+  // ===========================================
+  // MOBILE SYNC & OFFLINE OPERATIONS
+  // ===========================================
+
+  // Device Registration Management
+  getDeviceRegistrations(userId?: string, isActive?: boolean): Promise<DeviceRegistration[]>;
+  getDeviceRegistration(id: string): Promise<DeviceRegistration | undefined>;
+  getDeviceByDeviceId(deviceId: string): Promise<DeviceRegistration | undefined>;
+  registerDevice(device: InsertDeviceRegistration): Promise<DeviceRegistration>;
+  updateDeviceRegistration(id: string, updates: Partial<InsertDeviceRegistration>): Promise<DeviceRegistration>;
+  deactivateDevice(id: string): Promise<DeviceRegistration>;
+  updateDeviceLastSync(deviceId: string): Promise<DeviceRegistration>;
+
+  // Sync Session Management
+  getSyncSessions(filters?: {
+    deviceId?: string;
+    userId?: string;
+    status?: string;
+    sessionType?: string;
+  }): Promise<SyncSession[]>;
+  getSyncSession(id: string): Promise<SyncSession | undefined>;
+  createSyncSession(session: InsertSyncSession): Promise<SyncSession>;
+  updateSyncSession(id: string, updates: Partial<InsertSyncSession>): Promise<SyncSession>;
+  completeSyncSession(id: string, endTime: Date, statistics: {
+    totalOperations: number;
+    successfulOperations: number;
+    failedOperations: number;
+    conflictOperations: number;
+  }): Promise<SyncSession>;
+
+  // Offline Operations Management
+  getOfflineOperations(filters?: {
+    deviceId?: string;
+    userId?: string;
+    status?: string;
+    operationType?: string;
+    tableName?: string;
+  }): Promise<OfflineOperation[]>;
+  getOfflineOperation(id: string): Promise<OfflineOperation | undefined>;
+  createOfflineOperation(operation: InsertOfflineOperation): Promise<OfflineOperation>;
+  updateOfflineOperation(id: string, updates: Partial<InsertOfflineOperation>): Promise<OfflineOperation>;
+  markOperationAsSynced(id: string, serverTimestamp: Date): Promise<OfflineOperation>;
+  markOperationAsConflicted(id: string, conflictReason: string): Promise<OfflineOperation>;
+  getPendingOperations(deviceId: string): Promise<OfflineOperation[]>;
+
+  // Sync Conflicts Management
+  getSyncConflicts(filters?: {
+    sessionId?: string;
+    status?: string;
+    conflictType?: string;
+    tableName?: string;
+  }): Promise<SyncConflict[]>;
+  getSyncConflict(id: string): Promise<SyncConflict | undefined>;
+  createSyncConflict(conflict: InsertSyncConflict): Promise<SyncConflict>;
+  resolveSyncConflict(id: string, resolutionStrategy: string, resolvedData: any, resolvedBy: string): Promise<SyncConflict>;
+  getUnresolvedConflicts(sessionId?: string): Promise<SyncConflict[]>;
+
+  // Differential Sync Operations
+  getChangedRecords(tableName: string, lastSyncTimestamp: Date, limit?: number): Promise<any[]>;
+  applyBulkChanges(tableName: string, operations: OfflineOperation[]): Promise<{ success: number; conflicts: number; errors: number }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2275,6 +2341,393 @@ export class DatabaseStorage implements IStorage {
     } else {
       return 'في الانتظار';
     }
+  }
+
+  // ======= MOBILE SYNC FUNCTIONALITY =======
+
+  // Device Registration Management
+  async getDeviceRegistrations(userId?: string, isActive?: boolean): Promise<DeviceRegistration[]> {
+    const conditions = [];
+    if (userId) conditions.push(eq(deviceRegistrations.userId, userId));
+    if (isActive !== undefined) conditions.push(eq(deviceRegistrations.isActive, isActive));
+    
+    if (conditions.length > 0) {
+      return await db.select().from(deviceRegistrations)
+        .where(and(...conditions))
+        .orderBy(desc(deviceRegistrations.lastSync));
+    }
+    
+    return await db.select().from(deviceRegistrations)
+      .orderBy(desc(deviceRegistrations.lastSync));
+  }
+
+  async getDeviceRegistration(id: string): Promise<DeviceRegistration | undefined> {
+    const [device] = await db
+      .select()
+      .from(deviceRegistrations)
+      .where(eq(deviceRegistrations.id, id));
+    return device || undefined;
+  }
+
+  async getDeviceByDeviceId(deviceId: string): Promise<DeviceRegistration | undefined> {
+    const [device] = await db
+      .select()
+      .from(deviceRegistrations)
+      .where(eq(deviceRegistrations.deviceId, deviceId));
+    return device || undefined;
+  }
+
+  async registerDevice(device: InsertDeviceRegistration): Promise<DeviceRegistration> {
+    const [newDevice] = await db
+      .insert(deviceRegistrations)
+      .values(device)
+      .returning();
+    return newDevice;
+  }
+
+  async updateDeviceRegistration(id: string, updates: Partial<InsertDeviceRegistration>): Promise<DeviceRegistration> {
+    const [updated] = await db
+      .update(deviceRegistrations)
+      .set({ ...updates, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(deviceRegistrations.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deactivateDevice(id: string): Promise<DeviceRegistration> {
+    const [updated] = await db
+      .update(deviceRegistrations)
+      .set({ 
+        isActive: false, 
+        updatedAt: sql`CURRENT_TIMESTAMP` 
+      })
+      .where(eq(deviceRegistrations.id, id))
+      .returning();
+    return updated;
+  }
+
+  async updateDeviceLastSync(deviceId: string): Promise<DeviceRegistration> {
+    const [updated] = await db
+      .update(deviceRegistrations)
+      .set({ 
+        lastSync: sql`CURRENT_TIMESTAMP`,
+        updatedAt: sql`CURRENT_TIMESTAMP` 
+      })
+      .where(eq(deviceRegistrations.deviceId, deviceId))
+      .returning();
+    return updated;
+  }
+
+  // Sync Session Management
+  async getSyncSessions(filters?: {
+    deviceId?: string;
+    userId?: string;
+    status?: string;
+    sessionType?: string;
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<SyncSession[]> {
+    const conditions = [];
+    if (filters?.deviceId) conditions.push(eq(syncSessions.deviceId, filters.deviceId));
+    if (filters?.userId) conditions.push(eq(syncSessions.userId, filters.userId));
+    if (filters?.status) conditions.push(eq(syncSessions.status, filters.status));
+    if (filters?.sessionType) conditions.push(eq(syncSessions.sessionType, filters.sessionType));
+    if (filters?.startDate) conditions.push(sql`${syncSessions.startTime} >= ${filters.startDate}`);
+    if (filters?.endDate) conditions.push(sql`${syncSessions.startTime} <= ${filters.endDate}`);
+    
+    if (conditions.length > 0) {
+      return await db.select().from(syncSessions)
+        .where(and(...conditions))
+        .orderBy(desc(syncSessions.startTime));
+    }
+    
+    return await db.select().from(syncSessions)
+      .orderBy(desc(syncSessions.startTime));
+  }
+
+  async getSyncSession(id: string): Promise<SyncSession | undefined> {
+    const [session] = await db
+      .select()
+      .from(syncSessions)
+      .where(eq(syncSessions.id, id));
+    return session || undefined;
+  }
+
+  async createSyncSession(session: InsertSyncSession): Promise<SyncSession> {
+    const [newSession] = await db
+      .insert(syncSessions)
+      .values(session)
+      .returning();
+    return newSession;
+  }
+
+  async updateSyncSession(id: string, updates: Partial<InsertSyncSession>): Promise<SyncSession> {
+    const [updated] = await db
+      .update(syncSessions)
+      .set({ ...updates, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(syncSessions.id, id))
+      .returning();
+    return updated;
+  }
+
+  async completeSyncSession(id: string, endTime: Date, statistics: {
+    totalOperations: number;
+    successfulOperations: number;
+    failedOperations: number;
+    conflictOperations: number;
+  }): Promise<SyncSession> {
+    const [updated] = await db
+      .update(syncSessions)
+      .set({ 
+        status: 'completed',
+        endTime,
+        totalOperations: statistics.totalOperations,
+        successfulOperations: statistics.successfulOperations,
+        failedOperations: statistics.failedOperations,
+        conflictOperations: statistics.conflictOperations,
+        updatedAt: sql`CURRENT_TIMESTAMP` 
+      })
+      .where(eq(syncSessions.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Offline Operations Management
+  async getOfflineOperations(filters?: {
+    deviceId?: string;
+    userId?: string;
+    tableName?: string;
+    operationType?: string;
+    status?: string;
+    retryCount?: number;
+  }): Promise<OfflineOperation[]> {
+    const conditions = [];
+    if (filters?.deviceId) conditions.push(eq(offlineOperations.deviceId, filters.deviceId));
+    if (filters?.userId) conditions.push(eq(offlineOperations.userId, filters.userId));
+    if (filters?.tableName) conditions.push(eq(offlineOperations.tableName, filters.tableName));
+    if (filters?.operationType) conditions.push(eq(offlineOperations.operationType, filters.operationType));
+    if (filters?.status) conditions.push(eq(offlineOperations.status, filters.status));
+    if (filters?.retryCount !== undefined) conditions.push(eq(offlineOperations.retryCount, filters.retryCount));
+    
+    if (conditions.length > 0) {
+      return await db.select().from(offlineOperations)
+        .where(and(...conditions))
+        .orderBy(desc(offlineOperations.localTimestamp));
+    }
+    
+    return await db.select().from(offlineOperations)
+      .orderBy(desc(offlineOperations.localTimestamp));
+  }
+
+  async getOfflineOperation(id: string): Promise<OfflineOperation | undefined> {
+    const [operation] = await db
+      .select()
+      .from(offlineOperations)
+      .where(eq(offlineOperations.id, id));
+    return operation || undefined;
+  }
+
+  async createOfflineOperation(operation: InsertOfflineOperation): Promise<OfflineOperation> {
+    const [newOperation] = await db
+      .insert(offlineOperations)
+      .values(operation)
+      .returning();
+    return newOperation;
+  }
+
+  async updateOfflineOperation(id: string, updates: Partial<InsertOfflineOperation>): Promise<OfflineOperation> {
+    const [updated] = await db
+      .update(offlineOperations)
+      .set({ ...updates, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(offlineOperations.id, id))
+      .returning();
+    return updated;
+  }
+
+  async markOperationAsSynced(id: string): Promise<OfflineOperation> {
+    const [updated] = await db
+      .update(offlineOperations)
+      .set({ 
+        status: 'synced',
+        serverTimestamp: sql`CURRENT_TIMESTAMP`,
+        updatedAt: sql`CURRENT_TIMESTAMP` 
+      })
+      .where(eq(offlineOperations.id, id))
+      .returning();
+    return updated;
+  }
+
+  async markOperationAsConflicted(id: string, conflictReason: string): Promise<OfflineOperation> {
+    const [updated] = await db
+      .update(offlineOperations)
+      .set({ 
+        status: 'conflicted',
+        conflictReason,
+        retryCount: sql`${offlineOperations.retryCount} + 1`,
+        updatedAt: sql`CURRENT_TIMESTAMP` 
+      })
+      .where(eq(offlineOperations.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getPendingOperations(deviceId: string, limit?: number): Promise<OfflineOperation[]> {
+    const baseQuery = db
+      .select()
+      .from(offlineOperations)
+      .where(and(
+        eq(offlineOperations.deviceId, deviceId),
+        eq(offlineOperations.status, 'pending')
+      ))
+      .orderBy(asc(offlineOperations.localTimestamp));
+    
+    if (limit) {
+      return await baseQuery.limit(limit);
+    }
+    
+    return await baseQuery;
+  }
+
+  // Sync Conflicts Management
+  async getSyncConflicts(filters?: {
+    sessionId?: string;
+    status?: string;
+    tableName?: string;
+    conflictType?: string;
+  }): Promise<SyncConflict[]> {
+    const conditions = [];
+    if (filters?.sessionId) conditions.push(eq(syncConflicts.sessionId, filters.sessionId));
+    if (filters?.status) conditions.push(eq(syncConflicts.status, filters.status));
+    if (filters?.tableName) conditions.push(eq(syncConflicts.tableName, filters.tableName));
+    if (filters?.conflictType) conditions.push(eq(syncConflicts.conflictType, filters.conflictType));
+    
+    if (conditions.length > 0) {
+      return await db.select().from(syncConflicts)
+        .where(and(...conditions))
+        .orderBy(desc(syncConflicts.createdAt));
+    }
+    
+    return await db.select().from(syncConflicts)
+      .orderBy(desc(syncConflicts.createdAt));
+  }
+
+  async getSyncConflict(id: string): Promise<SyncConflict | undefined> {
+    const [conflict] = await db
+      .select()
+      .from(syncConflicts)
+      .where(eq(syncConflicts.id, id));
+    return conflict || undefined;
+  }
+
+  async createSyncConflict(conflict: InsertSyncConflict): Promise<SyncConflict> {
+    const [newConflict] = await db
+      .insert(syncConflicts)
+      .values(conflict)
+      .returning();
+    return newConflict;
+  }
+
+  async resolveSyncConflict(id: string, resolutionStrategy: string, resolvedData: any, resolvedBy: string): Promise<SyncConflict> {
+    const [updated] = await db
+      .update(syncConflicts)
+      .set({ 
+        status: 'resolved',
+        resolutionStrategy,
+        resolvedData,
+        resolvedBy,
+        resolvedAt: sql`CURRENT_TIMESTAMP`,
+        updatedAt: sql`CURRENT_TIMESTAMP` 
+      })
+      .where(eq(syncConflicts.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getUnresolvedConflicts(sessionId?: string): Promise<SyncConflict[]> {
+    const conditions = [eq(syncConflicts.status, 'unresolved')];
+    
+    if (sessionId) {
+      conditions.push(eq(syncConflicts.sessionId, sessionId));
+    }
+    
+    return await db
+      .select()
+      .from(syncConflicts)
+      .where(and(...conditions))
+      .orderBy(asc(syncConflicts.createdAt));
+  }
+
+  // Differential Sync Operations
+  async getChangedRecords(tableName: string, lastSyncTimestamp: Date, limit?: number): Promise<any[]> {
+    // This is a generic method that needs to be adapted based on the table structure
+    // For now, we'll implement a basic version that works with common patterns
+    
+    const query = sql`
+      SELECT * FROM ${sql.identifier(tableName)} 
+      WHERE updated_at > ${lastSyncTimestamp}
+      ORDER BY updated_at ASC
+      ${limit ? sql`LIMIT ${limit}` : sql``}
+    `;
+    
+    const result = await db.execute(query);
+    return result.rows;
+  }
+
+  async applyBulkChanges(tableName: string, operations: OfflineOperation[]): Promise<{ success: number; conflicts: number; errors: number }> {
+    let success = 0;
+    let conflicts = 0;
+    let errors = 0;
+
+    for (const operation of operations) {
+      try {
+        // This is a simplified implementation
+        // In production, you'd need table-specific logic
+        
+        if (operation.operationType === 'create') {
+          const insertQuery = sql`
+            INSERT INTO ${sql.identifier(tableName)} 
+            SELECT * FROM jsonb_populate_record(NULL::${sql.identifier(tableName)}, ${operation.newData})
+          `;
+          await db.execute(insertQuery);
+          success++;
+        } else if (operation.operationType === 'update') {
+          // Check if record exists and hasn't been modified
+          const checkQuery = sql`
+            SELECT updated_at FROM ${sql.identifier(tableName)} 
+            WHERE id = ${operation.recordId}
+          `;
+          const existing = await db.execute(checkQuery);
+          
+          if (existing.rows.length === 0) {
+            conflicts++;
+            continue;
+          }
+          
+          // Apply update
+          const updateQuery = sql`
+            UPDATE ${sql.identifier(tableName)} 
+            SET ${sql.raw(Object.entries(operation.newData as any || {})
+              .map(([key, value]) => `${key} = ${typeof value === 'string' ? `'${value}'` : value}`)
+              .join(', '))}
+            WHERE id = ${operation.recordId}
+          `;
+          await db.execute(updateQuery);
+          success++;
+        } else if (operation.operationType === 'delete') {
+          const deleteQuery = sql`
+            DELETE FROM ${sql.identifier(tableName)} 
+            WHERE id = ${operation.recordId}
+          `;
+          await db.execute(deleteQuery);
+          success++;
+        }
+      } catch (error) {
+        console.error('Error applying bulk change:', error);
+        errors++;
+      }
+    }
+
+    return { success, conflicts, errors };
   }
 }
 
