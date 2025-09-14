@@ -550,9 +550,19 @@ export class DatabaseStorage implements IStorage {
   async updateNeighborhood(id: string, updates: Partial<InsertNeighborhood>): Promise<Neighborhood> { throw new Error("Not implemented yet"); }
   async deleteNeighborhood(id: string): Promise<void> { throw new Error("Not implemented yet"); }
   
-  async getHarat(neighborhoodId?: string): Promise<Harat[]> { throw new Error("Not implemented yet"); }
-  async getHaratById(id: string): Promise<Harat | undefined> { throw new Error("Not implemented yet"); }
-  async getHaratByNeighborhoodId(neighborhoodId: string): Promise<Harat[]> { throw new Error("Not implemented yet"); }
+  async getHarat(neighborhoodId?: string): Promise<Harat[]> { 
+    if (neighborhoodId) {
+      return await db.select().from(harat).where(eq(harat.neighborhoodId, neighborhoodId));
+    }
+    return await db.select().from(harat);
+  }
+  async getHaratById(id: string): Promise<Harat | undefined> { 
+    const [result] = await db.select().from(harat).where(eq(harat.id, id));
+    return result || undefined;
+  }
+  async getHaratByNeighborhoodId(neighborhoodId: string): Promise<Harat[]> { 
+    return await db.select().from(harat).where(eq(harat.neighborhoodId, neighborhoodId));
+  }
   async createHarat(harat: InsertHarat): Promise<Harat> { throw new Error("Not implemented yet"); }
   async updateHarat(id: string, updates: Partial<InsertHarat>): Promise<Harat> { throw new Error("Not implemented yet"); }
   async deleteHarat(id: string): Promise<void> { throw new Error("Not implemented yet"); }
@@ -574,38 +584,92 @@ export class DatabaseStorage implements IStorage {
   async updateSector(id: string, updates: Partial<InsertSector>): Promise<Sector> { throw new Error("Not implemented yet"); }
   async deleteSector(id: string): Promise<void> { throw new Error("Not implemented yet"); }
   
-  async getNeighborhoodUnits(filters?: { neighborhoodId?: string; sectorId?: string }): Promise<NeighborhoodUnit[]> { throw new Error("Not implemented yet"); }
-  async getNeighborhoodUnit(id: string): Promise<NeighborhoodUnit | undefined> { throw new Error("Not implemented yet"); }
-  async getNeighborhoodUnitsByNeighborhoodId(neighborhoodId: string): Promise<NeighborhoodUnit[]> { throw new Error("Not implemented yet"); }
-  async getNeighborhoodUnitsBySectorId(sectorId: string): Promise<NeighborhoodUnit[]> { throw new Error("Not implemented yet"); }
+  async getNeighborhoodUnits(filters?: { neighborhoodId?: string; sectorId?: string }): Promise<NeighborhoodUnit[]> { 
+    const conditions = [];
+    if (filters?.neighborhoodId) conditions.push(eq(neighborhoodUnits.neighborhoodId, filters.neighborhoodId));
+    if (filters?.sectorId) conditions.push(eq(neighborhoodUnits.sectorId, filters.sectorId));
+    
+    if (conditions.length > 0) {
+      return await db.select().from(neighborhoodUnits).where(and(...conditions));
+    }
+    return await db.select().from(neighborhoodUnits);
+  }
+  async getNeighborhoodUnit(id: string): Promise<NeighborhoodUnit | undefined> { 
+    const [result] = await db.select().from(neighborhoodUnits).where(eq(neighborhoodUnits.id, id));
+    return result || undefined;
+  }
+  async getNeighborhoodUnitsByNeighborhoodId(neighborhoodId: string): Promise<NeighborhoodUnit[]> { 
+    return await db.select().from(neighborhoodUnits).where(eq(neighborhoodUnits.neighborhoodId, neighborhoodId));
+  }
+  async getNeighborhoodUnitsBySectorId(sectorId: string): Promise<NeighborhoodUnit[]> { 
+    return await db.select().from(neighborhoodUnits).where(eq(neighborhoodUnits.sectorId, sectorId));
+  }
   async createNeighborhoodUnit(neighborhoodUnit: InsertNeighborhoodUnit): Promise<NeighborhoodUnit> { throw new Error("Not implemented yet"); }
   async updateNeighborhoodUnit(id: string, updates: Partial<InsertNeighborhoodUnit>): Promise<NeighborhoodUnit> { throw new Error("Not implemented yet"); }
   async deleteNeighborhoodUnit(id: string): Promise<void> { throw new Error("Not implemented yet"); }
   
-  async getBlocks(neighborhoodUnitId?: string): Promise<Block[]> { throw new Error("Not implemented yet"); }
-  async getBlock(id: string): Promise<Block | undefined> { throw new Error("Not implemented yet"); }
-  async getBlocksByNeighborhoodUnitId(neighborhoodUnitId: string): Promise<Block[]> { throw new Error("Not implemented yet"); }
+  async getBlocks(neighborhoodUnitId?: string): Promise<Block[]> { 
+    if (neighborhoodUnitId) {
+      return await db.select().from(blocks).where(eq(blocks.neighborhoodUnitId, neighborhoodUnitId));
+    }
+    return await db.select().from(blocks);
+  }
+  async getBlock(id: string): Promise<Block | undefined> { 
+    const [result] = await db.select().from(blocks).where(eq(blocks.id, id));
+    return result || undefined;
+  }
+  async getBlocksByNeighborhoodUnitId(neighborhoodUnitId: string): Promise<Block[]> { 
+    return await db.select().from(blocks).where(eq(blocks.neighborhoodUnitId, neighborhoodUnitId));
+  }
   async createBlock(block: InsertBlock): Promise<Block> { throw new Error("Not implemented yet"); }
   async updateBlock(id: string, updates: Partial<InsertBlock>): Promise<Block> { throw new Error("Not implemented yet"); }
   async deleteBlock(id: string): Promise<void> { throw new Error("Not implemented yet"); }
   
-  async getPlots(blockId?: string): Promise<Plot[]> { throw new Error("Not implemented yet"); }
-  async getPlot(id: string): Promise<Plot | undefined> { throw new Error("Not implemented yet"); }
-  async getPlotsByBlockId(blockId: string): Promise<Plot[]> { throw new Error("Not implemented yet"); }
-  async getPlotByNumber(plotNumber: string, blockId: string): Promise<Plot | undefined> { throw new Error("Not implemented yet"); }
+  async getPlots(blockId?: string): Promise<Plot[]> { 
+    if (blockId) {
+      return await db.select().from(plots).where(eq(plots.blockId, blockId));
+    }
+    return await db.select().from(plots);
+  }
+  async getPlot(id: string): Promise<Plot | undefined> { 
+    const [result] = await db.select().from(plots).where(eq(plots.id, id));
+    return result || undefined;
+  }
+  async getPlotsByBlockId(blockId: string): Promise<Plot[]> { 
+    return await db.select().from(plots).where(eq(plots.blockId, blockId));
+  }
+  async getPlotByNumber(plotNumber: string, blockId: string): Promise<Plot | undefined> { 
+    const [result] = await db.select().from(plots).where(and(eq(plots.plotNumber, plotNumber), eq(plots.blockId, blockId)));
+    return result || undefined;
+  }
   async createPlot(plot: InsertPlot): Promise<Plot> { throw new Error("Not implemented yet"); }
   async updatePlot(id: string, updates: Partial<InsertPlot>): Promise<Plot> { throw new Error("Not implemented yet"); }
   async deletePlot(id: string): Promise<void> { throw new Error("Not implemented yet"); }
   
-  async getStreets(): Promise<Street[]> { throw new Error("Not implemented yet"); }
-  async getStreet(id: string): Promise<Street | undefined> { throw new Error("Not implemented yet"); }
+  async getStreets(): Promise<Street[]> { 
+    return await db.select().from(streets);
+  }
+  async getStreet(id: string): Promise<Street | undefined> { 
+    const [result] = await db.select().from(streets).where(eq(streets.id, id));
+    return result || undefined;
+  }
   async createStreet(street: InsertStreet): Promise<Street> { throw new Error("Not implemented yet"); }
   async updateStreet(id: string, updates: Partial<InsertStreet>): Promise<Street> { throw new Error("Not implemented yet"); }
   async deleteStreet(id: string): Promise<void> { throw new Error("Not implemented yet"); }
   
-  async getStreetSegments(streetId?: string): Promise<StreetSegment[]> { throw new Error("Not implemented yet"); }
-  async getStreetSegment(id: string): Promise<StreetSegment | undefined> { throw new Error("Not implemented yet"); }
-  async getStreetSegmentsByStreetId(streetId: string): Promise<StreetSegment[]> { throw new Error("Not implemented yet"); }
+  async getStreetSegments(streetId?: string): Promise<StreetSegment[]> { 
+    if (streetId) {
+      return await db.select().from(streetSegments).where(eq(streetSegments.streetId, streetId));
+    }
+    return await db.select().from(streetSegments);
+  }
+  async getStreetSegment(id: string): Promise<StreetSegment | undefined> { 
+    const [result] = await db.select().from(streetSegments).where(eq(streetSegments.id, id));
+    return result || undefined;
+  }
+  async getStreetSegmentsByStreetId(streetId: string): Promise<StreetSegment[]> { 
+    return await db.select().from(streetSegments).where(eq(streetSegments.streetId, streetId));
+  }
   async createStreetSegment(streetSegment: InsertStreetSegment): Promise<StreetSegment> { throw new Error("Not implemented yet"); }
   async updateStreetSegment(id: string, updates: Partial<InsertStreetSegment>): Promise<StreetSegment> { throw new Error("Not implemented yet"); }
   async deleteStreetSegment(id: string): Promise<void> { throw new Error("Not implemented yet"); }
@@ -1329,27 +1393,8 @@ export class DatabaseStorage implements IStorage {
 
   async getUserAssignments(userId: string): Promise<ApplicationAssignment[]> {
     return await db
-      .select({
-        id: applicationAssignments.id,
-        applicationId: applicationAssignments.applicationId,
-        assignedToId: applicationAssignments.assignedToId,
-        assignedById: applicationAssignments.assignedById,
-        assignedAt: applicationAssignments.assignedAt,
-        dueDate: applicationAssignments.dueDate,
-        priority: applicationAssignments.priority,
-        status: applicationAssignments.status,
-        notes: applicationAssignments.notes,
-        completedAt: applicationAssignments.completedAt,
-        application: {
-          id: applications.id,
-          applicationNumber: applications.applicationNumber,
-          applicantId: applications.applicantId,
-          status: applications.status,
-          currentStage: applications.currentStage,
-        }
-      })
+      .select()
       .from(applicationAssignments)
-      .leftJoin(applications, eq(applicationAssignments.applicationId, applications.id))
       .where(eq(applicationAssignments.assignedToId, userId))
       .orderBy(desc(applicationAssignments.assignedAt));
   }
