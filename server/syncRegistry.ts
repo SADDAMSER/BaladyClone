@@ -299,11 +299,9 @@ export function generateLBACFilter(user: AuthUser, tableName: string): any {
     }
     
     // Default: FAIL-SECURE behavior - block all access
+    // Return special flag instead of invalid UUID
     return {
-      type: 'drizzle_condition',
-      field: 'id',
-      operator: 'eq', 
-      values: ['__BLOCK_ALL__'] // Impossible ID - blocks all access
+      type: 'block_all'
     };
   }
 
@@ -320,10 +318,7 @@ export function generateLBACFilter(user: AuthUser, tableName: string): any {
 
   // Default: Block access for unknown roles
   return {
-    type: 'drizzle_condition',
-    field: 'id',
-    operator: 'eq',
-    values: ['__BLOCK_ALL__'] // Impossible ID - blocks all access
+    type: 'block_all'
   };
 }
 
@@ -341,8 +336,8 @@ export interface SyncValidationResult {
 
 // Zod schemas for sync payload validation
 export const SyncPullRequestSchema = z.object({
-  deviceId: z.string().uuid("Device ID must be a valid UUID"),
-  lastSyncTimestamp: z.string().datetime("Invalid timestamp format"),
+  deviceId: z.string().min(1, "Device ID is required"),
+  lastSyncTimestamp: z.string().datetime("Invalid timestamp format").nullable().optional(),
   tables: z.array(z.string().min(1, "Table name cannot be empty")).min(1, "At least one table required")
 });
 
@@ -356,7 +351,7 @@ export const SyncOperationSchema = z.object({
 });
 
 export const SyncPushRequestSchema = z.object({
-  deviceId: z.string().uuid("Device ID must be a valid UUID"),
+  deviceId: z.string().min(1, "Device ID is required"),
   operations: z.array(SyncOperationSchema).min(1, "At least one operation required")
 });
 

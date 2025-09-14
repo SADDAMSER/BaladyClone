@@ -2894,6 +2894,9 @@ export class DatabaseStorage implements IStorage {
       throw new Error(`Table ${tableName} not found in sync registry`);
     }
 
+    // Use the actual table name from config (handles camelCase key -> snake_case table mapping)
+    const actualTableName = tableConfig.tableName;
+
     try {
       // Build base query based on whether table has updated_at
       let query: any;
@@ -2902,13 +2905,13 @@ export class DatabaseStorage implements IStorage {
         // Use updated_at for tables that have it
         if (limit) {
           query = sql`
-            SELECT * FROM ${sql.identifier(tableName)} 
+            SELECT * FROM ${sql.identifier(actualTableName)} 
             WHERE updated_at > ${lastSyncTimestamp}
             ORDER BY updated_at ASC
             LIMIT ${limit}`;
         } else {
           query = sql`
-            SELECT * FROM ${sql.identifier(tableName)} 
+            SELECT * FROM ${sql.identifier(actualTableName)} 
             WHERE updated_at > ${lastSyncTimestamp}
             ORDER BY updated_at ASC`;
         }
@@ -2929,7 +2932,11 @@ export class DatabaseStorage implements IStorage {
       }
       
       // CRITICAL: Apply LBAC filter at SQL level SAFELY using Drizzle conditions
-      if (lbacFilter && lbacFilter.type === 'drizzle_condition') {
+      if (lbacFilter && lbacFilter.type === 'block_all') {
+        // FAIL-SECURE: Block all access by returning empty results
+        console.log(`LBAC blocking all access to table ${tableName} for user ${user?.id} (${user?.role})`);
+        return [];
+      } else if (lbacFilter && lbacFilter.type === 'drizzle_condition') {
         // Import Drizzle helpers safely
         const { sql, eq, inArray, and } = await import('drizzle-orm');
         
