@@ -20,6 +20,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiRequest } from "@/lib/queryClient";
 import { useLBACFilter } from "@/hooks/useLBACFilter";
+import { SyncStatusIndicator } from "@/components/sync/SyncStatusIndicator";
+import { SyncButton } from "@/components/sync/SyncButton";
+import { useAuth } from "@/auth/useAuth";
 
 type ApplicationStatus = 'pending' | 'under_review' | 'approved' | 'rejected' | 'on_hold';
 
@@ -75,6 +78,9 @@ export default function EmployeeDashboard() {
     hasAnyGeographicAccess,
     isAdmin
   } = useLBACFilter();
+
+  // Auth context for user info
+  const { user } = useAuth();
 
   // Get user assignments
   const { data: assignments = [], isLoading: assignmentsLoading } = useQuery({
@@ -365,6 +371,13 @@ export default function EmployeeDashboard() {
         </Card>
       )}
 
+      {/* Mobile Sync Status - For Field Workers */}
+      {(user?.role === 'engineer' || user?.role === 'surveyor') && (
+        <div className="mb-6">
+          <SyncStatusIndicator showDetails={true} showActions={true} />
+        </div>
+      )}
+
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <Card>
@@ -455,6 +468,13 @@ export default function EmployeeDashboard() {
                 <SelectItem value="low">منخفض</SelectItem>
               </SelectContent>
             </Select>
+
+            {/* Sync Actions for Field Workers */}
+            {(user?.role === 'engineer' || user?.role === 'surveyor') && (
+              <div className="mr-auto">
+                <SyncButton variant="full" size="sm" showStatus={true} />
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

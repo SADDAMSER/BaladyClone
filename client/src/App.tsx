@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/themes/ThemeProvider";
+import { MobileSyncProvider } from "@/contexts/MobileSyncContext";
 import AdminLayout from "@/layouts/AdminLayout";
 import AdminDashboard from "@/dashboard/pages/AdminDashboard";
 import BuildingLicenses from "@/pages/BuildingLicenses";
@@ -51,8 +52,9 @@ function AuthenticatedRouter() {
   }
 
   return (
-    <AdminLayout>
-      <Switch>
+    <MobileSyncProvider>
+      <AdminLayout>
+        <Switch>
         <Route path="/admin" component={AdminDashboard} />
         <Route path="/building-licenses" component={BuildingLicenses} />
         <Route path="/surveying-decision" component={SurveyingDecision} />
@@ -82,8 +84,9 @@ function AuthenticatedRouter() {
         <Route path="/employee/engineer" component={EngineerDashboard} />
         <Route path="/employee/surveyor" component={SurveyorDashboard} />
         <Route component={NotFound} />
-      </Switch>
-    </AdminLayout>
+        </Switch>
+      </AdminLayout>
+    </MobileSyncProvider>
   );
 }
 
