@@ -474,7 +474,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { districtId } = req.query;
       const subDistricts = await storage.getSubDistricts(districtId as string);
       res.json(subDistricts);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('sub-districts failed', { impl: storage.constructor.name, err: error.message, stack: error.stack });
       res.status(500).json({ message: "Internal server error" });
     }
   });
@@ -537,7 +538,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { subDistrictId } = req.query;
       const neighborhoods = await storage.getNeighborhoods(subDistrictId as string);
       res.json(neighborhoods);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('neighborhoods failed', { impl: storage.constructor.name, err: error.message, stack: error.stack });
       res.status(500).json({ message: "Internal server error" });
     }
   });

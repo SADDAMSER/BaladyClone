@@ -518,17 +518,34 @@ export class DatabaseStorage implements IStorage {
     await db.delete(districts).where(eq(districts.id, id));
   }
 
-  // Geographic Data - New Tables (Stub implementations - TODO: Complete later)
-  async getSubDistricts(districtId?: string): Promise<SubDistrict[]> { throw new Error("Not implemented yet"); }
+  // Geographic Data - New Tables (Minimal implementations for testing)
+  async getSubDistricts(districtId?: string): Promise<SubDistrict[]> { 
+    if (districtId) {
+      return await db.select().from(subDistricts).where(eq(subDistricts.districtId, districtId));
+    }
+    return await db.select().from(subDistricts);
+  }
   async getSubDistrict(id: string): Promise<SubDistrict | undefined> { throw new Error("Not implemented yet"); }
-  async getSubDistrictsByDistrictId(districtId: string): Promise<SubDistrict[]> { throw new Error("Not implemented yet"); }
+  async getSubDistrictsByDistrictId(districtId: string): Promise<SubDistrict[]> { 
+    return await db.select().from(subDistricts).where(eq(subDistricts.districtId, districtId));
+  }
   async createSubDistrict(subDistrict: InsertSubDistrict): Promise<SubDistrict> { throw new Error("Not implemented yet"); }
   async updateSubDistrict(id: string, updates: Partial<InsertSubDistrict>): Promise<SubDistrict> { throw new Error("Not implemented yet"); }
   async deleteSubDistrict(id: string): Promise<void> { throw new Error("Not implemented yet"); }
   
-  async getNeighborhoods(subDistrictId?: string): Promise<Neighborhood[]> { throw new Error("Not implemented yet"); }
-  async getNeighborhood(id: string): Promise<Neighborhood | undefined> { throw new Error("Not implemented yet"); }
-  async getNeighborhoodsBySubDistrictId(subDistrictId: string): Promise<Neighborhood[]> { throw new Error("Not implemented yet"); }
+  async getNeighborhoods(subDistrictId?: string): Promise<Neighborhood[]> { 
+    if (subDistrictId) {
+      return await db.select().from(neighborhoods).where(eq(neighborhoods.subDistrictId, subDistrictId));
+    }
+    return await db.select().from(neighborhoods);
+  }
+  async getNeighborhood(id: string): Promise<Neighborhood | undefined> { 
+    const [neighborhood] = await db.select().from(neighborhoods).where(eq(neighborhoods.id, id));
+    return neighborhood || undefined;
+  }
+  async getNeighborhoodsBySubDistrictId(subDistrictId: string): Promise<Neighborhood[]> { 
+    return await db.select().from(neighborhoods).where(eq(neighborhoods.subDistrictId, subDistrictId));
+  }
   async createNeighborhood(neighborhood: InsertNeighborhood): Promise<Neighborhood> { throw new Error("Not implemented yet"); }
   async updateNeighborhood(id: string, updates: Partial<InsertNeighborhood>): Promise<Neighborhood> { throw new Error("Not implemented yet"); }
   async deleteNeighborhood(id: string): Promise<void> { throw new Error("Not implemented yet"); }
@@ -540,9 +557,19 @@ export class DatabaseStorage implements IStorage {
   async updateHarat(id: string, updates: Partial<InsertHarat>): Promise<Harat> { throw new Error("Not implemented yet"); }
   async deleteHarat(id: string): Promise<void> { throw new Error("Not implemented yet"); }
   
-  async getSectors(governorateId?: string): Promise<Sector[]> { throw new Error("Not implemented yet"); }
-  async getSector(id: string): Promise<Sector | undefined> { throw new Error("Not implemented yet"); }
-  async getSectorsByGovernorateId(governorateId: string): Promise<Sector[]> { throw new Error("Not implemented yet"); }
+  async getSectors(governorateId?: string): Promise<Sector[]> { 
+    if (governorateId) {
+      return await db.select().from(sectors).where(eq(sectors.governorateId, governorateId));
+    }
+    return await db.select().from(sectors);
+  }
+  async getSector(id: string): Promise<Sector | undefined> { 
+    const [sector] = await db.select().from(sectors).where(eq(sectors.id, id));
+    return sector || undefined;
+  }
+  async getSectorsByGovernorateId(governorateId: string): Promise<Sector[]> { 
+    return await db.select().from(sectors).where(eq(sectors.governorateId, governorateId));
+  }
   async createSector(sector: InsertSector): Promise<Sector> { throw new Error("Not implemented yet"); }
   async updateSector(id: string, updates: Partial<InsertSector>): Promise<Sector> { throw new Error("Not implemented yet"); }
   async deleteSector(id: string): Promise<void> { throw new Error("Not implemented yet"); }
