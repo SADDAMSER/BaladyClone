@@ -3142,7 +3142,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Pull changes from server (differential sync)
   app.post('/api/sync/pull', authenticateToken, async (req: AuthenticatedRequest, res) => {
     try {
-      const { deviceId, lastSyncTimestamp, tables } = req.body;
+      // Import sync registry for security validation and Zod schemas
+      const { isTableSyncable, canUserSyncTable, generateLBACFilter, getSyncableTablesForUser, SyncPullRequestSchema, validateSyncPayload } = await import('./syncRegistry');
+      
+      // CRITICAL: Validate payload with Zod first to prevent injection attacks
+      const payloadValidation = validateSyncPayload(SyncPullRequestSchema, req.body);
+      if (!payloadValidation.success) {
+        return res.status(400).json({ 
+          error: 'بيانات الطلب غير صحيحة',
+          details: payloadValidation.errors 
+        });
+      }
+      
+      const { deviceId, lastSyncTimestamp, tables } = payloadValidation.data;
       
       // Verify device registration
       const device = await storage.getDeviceByDeviceId(deviceId);
@@ -3161,41 +3173,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const changes: { [tableName: string]: any[] } = {};
+      const errors: { [tableName: string]: string } = {};
       let totalChanges = 0;
+      let failedTables = 0;
 
-      // Get changes for each requested table
-      for (const tableName of tables) {
+      // Validate requested tables against user permissions
+      const allowedTables = getSyncableTablesForUser(req.user!);
+      const filteredTables = tables.filter((tableName: string) => {
+        if (!isTableSyncable(tableName)) {
+          errors[tableName] = `الجدول ${tableName} غير مسموح للمزامنة`;
+          return false;
+        }
+        
+        if (!canUserSyncTable(req.user!, tableName, 'read')) {
+          errors[tableName] = `ليس لديك صلاحية قراءة الجدول ${tableName}`;
+          return false;
+        }
+        
+        return true;
+      });
+
+      // Get changes for each validated table
+      for (const tableName of filteredTables) {
         try {
+          // Apply LBAC filtering
+          const lbacFilter = generateLBACFilter(req.user!, tableName);
+          
           const records = await storage.getChangedRecords(
             tableName,
             lastSyncTimestamp ? new Date(lastSyncTimestamp) : new Date(0),
-            1000 // Limit per table
+            1000, // Limit per table
+            lbacFilter,
+            req.user! // CRITICAL: Pass user for record-level RBAC validation
           );
           changes[tableName] = records;
           totalChanges += records.length;
         } catch (error) {
           console.error(`Error fetching changes for ${tableName}:`, error);
-          changes[tableName] = [];
+          errors[tableName] = `خطأ في استرجاع البيانات: ${(error as Error).message}`;
+          failedTables++;
         }
       }
 
-      // Update session statistics
+      // Update session statistics with accurate counts
       await storage.completeSyncSession(session.id, new Date(), {
-        totalOperations: totalChanges,
-        successfulOperations: totalChanges,
-        failedOperations: 0,
-        conflictOperations: 0
+        totalOperations: tables.length, // Total tables requested
+        successfulOperations: filteredTables.length - failedTables, // Successfully processed tables
+        failedOperations: failedTables, // Failed tables due to errors
+        conflictOperations: 0 // No conflicts in pull operations
       });
 
-      // Update device last sync timestamp
-      await storage.updateDeviceLastSync(deviceId);
+      // Update device last sync timestamp only if successful
+      if (failedTables === 0) {
+        await storage.updateDeviceLastSync(deviceId);
+      }
 
       res.json({
         sessionId: session.id,
         timestamp: new Date().toISOString(),
         changes,
+        errors: Object.keys(errors).length > 0 ? errors : undefined,
         totalChanges,
-        hasMoreChanges: totalChanges >= 1000 * tables.length
+        tablesRequested: tables.length,
+        tablesProcessed: filteredTables.length,
+        tablesFailed: failedTables,
+        hasMoreChanges: totalChanges >= 1000 * filteredTables.length
       });
     } catch (error) {
       console.error('Error in sync pull:', error);
@@ -3206,7 +3248,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Push local changes to server
   app.post('/api/sync/push', authenticateToken, async (req: AuthenticatedRequest, res) => {
     try {
-      const { deviceId, operations } = req.body;
+      // Import sync registry for security validation and Zod schemas
+      const { validateSyncOperation, SyncPushRequestSchema, validateSyncPayload } = await import('./syncRegistry');
+      
+      // CRITICAL: Validate payload with Zod first to prevent injection attacks
+      const payloadValidation = validateSyncPayload(SyncPushRequestSchema, req.body);
+      if (!payloadValidation.success) {
+        return res.status(400).json({ 
+          error: 'بيانات العمليات غير صحيحة',
+          details: payloadValidation.errors 
+        });
+      }
+      
+      const { deviceId, operations } = payloadValidation.data;
       
       // Verify device registration
       const device = await storage.getDeviceByDeviceId(deviceId);
@@ -3223,11 +3277,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
         startTime: new Date()
       });
 
-      const results = { success: 0, conflicts: 0, errors: 0 };
+      const results = { success: 0, conflicts: 0, errors: 0, validationErrors: 0 };
+      const validationErrors: string[] = [];
 
-      // Process each operation
+      // Process each operation with validation
       for (const op of operations) {
         try {
+          // Import LBAC filtering for push operations security
+          const { generateLBACFilter } = await import('./syncRegistry');
+          
+          // Validate the sync operation with record data for RBAC
+          const validation = validateSyncOperation(req.user!, op.tableName, op.type, op.recordId, op.newData);
+          
+          if (!validation.isValid) {
+            validationErrors.push(`${op.tableName}:${op.recordId} - ${validation.error}`);
+            results.validationErrors++;
+            continue;
+          }
+
+          // CRITICAL: Apply LBAC filtering to PUSH operations (same as PULL)
+          // Engineers should not be able to push data outside their assigned geographic areas
+          const lbacFilter = generateLBACFilter(req.user!, op.tableName);
+          if (lbacFilter && op.newData) {
+            // Check if the data being pushed violates LBAC restrictions
+            let lbacViolation = false;
+            
+            if (lbacFilter.type === 'drizzle_condition') {
+              const fieldValue = op.newData[lbacFilter.field];
+              
+              if (lbacFilter.operator === 'in') {
+                // Check if the record's location field is in user's allowed values
+                if (!lbacFilter.values.includes(fieldValue)) {
+                  lbacViolation = true;
+                }
+              } else if (lbacFilter.operator === 'eq') {
+                // Check equality
+                if (fieldValue !== lbacFilter.values[0]) {
+                  lbacViolation = true;
+                }
+              }
+            }
+            
+            if (lbacViolation) {
+              validationErrors.push(`${op.tableName}:${op.recordId} - غير مسموح لك بالكتابة في هذا الموقع الجغرافي`);
+              results.validationErrors++;
+              continue;
+            }
+          }
+
           // Store offline operation for tracking
           const offlineOp = await storage.createOfflineOperation({
             deviceId: device.id,
@@ -3253,11 +3350,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Update session with results
+      // Update session with accurate results
       await storage.completeSyncSession(session.id, new Date(), {
         totalOperations: operations.length,
         successfulOperations: results.success,
-        failedOperations: results.errors,
+        failedOperations: results.errors + results.validationErrors,
         conflictOperations: results.conflicts
       });
 
@@ -3265,7 +3362,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sessionId: session.id,
         timestamp: new Date().toISOString(),
         results,
-        processed: operations.length
+        validationErrors: validationErrors.length > 0 ? validationErrors : undefined,
+        processed: operations.length,
+        breakdown: {
+          successful: results.success,
+          conflicts: results.conflicts,
+          errors: results.errors,
+          validationErrors: results.validationErrors
+        }
       });
     } catch (error) {
       console.error('Error in sync push:', error);
@@ -3276,7 +3380,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Resolve sync conflicts
   app.post('/api/sync/resolve-conflicts', authenticateToken, async (req: AuthenticatedRequest, res) => {
     try {
-      const { sessionId, resolutions } = req.body;
+      // Import sync registry for Zod validation
+      const { SyncResolveConflictsSchema, validateSyncPayload } = await import('./syncRegistry');
+      
+      // CRITICAL: Validate payload with Zod first
+      const payloadValidation = validateSyncPayload(SyncResolveConflictsSchema, req.body);
+      if (!payloadValidation.success) {
+        return res.status(400).json({ 
+          error: 'بيانات حل التعارضات غير صحيحة',
+          details: payloadValidation.errors 
+        });
+      }
+      
+      const { sessionId, resolutions } = payloadValidation.data;
       
       // Verify session exists
       const session = await storage.getSyncSession(sessionId);

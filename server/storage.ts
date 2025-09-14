@@ -392,7 +392,7 @@ export interface IStorage {
   getUnresolvedConflicts(sessionId?: string): Promise<SyncConflict[]>;
 
   // Differential Sync Operations
-  getChangedRecords(tableName: string, lastSyncTimestamp: Date, limit?: number): Promise<any[]>;
+  getChangedRecords(tableName: string, lastSyncTimestamp: Date, limit?: number, lbacFilter?: any, user?: { id: string; username: string; role: string }): Promise<any[]>;
   applyBulkChanges(tableName: string, operations: OfflineOperation[]): Promise<{ success: number; conflicts: number; errors: number }>;
 }
 
@@ -2657,20 +2657,148 @@ export class DatabaseStorage implements IStorage {
       .orderBy(asc(syncConflicts.createdAt));
   }
 
-  // Differential Sync Operations
-  async getChangedRecords(tableName: string, lastSyncTimestamp: Date, limit?: number): Promise<any[]> {
-    // This is a generic method that needs to be adapted based on the table structure
-    // For now, we'll implement a basic version that works with common patterns
+  // Differential Sync Operations - FIXED to handle tables without updated_at
+  // CRITICAL SECURITY FIX: Added user parameter for record-level RBAC validation
+  async getChangedRecords(tableName: string, lastSyncTimestamp: Date, limit?: number, lbacFilter?: any, user?: { id: string; username: string; role: string }): Promise<any[]> {
+    // Import sync registry to check table configuration
+    const { getSyncTableConfig } = await import('./syncRegistry');
+    const tableConfig = getSyncTableConfig(tableName);
     
-    const query = sql`
-      SELECT * FROM ${sql.identifier(tableName)} 
-      WHERE updated_at > ${lastSyncTimestamp}
-      ORDER BY updated_at ASC
-      ${limit ? sql`LIMIT ${limit}` : sql``}
-    `;
-    
-    const result = await db.execute(query);
-    return result.rows;
+    if (!tableConfig) {
+      throw new Error(`Table ${tableName} not found in sync registry`);
+    }
+
+    try {
+      // Build base query based on whether table has updated_at
+      let query: any;
+      
+      if (tableConfig.hasUpdatedAt) {
+        // Use updated_at for tables that have it
+        if (limit) {
+          query = sql`
+            SELECT * FROM ${sql.identifier(tableName)} 
+            WHERE updated_at > ${lastSyncTimestamp}
+            ORDER BY updated_at ASC
+            LIMIT ${limit}`;
+        } else {
+          query = sql`
+            SELECT * FROM ${sql.identifier(tableName)} 
+            WHERE updated_at > ${lastSyncTimestamp}
+            ORDER BY updated_at ASC`;
+        }
+      } else {
+        // For tables without updated_at, use created_at or get all records
+        if (limit) {
+          query = sql`
+            SELECT * FROM ${sql.identifier(tableName)} 
+            WHERE created_at > ${lastSyncTimestamp}
+            ORDER BY created_at ASC
+            LIMIT ${limit}`;
+        } else {
+          query = sql`
+            SELECT * FROM ${sql.identifier(tableName)} 
+            WHERE created_at > ${lastSyncTimestamp}
+            ORDER BY created_at ASC`;
+        }
+      }
+      
+      // CRITICAL: Apply LBAC filter at SQL level SAFELY using Drizzle conditions
+      if (lbacFilter && lbacFilter.type === 'drizzle_condition') {
+        // Import Drizzle helpers safely
+        const { sql, eq, inArray, and } = await import('drizzle-orm');
+        
+        // Convert typed LBAC condition to safe Drizzle SQL condition
+        let lbacCondition;
+        if (lbacFilter.operator === 'in') {
+          // Safe array condition - prevents SQL injection
+          lbacCondition = sql`${sql.identifier(lbacFilter.field)} = ANY(${lbacFilter.values})`;
+        } else if (lbacFilter.operator === 'eq') {
+          // Safe equality condition 
+          lbacCondition = sql`${sql.identifier(lbacFilter.field)} = ${lbacFilter.values[0]}`;
+        } else {
+          // Unknown operator - fail secure by blocking access
+          lbacCondition = sql`1 = 0`; // Always false
+        }
+        
+        // Safely combine base query with LBAC condition using AND
+        if (tableConfig.hasUpdatedAt) {
+          if (limit) {
+            query = sql`
+              SELECT * FROM ${sql.identifier(tableName)} 
+              WHERE updated_at > ${lastSyncTimestamp} AND (${lbacCondition})
+              ORDER BY updated_at ASC
+              LIMIT ${limit}`;
+          } else {
+            query = sql`
+              SELECT * FROM ${sql.identifier(tableName)} 
+              WHERE updated_at > ${lastSyncTimestamp} AND (${lbacCondition})
+              ORDER BY updated_at ASC`;
+          }
+        } else {
+          if (limit) {
+            query = sql`
+              SELECT * FROM ${sql.identifier(tableName)} 
+              WHERE created_at > ${lastSyncTimestamp} AND (${lbacCondition})
+              ORDER BY created_at ASC
+              LIMIT ${limit}`;
+          } else {
+            query = sql`
+              SELECT * FROM ${sql.identifier(tableName)} 
+              WHERE created_at > ${lastSyncTimestamp} AND (${lbacCondition})
+              ORDER BY created_at ASC`;
+          }
+        }
+      }
+      
+      const result = await db.execute(query);
+      let records = result.rows || [];
+      
+      // CRITICAL SECURITY FIX: Apply record-level RBAC validation for tables without LBAC
+      // This prevents engineers from accessing applications not assigned to them
+      if (user && tableConfig.rbacCheck && !tableConfig.lbacField) {
+        console.log(`Applying record-level RBAC checks for table ${tableName} (no LBAC field)`);
+        
+        // Filter records through rbacCheck function
+        records = records.filter((record: any) => {
+          try {
+            // Apply the rbacCheck function with record data
+            const hasAccess = tableConfig.rbacCheck!(user, 'read', record[tableConfig.primaryKey], record);
+            
+            if (!hasAccess) {
+              console.log(`RBAC denied access to ${tableName} record ${record[tableConfig.primaryKey]} for user ${user.id} (${user.role})`);
+            }
+            
+            return hasAccess;
+          } catch (error) {
+            console.error(`Error applying RBAC check for ${tableName} record ${record[tableConfig.primaryKey]}:`, error);
+            // Fail-secure: deny access on error
+            return false;
+          }
+        });
+        
+        console.log(`RBAC filtering: ${result.rows?.length || 0} records → ${records.length} accessible records`);
+      }
+      
+      // FAIL-SECURE: For tables without both LBAC and RBAC, block access for field personnel
+      else if (user && !tableConfig.lbacField && !tableConfig.rbacCheck) {
+        if (user.role === 'engineer' || user.role === 'surveyor') {
+          console.warn(`SECURITY: Blocking access to ${tableName} for ${user.role} ${user.id} - no LBAC/RBAC defined`);
+          records = []; // Block access completely
+        }
+      }
+      
+      return records;
+    } catch (error) {
+      console.error(`Error fetching changed records for ${tableName}:`, error);
+      
+      // If the table doesn't have created_at either, return empty array
+      if (!tableConfig.hasUpdatedAt) {
+        console.warn(`Table ${tableName} has neither updated_at nor created_at - returning empty results`);
+        return [];
+      }
+      
+      throw error;
+    }
   }
 
   async applyBulkChanges(tableName: string, operations: OfflineOperation[]): Promise<{ success: number; conflicts: number; errors: number }> {
