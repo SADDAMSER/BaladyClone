@@ -22,13 +22,19 @@ import {
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error("JWT_SECRET environment variable is required");
+}
+// Type assertion to ensure TypeScript knows JWT_SECRET is defined
+const jwtSecret: string = JWT_SECRET;
 
 interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
     username: string;
     role: string;
+    geographicAssignments?: any[];
   };
 }
 
@@ -41,13 +47,153 @@ const authenticateToken = (req: AuthenticatedRequest, res: Response, next: NextF
     return res.status(401).json({ message: 'Access token required' });
   }
 
-  jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
+  jwt.verify(token, jwtSecret, (err: any, user: any) => {
     if (err) {
       return res.status(403).json({ message: 'Invalid or expired token' });
     }
     req.user = user;
     next();
   });
+};
+
+// Enhanced Geographic ID Extraction Helper
+const extractGeographicIds = async (req: AuthenticatedRequest): Promise<{
+  governorateId?: string;
+  districtId?: string;
+  subDistrictId?: string;
+  neighborhoodId?: string;
+}> => {
+  // Direct IDs from params/body
+  const directIds = {
+    governorateId: req.params.governorateId || req.body.governorateId,
+    districtId: req.params.districtId || req.body.districtId,
+    subDistrictId: req.params.subDistrictId || req.body.subDistrictId,
+    neighborhoodId: req.params.neighborhoodId || req.body.neighborhoodId
+  };
+
+  // If we have direct IDs, return them
+  if (directIds.governorateId || directIds.districtId || directIds.subDistrictId || directIds.neighborhoodId) {
+    return directIds;
+  }
+
+  // Try to derive geographic context from resource IDs
+  const applicationId = req.params.applicationId || req.body.applicationId;
+  const plotId = req.params.plotId || req.body.plotId;
+
+  try {
+    // From application: applicationData contains geographic info
+    if (applicationId) {
+      const application = await storage.getApplication(applicationId);
+      if (application?.applicationData) {
+        const appData = application.applicationData as any;
+        return {
+          governorateId: appData.governorateId,
+          districtId: appData.districtId,
+          subDistrictId: appData.subDistrictId,
+          neighborhoodId: appData.neighborhoodId
+        };
+      }
+    }
+
+    // From plot: trace back through geographic hierarchy
+    if (plotId) {
+      const plot = await storage.getPlot(plotId);
+      if (plot?.blockId) {
+        const block = await storage.getBlock(plot.blockId);
+        if (block?.neighborhoodUnitId) {
+          const neighborhoodUnit = await storage.getNeighborhoodUnit(block.neighborhoodUnitId);
+          if (neighborhoodUnit?.neighborhoodId) {
+            const neighborhood = await storage.getNeighborhood(neighborhoodUnit.neighborhoodId);
+            if (neighborhood?.subDistrictId) {
+              const subDistrict = await storage.getSubDistrict(neighborhood.subDistrictId);
+              if (subDistrict?.districtId) {
+                const district = await storage.getDistrict(subDistrict.districtId);
+                return {
+                  governorateId: district?.governorateId,
+                  districtId: district?.id,
+                  subDistrictId: subDistrict.id,
+                  neighborhoodId: neighborhood.id
+                };
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error extracting geographic IDs:', error);
+  }
+
+  return {};
+};
+
+// LBAC Enforcement Middleware - FIXED with proper hierarchical scope expansion
+const enforceLBACAccess = (requiredLevel: 'governorate' | 'district' | 'subDistrict' | 'neighborhood') => {
+  return async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    // Admins bypass LBAC
+    if (user.role === 'admin') {
+      return next();
+    }
+
+    try {
+      // Extract geographic IDs from request (direct or derived)
+      const targetIds = await extractGeographicIds(req);
+      
+      let targetId: string | undefined;
+      if (requiredLevel === 'governorate') targetId = targetIds.governorateId;
+      else if (requiredLevel === 'district') targetId = targetIds.districtId;
+      else if (requiredLevel === 'subDistrict') targetId = targetIds.subDistrictId;
+      else if (requiredLevel === 'neighborhood') targetId = targetIds.neighborhoodId;
+
+      if (!targetId) {
+        return res.status(400).json({ 
+          message: 'Geographic context required for LBAC enforcement',
+          requiredLevel,
+          extractedIds: targetIds
+        });
+      }
+
+      // Use hierarchical scope expansion for PROPER LBAC
+      const userScope = await storage.expandUserGeographicScope(user.id);
+      
+      let hasAccess = false;
+      
+      // Check access based on required level and hierarchical scope
+      if (requiredLevel === 'governorate' && userScope.governorateIds.includes(targetId)) {
+        hasAccess = true;
+      } else if (requiredLevel === 'district' && userScope.districtIds.includes(targetId)) {
+        hasAccess = true;
+      } else if (requiredLevel === 'subDistrict' && userScope.subDistrictIds.includes(targetId)) {
+        hasAccess = true;
+      } else if (requiredLevel === 'neighborhood' && userScope.neighborhoodIds.includes(targetId)) {
+        hasAccess = true;
+      }
+
+      if (!hasAccess) {
+        return res.status(403).json({ 
+          message: 'Insufficient geographic access permissions',
+          requiredLevel,
+          targetId,
+          userScope: {
+            governorateCount: userScope.governorateIds.length,
+            districtCount: userScope.districtIds.length,
+            subDistrictCount: userScope.subDistrictIds.length,
+            neighborhoodCount: userScope.neighborhoodIds.length
+          }
+        });
+      }
+
+      next();
+    } catch (error) {
+      console.error('LBAC enforcement error:', error);
+      return res.status(500).json({ message: 'Error enforcing geographic access control' });
+    }
+  };
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -173,9 +319,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
+      // Fetch user's geographic assignments for LBAC
+      const geographicAssignments = await storage.getUserGeographicAssignments({
+        userId: user.id,
+        isActive: true,
+        includeExpired: false
+      });
+
       const token = jwt.sign(
         { id: user.id, username: user.username, role: user.role },
-        JWT_SECRET,
+        jwtSecret,
         { expiresIn: '24h' }
       );
 
@@ -187,6 +340,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           email: user.email,
           fullName: user.fullName,
           role: user.role,
+          departmentId: user.departmentId,
+          positionId: user.positionId,
+          geographicAssignments: geographicAssignments
         }
       });
     } catch (error) {
@@ -362,7 +518,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/governorates", authenticateToken, async (req, res) => {
+  app.post("/api/governorates", authenticateToken, enforceLBACAccess('governorate'), async (req, res) => {
     try {
       const validatedData = insertGovernorateSchema.parse(req.body);
       const governorate = await storage.createGovernorate(validatedData);
@@ -375,7 +531,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/governorates/:id", authenticateToken, async (req, res) => {
+  app.put("/api/governorates/:id", authenticateToken, enforceLBACAccess('governorate'), async (req, res) => {
     try {
       const governorate = await storage.updateGovernorate(req.params.id, req.body);
       res.json(governorate);
@@ -384,7 +540,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/governorates/:id", authenticateToken, async (req, res) => {
+  app.delete("/api/governorates/:id", authenticateToken, enforceLBACAccess('governorate'), async (req, res) => {
     try {
       await storage.deleteGovernorate(req.params.id);
       res.status(204).send();
@@ -437,7 +593,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/districts", authenticateToken, async (req, res) => {
+  app.post("/api/districts", authenticateToken, enforceLBACAccess('district'), async (req, res) => {
     try {
       const validatedData = insertDistrictSchema.parse(req.body);
       const district = await storage.createDistrict(validatedData);
@@ -450,7 +606,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/districts/:id", authenticateToken, async (req, res) => {
+  app.put("/api/districts/:id", authenticateToken, enforceLBACAccess('district'), async (req, res) => {
     try {
       const district = await storage.updateDistrict(req.params.id, req.body);
       res.json(district);
@@ -459,7 +615,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/districts/:id", authenticateToken, async (req, res) => {
+  app.delete("/api/districts/:id", authenticateToken, enforceLBACAccess('district'), async (req, res) => {
     try {
       await storage.deleteDistrict(req.params.id);
       res.status(204).send();
@@ -501,7 +657,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/sub-districts", authenticateToken, async (req, res) => {
+  app.post("/api/sub-districts", authenticateToken, enforceLBACAccess('subDistrict'), async (req, res) => {
     try {
       const validatedData = insertSubDistrictSchema.parse(req.body);
       const subDistrict = await storage.createSubDistrict(validatedData);
@@ -514,7 +670,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/sub-districts/:id", authenticateToken, async (req, res) => {
+  app.put("/api/sub-districts/:id", authenticateToken, enforceLBACAccess('subDistrict'), async (req, res) => {
     try {
       const subDistrict = await storage.updateSubDistrict(req.params.id, req.body);
       res.json(subDistrict);
@@ -523,7 +679,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/sub-districts/:id", authenticateToken, async (req, res) => {
+  app.delete("/api/sub-districts/:id", authenticateToken, enforceLBACAccess('subDistrict'), async (req, res) => {
     try {
       await storage.deleteSubDistrict(req.params.id);
       res.status(204).send();
@@ -565,7 +721,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/neighborhoods", authenticateToken, async (req, res) => {
+  app.post("/api/neighborhoods", authenticateToken, enforceLBACAccess('neighborhood'), async (req, res) => {
     try {
       const validatedData = insertNeighborhoodSchema.parse(req.body);
       const neighborhood = await storage.createNeighborhood(validatedData);
@@ -578,7 +734,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/neighborhoods/:id", authenticateToken, async (req, res) => {
+  app.put("/api/neighborhoods/:id", authenticateToken, enforceLBACAccess('neighborhood'), async (req, res) => {
     try {
       const neighborhood = await storage.updateNeighborhood(req.params.id, req.body);
       res.json(neighborhood);
@@ -587,7 +743,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/neighborhoods/:id", authenticateToken, async (req, res) => {
+  app.delete("/api/neighborhoods/:id", authenticateToken, enforceLBACAccess('neighborhood'), async (req, res) => {
     try {
       await storage.deleteNeighborhood(req.params.id);
       res.status(204).send();
@@ -628,7 +784,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/harat", authenticateToken, async (req, res) => {
+  app.post("/api/harat", authenticateToken, enforceLBACAccess('neighborhood'), async (req, res) => {
     try {
       const validatedData = insertHaratSchema.parse(req.body);
       const harat = await storage.createHarat(validatedData);
@@ -641,7 +797,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/harat/:id", authenticateToken, async (req, res) => {
+  app.put("/api/harat/:id", authenticateToken, enforceLBACAccess('neighborhood'), async (req, res) => {
     try {
       const harat = await storage.updateHarat(req.params.id, req.body);
       res.json(harat);
@@ -650,7 +806,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/harat/:id", authenticateToken, async (req, res) => {
+  app.delete("/api/harat/:id", authenticateToken, enforceLBACAccess('neighborhood'), async (req, res) => {
     try {
       await storage.deleteHarat(req.params.id);
       res.status(204).send();
@@ -691,7 +847,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/sectors", authenticateToken, async (req, res) => {
+  app.post("/api/sectors", authenticateToken, enforceLBACAccess('governorate'), async (req, res) => {
     try {
       const validatedData = insertSectorSchema.parse(req.body);
       const sector = await storage.createSector(validatedData);
@@ -704,7 +860,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/sectors/:id", authenticateToken, async (req, res) => {
+  app.put("/api/sectors/:id", authenticateToken, enforceLBACAccess('governorate'), async (req, res) => {
     try {
       const sector = await storage.updateSector(req.params.id, req.body);
       res.json(sector);
@@ -713,7 +869,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/sectors/:id", authenticateToken, async (req, res) => {
+  app.delete("/api/sectors/:id", authenticateToken, enforceLBACAccess('governorate'), async (req, res) => {
     try {
       await storage.deleteSector(req.params.id);
       res.status(204).send();
@@ -827,7 +983,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/blocks", authenticateToken, async (req, res) => {
+  app.post("/api/blocks", authenticateToken, enforceLBACAccess('neighborhood'), async (req, res) => {
     try {
       const validatedData = insertBlockSchema.parse(req.body);
       const block = await storage.createBlock(validatedData);
@@ -840,7 +996,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/blocks/:id", authenticateToken, async (req, res) => {
+  app.put("/api/blocks/:id", authenticateToken, enforceLBACAccess('neighborhood'), async (req, res) => {
     try {
       const block = await storage.updateBlock(req.params.id, req.body);
       res.json(block);
@@ -849,7 +1005,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/blocks/:id", authenticateToken, async (req, res) => {
+  app.delete("/api/blocks/:id", authenticateToken, enforceLBACAccess('neighborhood'), async (req, res) => {
     try {
       await storage.deleteBlock(req.params.id);
       res.status(204).send();
@@ -902,7 +1058,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/plots", authenticateToken, async (req, res) => {
+  app.post("/api/plots", authenticateToken, enforceLBACAccess('neighborhood'), async (req, res) => {
     try {
       const validatedData = insertPlotSchema.parse(req.body);
       const plot = await storage.createPlot(validatedData);
@@ -915,7 +1071,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/plots/:id", authenticateToken, async (req, res) => {
+  app.put("/api/plots/:id", authenticateToken, enforceLBACAccess('neighborhood'), async (req, res) => {
     try {
       const plot = await storage.updatePlot(req.params.id, req.body);
       res.json(plot);
@@ -924,7 +1080,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/plots/:id", authenticateToken, async (req, res) => {
+  app.delete("/api/plots/:id", authenticateToken, enforceLBACAccess('neighborhood'), async (req, res) => {
     try {
       await storage.deletePlot(req.params.id);
       res.status(204).send();
@@ -1331,7 +1487,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/applications/:id", authenticateToken, async (req, res) => {
+  app.put("/api/applications/:id", authenticateToken, enforceLBACAccess('neighborhood'), async (req, res) => {
     try {
       const application = await storage.updateApplication(req.params.id, req.body);
       res.json(application);
@@ -1354,7 +1510,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/surveying-decisions", authenticateToken, async (req, res) => {
+  app.post("/api/surveying-decisions", authenticateToken, enforceLBACAccess('neighborhood'), async (req, res) => {
     try {
       const decisionData = insertSurveyingDecisionSchema.parse(req.body);
       const decision = await storage.createSurveyingDecision(decisionData);
@@ -1379,7 +1535,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/surveying-decisions/:id", authenticateToken, async (req, res) => {
+  app.put("/api/surveying-decisions/:id", authenticateToken, enforceLBACAccess('neighborhood'), async (req, res) => {
     try {
       const decision = await storage.updateSurveyingDecision(req.params.id, req.body);
       res.json(decision);
@@ -2324,7 +2480,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Treasury and Payment APIs
   
   // Generate invoice for approved application
-  app.post("/api/applications/:id/generate-invoice", authenticateToken, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/applications/:id/generate-invoice", authenticateToken, enforceLBACAccess('neighborhood'), async (req: AuthenticatedRequest, res) => {
     try {
       const applicationId = req.params.id;
       const application = await storage.getApplication(applicationId);
@@ -2508,7 +2664,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
   // Assign engineer to application
-  app.post('/api/applications/:id/assign', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  app.post('/api/applications/:id/assign', authenticateToken, enforceLBACAccess('neighborhood'), async (req: AuthenticatedRequest, res) => {
     try {
       const { assignedToId, notes, priority } = req.body;
       const applicationId = req.params.id;
@@ -2701,7 +2857,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Schedule appointment for application
-  app.post("/api/applications/:id/schedule", authenticateToken, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/applications/:id/schedule", authenticateToken, enforceLBACAccess('neighborhood'), async (req: AuthenticatedRequest, res) => {
     try {
       const applicationId = req.params.id;
       const { assignedToId, appointmentDate, appointmentTime, contactPhone, contactNotes, location } = req.body;

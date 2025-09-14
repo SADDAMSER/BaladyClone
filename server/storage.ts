@@ -6,7 +6,7 @@ import {
   deviceRegistrations, syncSessions, offlineOperations, syncConflicts,
   serviceTemplates, dynamicForms, workflowDefinitions, serviceBuilder,
   applicationAssignments, applicationStatusHistory, applicationReviews, notifications,
-  appointments, contactAttempts, surveyAssignmentForms,
+  appointments, contactAttempts, surveyAssignmentForms, userGeographicAssignments,
   fieldVisits, surveyResults, surveyReports,
   type User, type InsertUser, type Department, type InsertDepartment,
   type Position, type InsertPosition, type LawRegulation, type InsertLawRegulation,
@@ -38,7 +38,8 @@ import {
   type SurveyAssignmentForm, type InsertSurveyAssignmentForm,
   type FieldVisit, type InsertFieldVisit,
   type SurveyResult, type InsertSurveyResult,
-  type SurveyReport, type InsertSurveyReport
+  type SurveyReport, type InsertSurveyReport,
+  type UserGeographicAssignment, type InsertUserGeographicAssignment
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, like, ilike, and, or, desc, asc, sql, count, inArray } from "drizzle-orm";
@@ -52,6 +53,28 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<InsertUser>): Promise<User>;
   getUsers(filters?: { role?: string; departmentId?: string; isActive?: boolean }): Promise<User[]>;
+
+  // User Geographic Assignments - LBAC
+  getUserGeographicAssignments(filters?: {
+    userId?: string;
+    governorateId?: string;
+    districtId?: string;
+    subDistrictId?: string;
+    neighborhoodId?: string;
+    assignmentType?: string;
+    isActive?: boolean;
+    includeExpired?: boolean;
+  }): Promise<any[]>;
+  // CRITICAL LBAC: Hierarchical scope expansion
+  expandUserGeographicScope(userId: string): Promise<{
+    governorateIds: string[];
+    districtIds: string[];
+    subDistrictIds: string[];
+    neighborhoodIds: string[];
+  }>;
+  createUserGeographicAssignment(assignment: any): Promise<any>;
+  updateUserGeographicAssignment(id: string, updates: any): Promise<any>;
+  deleteUserGeographicAssignment(id: string): Promise<void>;
 
   // Organizational structure
   getDepartments(): Promise<Department[]>;
@@ -440,6 +463,209 @@ export class DatabaseStorage implements IStorage {
     }
     
     return await db.select().from(users);
+  }
+
+  // User Geographic Assignments - LBAC Implementation
+  async getUserGeographicAssignments(filters?: {
+    userId?: string;
+    governorateId?: string;
+    districtId?: string;
+    subDistrictId?: string;
+    neighborhoodId?: string;
+    assignmentType?: string;
+    isActive?: boolean;
+    includeExpired?: boolean;
+  }): Promise<any[]> {
+    const conditions = [];
+    
+    if (filters?.userId) {
+      conditions.push(eq(userGeographicAssignments.userId, filters.userId));
+    }
+    if (filters?.governorateId) {
+      conditions.push(eq(userGeographicAssignments.governorateId, filters.governorateId));
+    }
+    if (filters?.districtId) {
+      conditions.push(eq(userGeographicAssignments.districtId, filters.districtId));
+    }
+    if (filters?.subDistrictId) {
+      conditions.push(eq(userGeographicAssignments.subDistrictId, filters.subDistrictId));
+    }
+    if (filters?.neighborhoodId) {
+      conditions.push(eq(userGeographicAssignments.neighborhoodId, filters.neighborhoodId));
+    }
+    if (filters?.assignmentType) {
+      conditions.push(eq(userGeographicAssignments.assignmentType, filters.assignmentType));
+    }
+    if (filters?.isActive !== undefined) {
+      conditions.push(eq(userGeographicAssignments.isActive, filters.isActive));
+    }
+    
+    // Temporal validity check - don't include expired unless specifically requested
+    if (!filters?.includeExpired) {
+      const now = sql`CURRENT_TIMESTAMP`;
+      conditions.push(
+        or(
+          sql`${userGeographicAssignments.endDate} IS NULL`, // permanent assignments
+          sql`${userGeographicAssignments.endDate} > ${now}` // not yet expired
+        )
+      );
+      // Ensure assignment has started
+      conditions.push(sql`${userGeographicAssignments.startDate} <= ${now}`);
+    }
+
+    // Join with geographic entities to get expanded data
+    const query = db
+      .select({
+        id: userGeographicAssignments.id,
+        userId: userGeographicAssignments.userId,
+        governorateId: userGeographicAssignments.governorateId,
+        districtId: userGeographicAssignments.districtId,
+        subDistrictId: userGeographicAssignments.subDistrictId,
+        neighborhoodId: userGeographicAssignments.neighborhoodId,
+        assignmentType: userGeographicAssignments.assignmentType,
+        startDate: userGeographicAssignments.startDate,
+        endDate: userGeographicAssignments.endDate,
+        isActive: userGeographicAssignments.isActive,
+        createdAt: userGeographicAssignments.createdAt,
+        // Expanded geographic data
+        governorate: {
+          id: governorates.id,
+          nameAr: governorates.nameAr,
+          nameEn: governorates.nameEn,
+        },
+        district: {
+          id: districts.id,
+          nameAr: districts.nameAr,
+          nameEn: districts.nameEn,
+        },
+        subDistrict: {
+          id: subDistricts.id,
+          nameAr: subDistricts.nameAr,
+          nameEn: subDistricts.nameEn,
+        },
+        neighborhood: {
+          id: neighborhoods.id,
+          nameAr: neighborhoods.nameAr,
+          nameEn: neighborhoods.nameEn,
+        },
+      })
+      .from(userGeographicAssignments)
+      .leftJoin(governorates, eq(userGeographicAssignments.governorateId, governorates.id))
+      .leftJoin(districts, eq(userGeographicAssignments.districtId, districts.id))
+      .leftJoin(subDistricts, eq(userGeographicAssignments.subDistrictId, subDistricts.id))
+      .leftJoin(neighborhoods, eq(userGeographicAssignments.neighborhoodId, neighborhoods.id));
+    
+    if (conditions.length > 0) {
+      return await query.where(and(...conditions));
+    }
+    
+    return await query;
+  }
+
+  async createUserGeographicAssignment(assignment: InsertUserGeographicAssignment): Promise<UserGeographicAssignment> {
+    const [result] = await db.insert(userGeographicAssignments).values(assignment).returning();
+    return result;
+  }
+
+  async updateUserGeographicAssignment(id: string, updates: Partial<InsertUserGeographicAssignment>): Promise<UserGeographicAssignment> {
+    const [assignment] = await db
+      .update(userGeographicAssignments)
+      .set({ ...updates, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(userGeographicAssignments.id, id))
+      .returning();
+    return assignment;
+  }
+
+  async deleteUserGeographicAssignment(id: string): Promise<void> {
+    await db.delete(userGeographicAssignments).where(eq(userGeographicAssignments.id, id));
+  }
+
+  // CRITICAL LBAC: Hierarchical scope expansion
+  async expandUserGeographicScope(userId: string): Promise<{
+    governorateIds: string[];
+    districtIds: string[];
+    subDistrictIds: string[];
+    neighborhoodIds: string[];
+  }> {
+    // Get user's direct assignments
+    const assignments = await this.getUserGeographicAssignments({
+      userId,
+      isActive: true,
+      includeExpired: false
+    });
+
+    const scope = {
+      governorateIds: new Set<string>(),
+      districtIds: new Set<string>(),
+      subDistrictIds: new Set<string>(),
+      neighborhoodIds: new Set<string>()
+    };
+
+    // Process each assignment and expand hierarchically
+    for (const assignment of assignments) {
+      // Direct governorate access grants access to all descendants
+      if (assignment.governorateId) {
+        scope.governorateIds.add(assignment.governorateId);
+        
+        // Get all districts in this governorate
+        const govDistricts = await this.getDistrictsByGovernorateId(assignment.governorateId);
+        for (const district of govDistricts) {
+          scope.districtIds.add(district.id);
+          
+          // Get all sub-districts in this district
+          const districtSubDistricts = await this.getSubDistrictsByDistrictId(district.id);
+          for (const subDistrict of districtSubDistricts) {
+            scope.subDistrictIds.add(subDistrict.id);
+            
+            // Get all neighborhoods in this sub-district
+            const subDistrictNeighborhoods = await this.getNeighborhoodsBySubDistrictId(subDistrict.id);
+            for (const neighborhood of subDistrictNeighborhoods) {
+              scope.neighborhoodIds.add(neighborhood.id);
+            }
+          }
+        }
+      }
+      
+      // Direct district access grants access to all descendants  
+      if (assignment.districtId && !assignment.governorateId) {
+        scope.districtIds.add(assignment.districtId);
+        
+        // Get all sub-districts in this district
+        const districtSubDistricts = await this.getSubDistrictsByDistrictId(assignment.districtId);
+        for (const subDistrict of districtSubDistricts) {
+          scope.subDistrictIds.add(subDistrict.id);
+          
+          // Get all neighborhoods in this sub-district
+          const subDistrictNeighborhoods = await this.getNeighborhoodsBySubDistrictId(subDistrict.id);
+          for (const neighborhood of subDistrictNeighborhoods) {
+            scope.neighborhoodIds.add(neighborhood.id);
+          }
+        }
+      }
+      
+      // Direct sub-district access grants access to all neighborhoods
+      if (assignment.subDistrictId && !assignment.districtId && !assignment.governorateId) {
+        scope.subDistrictIds.add(assignment.subDistrictId);
+        
+        // Get all neighborhoods in this sub-district
+        const subDistrictNeighborhoods = await this.getNeighborhoodsBySubDistrictId(assignment.subDistrictId);
+        for (const neighborhood of subDistrictNeighborhoods) {
+          scope.neighborhoodIds.add(neighborhood.id);
+        }
+      }
+      
+      // Direct neighborhood access
+      if (assignment.neighborhoodId && !assignment.subDistrictId && !assignment.districtId && !assignment.governorateId) {
+        scope.neighborhoodIds.add(assignment.neighborhoodId);
+      }
+    }
+
+    return {
+      governorateIds: Array.from(scope.governorateIds),
+      districtIds: Array.from(scope.districtIds),
+      subDistrictIds: Array.from(scope.subDistrictIds),
+      neighborhoodIds: Array.from(scope.neighborhoodIds)
+    };
   }
 
   // Organizational structure

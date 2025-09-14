@@ -46,6 +46,49 @@ export const positions = pgTable("positions", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
+// User Geographic Assignments - LBAC Foundation
+export const userGeographicAssignments = pgTable("user_geographic_assignments", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  // Geographic scope - can assign at any level
+  governorateId: uuid("governorate_id")
+    .references(() => governorates.id, { onDelete: "cascade" }),
+  districtId: uuid("district_id")
+    .references(() => districts.id, { onDelete: "cascade" }),
+  subDistrictId: uuid("sub_district_id")
+    .references(() => subDistricts.id, { onDelete: "cascade" }),
+  neighborhoodId: uuid("neighborhood_id")
+    .references(() => neighborhoods.id, { onDelete: "cascade" }),
+  // Assignment metadata
+  assignmentType: text("assignment_type").notNull().default("permanent"), // permanent, temporary, emergency
+  startDate: timestamp("start_date").default(sql`CURRENT_TIMESTAMP`),
+  endDate: timestamp("end_date"), // null for permanent assignments
+  assignedById: uuid("assigned_by_id")
+    .references(() => users.id),
+  notes: text("notes"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  // CRITICAL LBAC CONSTRAINT: Ensure only one geographic level per assignment
+  oneGeographicLevelOnly: sql`CONSTRAINT one_geographic_level_only CHECK (
+    (CASE WHEN governorate_id IS NOT NULL THEN 1 ELSE 0 END +
+     CASE WHEN district_id IS NOT NULL THEN 1 ELSE 0 END +
+     CASE WHEN sub_district_id IS NOT NULL THEN 1 ELSE 0 END +
+     CASE WHEN neighborhood_id IS NOT NULL THEN 1 ELSE 0 END) = 1
+  )`,
+  // Temporal validity constraint: startDate must be before endDate
+  temporalValidityCheck: sql`CONSTRAINT temporal_validity_check CHECK (
+    end_date IS NULL OR start_date < end_date
+  )`,
+  // Active assignments must have started
+  activeAssignmentCheck: sql`CONSTRAINT active_assignment_check CHECK (
+    NOT is_active OR start_date <= CURRENT_TIMESTAMP
+  )`
+}));
+
 // Legal Framework
 export const lawsRegulations = pgTable("laws_regulations", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -595,6 +638,34 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   notifications: many(notifications),
   assignments: many(applicationAssignments),
   reviews: many(applicationReviews),
+  geographicAssignments: many(userGeographicAssignments),
+}));
+
+export const userGeographicAssignmentsRelations = relations(userGeographicAssignments, ({ one }) => ({
+  user: one(users, {
+    fields: [userGeographicAssignments.userId],
+    references: [users.id],
+  }),
+  governorate: one(governorates, {
+    fields: [userGeographicAssignments.governorateId],
+    references: [governorates.id],
+  }),
+  district: one(districts, {
+    fields: [userGeographicAssignments.districtId],
+    references: [districts.id],
+  }),
+  subDistrict: one(subDistricts, {
+    fields: [userGeographicAssignments.subDistrictId],
+    references: [subDistricts.id],
+  }),
+  neighborhood: one(neighborhoods, {
+    fields: [userGeographicAssignments.neighborhoodId],
+    references: [neighborhoods.id],
+  }),
+  assignedBy: one(users, {
+    fields: [userGeographicAssignments.assignedById],
+    references: [users.id],
+  }),
 }));
 
 export const departmentsRelations = relations(departments, ({ one, many }) => ({
@@ -837,6 +908,16 @@ export const insertPositionSchema = createInsertSchema(positions).omit({
   id: true,
   createdAt: true,
 });
+
+export const insertUserGeographicAssignmentSchema = createInsertSchema(userGeographicAssignments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Types
+export type UserGeographicAssignment = typeof userGeographicAssignments.$inferSelect;
+export type InsertUserGeographicAssignment = z.infer<typeof insertUserGeographicAssignmentSchema>;
 
 export const insertLawRegulationSchema = createInsertSchema(lawsRegulations).omit({
   id: true,
