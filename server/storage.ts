@@ -2,6 +2,7 @@ import {
   users, departments, positions, lawsRegulations, lawSections, lawArticles,
   requirementCategories, requirements, services, serviceRequirements,
   applications, surveyingDecisions, tasks, systemSettings, governorates, districts,
+  subDistricts, neighborhoods, harat, sectors, neighborhoodUnits, blocks, plots, streets, streetSegments,
   serviceTemplates, dynamicForms, workflowDefinitions, serviceBuilder,
   applicationAssignments, applicationStatusHistory, applicationReviews, notifications,
   appointments, contactAttempts, surveyAssignmentForms,
@@ -14,6 +15,11 @@ import {
   type Application, type InsertApplication, type SurveyingDecision, type InsertSurveyingDecision,
   type Task, type InsertTask, type SystemSetting, type InsertSystemSetting,
   type Governorate, type InsertGovernorate, type District, type InsertDistrict,
+  type SubDistrict, type InsertSubDistrict, type Neighborhood, type InsertNeighborhood,
+  type Harat, type InsertHarat, type Sector, type InsertSector,
+  type NeighborhoodUnit, type InsertNeighborhoodUnit, type Block, type InsertBlock,
+  type Plot, type InsertPlot, type Street, type InsertStreet,
+  type StreetSegment, type InsertStreetSegment,
   type ServiceTemplate, type InsertServiceTemplate,
   type DynamicForm, type InsertDynamicForm,
   type WorkflowDefinition, type InsertWorkflowDefinition,
@@ -70,6 +76,79 @@ export interface IStorage {
   createDistrict(district: InsertDistrict): Promise<District>;
   updateDistrict(id: string, updates: Partial<InsertDistrict>): Promise<District>;
   deleteDistrict(id: string): Promise<void>;
+
+  // Sub-districts
+  getSubDistricts(districtId?: string): Promise<SubDistrict[]>;
+  getSubDistrict(id: string): Promise<SubDistrict | undefined>;
+  getSubDistrictsByDistrictId(districtId: string): Promise<SubDistrict[]>;
+  createSubDistrict(subDistrict: InsertSubDistrict): Promise<SubDistrict>;
+  updateSubDistrict(id: string, updates: Partial<InsertSubDistrict>): Promise<SubDistrict>;
+  deleteSubDistrict(id: string): Promise<void>;
+
+  // Neighborhoods
+  getNeighborhoods(subDistrictId?: string): Promise<Neighborhood[]>;
+  getNeighborhood(id: string): Promise<Neighborhood | undefined>;
+  getNeighborhoodsBySubDistrictId(subDistrictId: string): Promise<Neighborhood[]>;
+  createNeighborhood(neighborhood: InsertNeighborhood): Promise<Neighborhood>;
+  updateNeighborhood(id: string, updates: Partial<InsertNeighborhood>): Promise<Neighborhood>;
+  deleteNeighborhood(id: string): Promise<void>;
+
+  // Harat
+  getHarat(neighborhoodId?: string): Promise<Harat[]>;
+  getHaratById(id: string): Promise<Harat | undefined>;
+  getHaratByNeighborhoodId(neighborhoodId: string): Promise<Harat[]>;
+  createHarat(harat: InsertHarat): Promise<Harat>;
+  updateHarat(id: string, updates: Partial<InsertHarat>): Promise<Harat>;
+  deleteHarat(id: string): Promise<void>;
+
+  // Sectors
+  getSectors(governorateId?: string): Promise<Sector[]>;
+  getSector(id: string): Promise<Sector | undefined>;
+  getSectorsByGovernorateId(governorateId: string): Promise<Sector[]>;
+  createSector(sector: InsertSector): Promise<Sector>;
+  updateSector(id: string, updates: Partial<InsertSector>): Promise<Sector>;
+  deleteSector(id: string): Promise<void>;
+
+  // Neighborhood Units
+  getNeighborhoodUnits(filters?: { neighborhoodId?: string; sectorId?: string }): Promise<NeighborhoodUnit[]>;
+  getNeighborhoodUnit(id: string): Promise<NeighborhoodUnit | undefined>;
+  getNeighborhoodUnitsByNeighborhoodId(neighborhoodId: string): Promise<NeighborhoodUnit[]>;
+  getNeighborhoodUnitsBySectorId(sectorId: string): Promise<NeighborhoodUnit[]>;
+  createNeighborhoodUnit(neighborhoodUnit: InsertNeighborhoodUnit): Promise<NeighborhoodUnit>;
+  updateNeighborhoodUnit(id: string, updates: Partial<InsertNeighborhoodUnit>): Promise<NeighborhoodUnit>;
+  deleteNeighborhoodUnit(id: string): Promise<void>;
+
+  // Blocks
+  getBlocks(neighborhoodUnitId?: string): Promise<Block[]>;
+  getBlock(id: string): Promise<Block | undefined>;
+  getBlocksByNeighborhoodUnitId(neighborhoodUnitId: string): Promise<Block[]>;
+  createBlock(block: InsertBlock): Promise<Block>;
+  updateBlock(id: string, updates: Partial<InsertBlock>): Promise<Block>;
+  deleteBlock(id: string): Promise<void>;
+
+  // Plots - CRITICAL FOR CONSTRUCTION!
+  getPlots(blockId?: string): Promise<Plot[]>;
+  getPlot(id: string): Promise<Plot | undefined>;
+  getPlotsByBlockId(blockId: string): Promise<Plot[]>;
+  getPlotByNumber(plotNumber: string, blockId: string): Promise<Plot | undefined>;
+  createPlot(plot: InsertPlot): Promise<Plot>;
+  updatePlot(id: string, updates: Partial<InsertPlot>): Promise<Plot>;
+  deletePlot(id: string): Promise<void>;
+
+  // Streets
+  getStreets(): Promise<Street[]>;
+  getStreet(id: string): Promise<Street | undefined>;
+  createStreet(street: InsertStreet): Promise<Street>;
+  updateStreet(id: string, updates: Partial<InsertStreet>): Promise<Street>;
+  deleteStreet(id: string): Promise<void>;
+
+  // Street Segments
+  getStreetSegments(streetId?: string): Promise<StreetSegment[]>;
+  getStreetSegment(id: string): Promise<StreetSegment | undefined>;
+  getStreetSegmentsByStreetId(streetId: string): Promise<StreetSegment[]>;
+  createStreetSegment(streetSegment: InsertStreetSegment): Promise<StreetSegment>;
+  updateStreetSegment(id: string, updates: Partial<InsertStreetSegment>): Promise<StreetSegment>;
+  deleteStreetSegment(id: string): Promise<void>;
 
   // Legal framework
   getLawsRegulations(): Promise<LawRegulation[]>;
@@ -438,6 +517,71 @@ export class DatabaseStorage implements IStorage {
   async deleteDistrict(id: string): Promise<void> {
     await db.delete(districts).where(eq(districts.id, id));
   }
+
+  // Geographic Data - New Tables (Stub implementations - TODO: Complete later)
+  async getSubDistricts(districtId?: string): Promise<SubDistrict[]> { throw new Error("Not implemented yet"); }
+  async getSubDistrict(id: string): Promise<SubDistrict | undefined> { throw new Error("Not implemented yet"); }
+  async getSubDistrictsByDistrictId(districtId: string): Promise<SubDistrict[]> { throw new Error("Not implemented yet"); }
+  async createSubDistrict(subDistrict: InsertSubDistrict): Promise<SubDistrict> { throw new Error("Not implemented yet"); }
+  async updateSubDistrict(id: string, updates: Partial<InsertSubDistrict>): Promise<SubDistrict> { throw new Error("Not implemented yet"); }
+  async deleteSubDistrict(id: string): Promise<void> { throw new Error("Not implemented yet"); }
+  
+  async getNeighborhoods(subDistrictId?: string): Promise<Neighborhood[]> { throw new Error("Not implemented yet"); }
+  async getNeighborhood(id: string): Promise<Neighborhood | undefined> { throw new Error("Not implemented yet"); }
+  async getNeighborhoodsBySubDistrictId(subDistrictId: string): Promise<Neighborhood[]> { throw new Error("Not implemented yet"); }
+  async createNeighborhood(neighborhood: InsertNeighborhood): Promise<Neighborhood> { throw new Error("Not implemented yet"); }
+  async updateNeighborhood(id: string, updates: Partial<InsertNeighborhood>): Promise<Neighborhood> { throw new Error("Not implemented yet"); }
+  async deleteNeighborhood(id: string): Promise<void> { throw new Error("Not implemented yet"); }
+  
+  async getHarat(neighborhoodId?: string): Promise<Harat[]> { throw new Error("Not implemented yet"); }
+  async getHaratById(id: string): Promise<Harat | undefined> { throw new Error("Not implemented yet"); }
+  async getHaratByNeighborhoodId(neighborhoodId: string): Promise<Harat[]> { throw new Error("Not implemented yet"); }
+  async createHarat(harat: InsertHarat): Promise<Harat> { throw new Error("Not implemented yet"); }
+  async updateHarat(id: string, updates: Partial<InsertHarat>): Promise<Harat> { throw new Error("Not implemented yet"); }
+  async deleteHarat(id: string): Promise<void> { throw new Error("Not implemented yet"); }
+  
+  async getSectors(governorateId?: string): Promise<Sector[]> { throw new Error("Not implemented yet"); }
+  async getSector(id: string): Promise<Sector | undefined> { throw new Error("Not implemented yet"); }
+  async getSectorsByGovernorateId(governorateId: string): Promise<Sector[]> { throw new Error("Not implemented yet"); }
+  async createSector(sector: InsertSector): Promise<Sector> { throw new Error("Not implemented yet"); }
+  async updateSector(id: string, updates: Partial<InsertSector>): Promise<Sector> { throw new Error("Not implemented yet"); }
+  async deleteSector(id: string): Promise<void> { throw new Error("Not implemented yet"); }
+  
+  async getNeighborhoodUnits(filters?: { neighborhoodId?: string; sectorId?: string }): Promise<NeighborhoodUnit[]> { throw new Error("Not implemented yet"); }
+  async getNeighborhoodUnit(id: string): Promise<NeighborhoodUnit | undefined> { throw new Error("Not implemented yet"); }
+  async getNeighborhoodUnitsByNeighborhoodId(neighborhoodId: string): Promise<NeighborhoodUnit[]> { throw new Error("Not implemented yet"); }
+  async getNeighborhoodUnitsBySectorId(sectorId: string): Promise<NeighborhoodUnit[]> { throw new Error("Not implemented yet"); }
+  async createNeighborhoodUnit(neighborhoodUnit: InsertNeighborhoodUnit): Promise<NeighborhoodUnit> { throw new Error("Not implemented yet"); }
+  async updateNeighborhoodUnit(id: string, updates: Partial<InsertNeighborhoodUnit>): Promise<NeighborhoodUnit> { throw new Error("Not implemented yet"); }
+  async deleteNeighborhoodUnit(id: string): Promise<void> { throw new Error("Not implemented yet"); }
+  
+  async getBlocks(neighborhoodUnitId?: string): Promise<Block[]> { throw new Error("Not implemented yet"); }
+  async getBlock(id: string): Promise<Block | undefined> { throw new Error("Not implemented yet"); }
+  async getBlocksByNeighborhoodUnitId(neighborhoodUnitId: string): Promise<Block[]> { throw new Error("Not implemented yet"); }
+  async createBlock(block: InsertBlock): Promise<Block> { throw new Error("Not implemented yet"); }
+  async updateBlock(id: string, updates: Partial<InsertBlock>): Promise<Block> { throw new Error("Not implemented yet"); }
+  async deleteBlock(id: string): Promise<void> { throw new Error("Not implemented yet"); }
+  
+  async getPlots(blockId?: string): Promise<Plot[]> { throw new Error("Not implemented yet"); }
+  async getPlot(id: string): Promise<Plot | undefined> { throw new Error("Not implemented yet"); }
+  async getPlotsByBlockId(blockId: string): Promise<Plot[]> { throw new Error("Not implemented yet"); }
+  async getPlotByNumber(plotNumber: string, blockId: string): Promise<Plot | undefined> { throw new Error("Not implemented yet"); }
+  async createPlot(plot: InsertPlot): Promise<Plot> { throw new Error("Not implemented yet"); }
+  async updatePlot(id: string, updates: Partial<InsertPlot>): Promise<Plot> { throw new Error("Not implemented yet"); }
+  async deletePlot(id: string): Promise<void> { throw new Error("Not implemented yet"); }
+  
+  async getStreets(): Promise<Street[]> { throw new Error("Not implemented yet"); }
+  async getStreet(id: string): Promise<Street | undefined> { throw new Error("Not implemented yet"); }
+  async createStreet(street: InsertStreet): Promise<Street> { throw new Error("Not implemented yet"); }
+  async updateStreet(id: string, updates: Partial<InsertStreet>): Promise<Street> { throw new Error("Not implemented yet"); }
+  async deleteStreet(id: string): Promise<void> { throw new Error("Not implemented yet"); }
+  
+  async getStreetSegments(streetId?: string): Promise<StreetSegment[]> { throw new Error("Not implemented yet"); }
+  async getStreetSegment(id: string): Promise<StreetSegment | undefined> { throw new Error("Not implemented yet"); }
+  async getStreetSegmentsByStreetId(streetId: string): Promise<StreetSegment[]> { throw new Error("Not implemented yet"); }
+  async createStreetSegment(streetSegment: InsertStreetSegment): Promise<StreetSegment> { throw new Error("Not implemented yet"); }
+  async updateStreetSegment(id: string, updates: Partial<InsertStreetSegment>): Promise<StreetSegment> { throw new Error("Not implemented yet"); }
+  async deleteStreetSegment(id: string): Promise<void> { throw new Error("Not implemented yet"); }
 
   // Legal framework
   async getLawsRegulations(): Promise<LawRegulation[]> {
