@@ -2732,17 +2732,17 @@ export class DatabaseStorage implements IStorage {
     if (filters?.userId) conditions.push(eq(offlineOperations.userId, filters.userId));
     if (filters?.tableName) conditions.push(eq(offlineOperations.tableName, filters.tableName));
     if (filters?.operationType) conditions.push(eq(offlineOperations.operationType, filters.operationType));
-    if (filters?.status) conditions.push(eq(offlineOperations.status, filters.status));
+    if (filters?.status) conditions.push(eq(offlineOperations.syncStatus, filters.status));
     if (filters?.retryCount !== undefined) conditions.push(eq(offlineOperations.retryCount, filters.retryCount));
     
     if (conditions.length > 0) {
       return await db.select().from(offlineOperations)
         .where(and(...conditions))
-        .orderBy(desc(offlineOperations.localTimestamp));
+        .orderBy(desc(offlineOperations.timestamp));
     }
     
     return await db.select().from(offlineOperations)
-      .orderBy(desc(offlineOperations.localTimestamp));
+      .orderBy(desc(offlineOperations.timestamp));
   }
 
   async getOfflineOperation(id: string): Promise<OfflineOperation | undefined> {
@@ -2774,8 +2774,8 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db
       .update(offlineOperations)
       .set({ 
-        status: 'synced',
-        serverTimestamp: sql`CURRENT_TIMESTAMP`,
+        syncStatus: 'synced',
+        // serverTimestamp field removed
         updatedAt: sql`CURRENT_TIMESTAMP` 
       })
       .where(eq(offlineOperations.id, id))
@@ -2787,8 +2787,8 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db
       .update(offlineOperations)
       .set({ 
-        status: 'conflicted',
-        conflictReason,
+        syncStatus: 'conflicted',
+        conflictResolution: conflictReason,
         retryCount: sql`${offlineOperations.retryCount} + 1`,
         updatedAt: sql`CURRENT_TIMESTAMP` 
       })
@@ -2803,9 +2803,9 @@ export class DatabaseStorage implements IStorage {
       .from(offlineOperations)
       .where(and(
         eq(offlineOperations.deviceId, deviceId),
-        eq(offlineOperations.status, 'pending')
+        eq(offlineOperations.syncStatus, 'pending')
       ))
-      .orderBy(asc(offlineOperations.localTimestamp));
+      .orderBy(asc(offlineOperations.timestamp));
     
     if (limit) {
       return await baseQuery.limit(limit);
@@ -3047,7 +3047,7 @@ export class DatabaseStorage implements IStorage {
         if (operation.operationType === 'create') {
           const insertQuery = sql`
             INSERT INTO ${sql.identifier(tableName)} 
-            SELECT * FROM jsonb_populate_record(NULL::${sql.identifier(tableName)}, ${operation.newData})
+            SELECT * FROM jsonb_populate_record(NULL::${sql.identifier(tableName)}, ${operation.operationData})
           `;
           await db.execute(insertQuery);
           success++;
@@ -3067,7 +3067,7 @@ export class DatabaseStorage implements IStorage {
           // Apply update
           const updateQuery = sql`
             UPDATE ${sql.identifier(tableName)} 
-            SET ${sql.raw(Object.entries(operation.newData as any || {})
+            SET ${sql.raw(Object.entries(operation.operationData as any || {})
               .map(([key, value]) => `${key} = ${typeof value === 'string' ? `'${value}'` : value}`)
               .join(', '))}
             WHERE id = ${operation.recordId}

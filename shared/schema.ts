@@ -2017,12 +2017,11 @@ export const offlineOperations = pgTable("offline_operations", {
   operationType: text("operation_type").notNull(), // create, update, delete
   tableName: text("table_name").notNull(), // الجدول المتأثر
   recordId: text("record_id").notNull(), // ID الخاص بالسجل
-  oldData: jsonb("old_data"), // البيانات القديمة (للـ update/delete)
-  newData: jsonb("new_data").notNull(), // البيانات الجديدة
-  localTimestamp: timestamp("local_timestamp").notNull(), // وقت العملية على الجهاز
-  serverTimestamp: timestamp("server_timestamp"), // وقت المزامنة مع الخادم
-  status: text("status").default("pending"), // pending, synced, conflict, failed
-  conflictReason: text("conflict_reason"), // سبب التعارض
+  operationData: jsonb("operation_data").notNull(), // بيانات العملية
+  timestamp: timestamp("timestamp").notNull(), // وقت العملية
+  syncStatus: text("sync_status").default("pending"), // pending, synced, conflict, failed
+  conflictResolution: text("conflict_resolution"), // معالجة التعارض
+  errorMessage: text("error_message"), // رسالة الخطأ
   retryCount: integer("retry_count").default(0),
   isDeleted: boolean("is_deleted").default(false),
   metadata: jsonb("metadata"),
