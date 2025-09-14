@@ -10,7 +10,10 @@ import {
   insertLawRegulationSchema, insertLawSectionSchema, insertLawArticleSchema,
   insertRequirementCategorySchema, insertRequirementSchema, insertServiceSchema,
   insertApplicationSchema, insertSurveyingDecisionSchema, insertTaskSchema,
-  insertSystemSettingSchema, insertGovernorateSchema, insertDistrictSchema, 
+  insertSystemSettingSchema, insertGovernorateSchema, insertDistrictSchema,
+  insertSubDistrictSchema, insertNeighborhoodSchema, insertHaratSchema,
+  insertSectorSchema, insertNeighborhoodUnitSchema, insertBlockSchema,
+  insertPlotSchema, insertStreetSchema, insertStreetSegmentSchema,
   insertServiceTemplateSchema, insertDynamicFormSchema,
   insertWorkflowDefinitionSchema, insertServiceBuilderSchema,
   insertNotificationSchema, insertApplicationStatusHistorySchema,
@@ -459,6 +462,585 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/districts/:id", authenticateToken, async (req, res) => {
     try {
       await storage.deleteDistrict(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Sub-districts endpoints (Geographic data - public access for read operations)
+  app.get("/api/sub-districts", async (req, res) => {
+    try {
+      const { districtId } = req.query;
+      const subDistricts = await storage.getSubDistricts(districtId as string);
+      res.json(subDistricts);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/sub-districts/:id", async (req, res) => {
+    try {
+      const subDistrict = await storage.getSubDistrict(req.params.id);
+      if (!subDistrict) {
+        return res.status(404).json({ message: "Sub-district not found" });
+      }
+      res.json(subDistrict);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/districts/:id/sub-districts", async (req, res) => {
+    try {
+      const subDistricts = await storage.getSubDistrictsByDistrictId(req.params.id);
+      res.json(subDistricts);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/sub-districts", authenticateToken, async (req, res) => {
+    try {
+      const validatedData = insertSubDistrictSchema.parse(req.body);
+      const subDistrict = await storage.createSubDistrict(validatedData);
+      res.status(201).json(subDistrict);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/sub-districts/:id", authenticateToken, async (req, res) => {
+    try {
+      const subDistrict = await storage.updateSubDistrict(req.params.id, req.body);
+      res.json(subDistrict);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/sub-districts/:id", authenticateToken, async (req, res) => {
+    try {
+      await storage.deleteSubDistrict(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Neighborhoods endpoints (Geographic data - public access for read operations)
+  app.get("/api/neighborhoods", async (req, res) => {
+    try {
+      const { subDistrictId } = req.query;
+      const neighborhoods = await storage.getNeighborhoods(subDistrictId as string);
+      res.json(neighborhoods);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/neighborhoods/:id", async (req, res) => {
+    try {
+      const neighborhood = await storage.getNeighborhood(req.params.id);
+      if (!neighborhood) {
+        return res.status(404).json({ message: "Neighborhood not found" });
+      }
+      res.json(neighborhood);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/sub-districts/:id/neighborhoods", async (req, res) => {
+    try {
+      const neighborhoods = await storage.getNeighborhoodsBySubDistrictId(req.params.id);
+      res.json(neighborhoods);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/neighborhoods", authenticateToken, async (req, res) => {
+    try {
+      const validatedData = insertNeighborhoodSchema.parse(req.body);
+      const neighborhood = await storage.createNeighborhood(validatedData);
+      res.status(201).json(neighborhood);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/neighborhoods/:id", authenticateToken, async (req, res) => {
+    try {
+      const neighborhood = await storage.updateNeighborhood(req.params.id, req.body);
+      res.json(neighborhood);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/neighborhoods/:id", authenticateToken, async (req, res) => {
+    try {
+      await storage.deleteNeighborhood(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Harat endpoints (Geographic data - public access for read operations)
+  app.get("/api/harat", async (req, res) => {
+    try {
+      const { neighborhoodId } = req.query;
+      const harat = await storage.getHarat(neighborhoodId as string);
+      res.json(harat);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/harat/:id", async (req, res) => {
+    try {
+      const harat = await storage.getHaratById(req.params.id);
+      if (!harat) {
+        return res.status(404).json({ message: "Harat not found" });
+      }
+      res.json(harat);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/neighborhoods/:id/harat", async (req, res) => {
+    try {
+      const harat = await storage.getHaratByNeighborhoodId(req.params.id);
+      res.json(harat);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/harat", authenticateToken, async (req, res) => {
+    try {
+      const validatedData = insertHaratSchema.parse(req.body);
+      const harat = await storage.createHarat(validatedData);
+      res.status(201).json(harat);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/harat/:id", authenticateToken, async (req, res) => {
+    try {
+      const harat = await storage.updateHarat(req.params.id, req.body);
+      res.json(harat);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/harat/:id", authenticateToken, async (req, res) => {
+    try {
+      await storage.deleteHarat(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Sectors endpoints (Geographic data - public access for read operations)
+  app.get("/api/sectors", async (req, res) => {
+    try {
+      const { governorateId } = req.query;
+      const sectors = await storage.getSectors(governorateId as string);
+      res.json(sectors);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/sectors/:id", async (req, res) => {
+    try {
+      const sector = await storage.getSector(req.params.id);
+      if (!sector) {
+        return res.status(404).json({ message: "Sector not found" });
+      }
+      res.json(sector);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/governorates/:id/sectors", async (req, res) => {
+    try {
+      const sectors = await storage.getSectorsByGovernorateId(req.params.id);
+      res.json(sectors);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/sectors", authenticateToken, async (req, res) => {
+    try {
+      const validatedData = insertSectorSchema.parse(req.body);
+      const sector = await storage.createSector(validatedData);
+      res.status(201).json(sector);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/sectors/:id", authenticateToken, async (req, res) => {
+    try {
+      const sector = await storage.updateSector(req.params.id, req.body);
+      res.json(sector);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/sectors/:id", authenticateToken, async (req, res) => {
+    try {
+      await storage.deleteSector(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Neighborhood Units endpoints (Geographic data - public access for read operations)
+  app.get("/api/neighborhood-units", async (req, res) => {
+    try {
+      const { neighborhoodId, sectorId } = req.query;
+      const filters = neighborhoodId || sectorId ? { neighborhoodId: neighborhoodId as string, sectorId: sectorId as string } : undefined;
+      const neighborhoodUnits = await storage.getNeighborhoodUnits(filters);
+      res.json(neighborhoodUnits);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/neighborhood-units/:id", async (req, res) => {
+    try {
+      const neighborhoodUnit = await storage.getNeighborhoodUnit(req.params.id);
+      if (!neighborhoodUnit) {
+        return res.status(404).json({ message: "Neighborhood unit not found" });
+      }
+      res.json(neighborhoodUnit);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/neighborhoods/:id/neighborhood-units", async (req, res) => {
+    try {
+      const neighborhoodUnits = await storage.getNeighborhoodUnitsByNeighborhoodId(req.params.id);
+      res.json(neighborhoodUnits);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/sectors/:id/neighborhood-units", async (req, res) => {
+    try {
+      const neighborhoodUnits = await storage.getNeighborhoodUnitsBySectorId(req.params.id);
+      res.json(neighborhoodUnits);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/neighborhood-units", authenticateToken, async (req, res) => {
+    try {
+      const validatedData = insertNeighborhoodUnitSchema.parse(req.body);
+      const neighborhoodUnit = await storage.createNeighborhoodUnit(validatedData);
+      res.status(201).json(neighborhoodUnit);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/neighborhood-units/:id", authenticateToken, async (req, res) => {
+    try {
+      const neighborhoodUnit = await storage.updateNeighborhoodUnit(req.params.id, req.body);
+      res.json(neighborhoodUnit);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/neighborhood-units/:id", authenticateToken, async (req, res) => {
+    try {
+      await storage.deleteNeighborhoodUnit(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Blocks endpoints (Geographic data - public access for read operations)
+  app.get("/api/blocks", async (req, res) => {
+    try {
+      const { neighborhoodUnitId } = req.query;
+      const blocks = await storage.getBlocks(neighborhoodUnitId as string);
+      res.json(blocks);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/blocks/:id", async (req, res) => {
+    try {
+      const block = await storage.getBlock(req.params.id);
+      if (!block) {
+        return res.status(404).json({ message: "Block not found" });
+      }
+      res.json(block);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/neighborhood-units/:id/blocks", async (req, res) => {
+    try {
+      const blocks = await storage.getBlocksByNeighborhoodUnitId(req.params.id);
+      res.json(blocks);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/blocks", authenticateToken, async (req, res) => {
+    try {
+      const validatedData = insertBlockSchema.parse(req.body);
+      const block = await storage.createBlock(validatedData);
+      res.status(201).json(block);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/blocks/:id", authenticateToken, async (req, res) => {
+    try {
+      const block = await storage.updateBlock(req.params.id, req.body);
+      res.json(block);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/blocks/:id", authenticateToken, async (req, res) => {
+    try {
+      await storage.deleteBlock(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Plots endpoints (Geographic data - public access for read operations)
+  app.get("/api/plots", async (req, res) => {
+    try {
+      const { blockId } = req.query;
+      const plots = await storage.getPlots(blockId as string);
+      res.json(plots);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/plots/:id", async (req, res) => {
+    try {
+      const plot = await storage.getPlot(req.params.id);
+      if (!plot) {
+        return res.status(404).json({ message: "Plot not found" });
+      }
+      res.json(plot);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/blocks/:id/plots", async (req, res) => {
+    try {
+      const plots = await storage.getPlotsByBlockId(req.params.id);
+      res.json(plots);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/plots/by-number/:plotNumber/block/:blockId", async (req, res) => {
+    try {
+      const plot = await storage.getPlotByNumber(req.params.plotNumber, req.params.blockId);
+      if (!plot) {
+        return res.status(404).json({ message: "Plot not found" });
+      }
+      res.json(plot);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/plots", authenticateToken, async (req, res) => {
+    try {
+      const validatedData = insertPlotSchema.parse(req.body);
+      const plot = await storage.createPlot(validatedData);
+      res.status(201).json(plot);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/plots/:id", authenticateToken, async (req, res) => {
+    try {
+      const plot = await storage.updatePlot(req.params.id, req.body);
+      res.json(plot);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/plots/:id", authenticateToken, async (req, res) => {
+    try {
+      await storage.deletePlot(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Streets endpoints (Geographic data - public access for read operations)
+  app.get("/api/streets", async (req, res) => {
+    try {
+      const streets = await storage.getStreets();
+      res.json(streets);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/streets/:id", async (req, res) => {
+    try {
+      const street = await storage.getStreet(req.params.id);
+      if (!street) {
+        return res.status(404).json({ message: "Street not found" });
+      }
+      res.json(street);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/streets", authenticateToken, async (req, res) => {
+    try {
+      const validatedData = insertStreetSchema.parse(req.body);
+      const street = await storage.createStreet(validatedData);
+      res.status(201).json(street);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/streets/:id", authenticateToken, async (req, res) => {
+    try {
+      const street = await storage.updateStreet(req.params.id, req.body);
+      res.json(street);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/streets/:id", authenticateToken, async (req, res) => {
+    try {
+      await storage.deleteStreet(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Street Segments endpoints (Geographic data - public access for read operations)
+  app.get("/api/street-segments", async (req, res) => {
+    try {
+      const { streetId } = req.query;
+      const streetSegments = await storage.getStreetSegments(streetId as string);
+      res.json(streetSegments);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/street-segments/:id", async (req, res) => {
+    try {
+      const streetSegment = await storage.getStreetSegment(req.params.id);
+      if (!streetSegment) {
+        return res.status(404).json({ message: "Street segment not found" });
+      }
+      res.json(streetSegment);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/streets/:id/street-segments", async (req, res) => {
+    try {
+      const streetSegments = await storage.getStreetSegmentsByStreetId(req.params.id);
+      res.json(streetSegments);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/street-segments", authenticateToken, async (req, res) => {
+    try {
+      const validatedData = insertStreetSegmentSchema.parse(req.body);
+      const streetSegment = await storage.createStreetSegment(validatedData);
+      res.status(201).json(streetSegment);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/street-segments/:id", authenticateToken, async (req, res) => {
+    try {
+      const streetSegment = await storage.updateStreetSegment(req.params.id, req.body);
+      res.json(streetSegment);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/street-segments/:id", authenticateToken, async (req, res) => {
+    try {
+      await storage.deleteStreetSegment(req.params.id);
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: "Internal server error" });
