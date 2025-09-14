@@ -424,6 +424,162 @@ export const districts = pgTable("districts", {
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
+// Sub-districts table (النواحي) - child of districts  
+export const subDistricts = pgTable("sub_districts", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: text("code"),
+  nameAr: text("name_ar").notNull(),
+  nameEn: text("name_en"),
+  districtId: uuid("district_id")
+    .references(() => districts.id, { onDelete: "cascade" })
+    .notNull(),
+  geometry: jsonb("geometry"),
+  properties: jsonb("properties"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Neighborhoods table (الأحياء) - child of sub_districts
+export const neighborhoods = pgTable("neighborhoods", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: text("code"),
+  nameAr: text("name_ar").notNull(), 
+  nameEn: text("name_en"),
+  subDistrictId: uuid("sub_district_id")
+    .references(() => subDistricts.id, { onDelete: "cascade" })
+    .notNull(),
+  geometry: jsonb("geometry"),
+  properties: jsonb("properties"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Harat table (الحارات) - child of neighborhoods
+export const harat = pgTable("harat", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: text("code"),
+  nameAr: text("name_ar").notNull(),
+  nameEn: text("name_en"),
+  neighborhoodId: uuid("neighborhood_id")
+    .references(() => neighborhoods.id, { onDelete: "cascade" })
+    .notNull(),
+  geometry: jsonb("geometry"), 
+  properties: jsonb("properties"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Sectors table (القطاعات التخطيطية) - independent planning entities
+export const sectors = pgTable("sectors", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: text("code"),
+  nameAr: text("name_ar").notNull(),
+  nameEn: text("name_en"),
+  governorateId: uuid("governorate_id")
+    .references(() => governorates.id, { onDelete: "cascade" })
+    .notNull(),
+  sectorType: text("sector_type").default("planning"), // planning, administrative, economic
+  geometry: jsonb("geometry"),
+  properties: jsonb("properties"),
+  isActive: boolean("is_active").default(true), 
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Neighborhood Units table (الوحدات السكنية) - child of neighborhoods or sectors
+export const neighborhoodUnits = pgTable("neighborhood_units", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: text("code"),
+  nameAr: text("name_ar").notNull(),
+  nameEn: text("name_en"), 
+  neighborhoodId: uuid("neighborhood_id")
+    .references(() => neighborhoods.id, { onDelete: "cascade" }),
+  sectorId: uuid("sector_id")
+    .references(() => sectors.id, { onDelete: "cascade" }),
+  geometry: jsonb("geometry"),
+  properties: jsonb("properties"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Blocks table (القطع) - child of neighborhood_units
+export const blocks = pgTable("blocks", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: text("code"),
+  nameAr: text("name_ar").notNull(),
+  nameEn: text("name_en"),
+  neighborhoodUnitId: uuid("neighborhood_unit_id")
+    .references(() => neighborhoodUnits.id, { onDelete: "cascade" })
+    .notNull(),
+  blockType: text("block_type").default("residential"), // residential, commercial, mixed, industrial
+  geometry: jsonb("geometry"),
+  properties: jsonb("properties"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Plots table (قطع الأراضي) - child of blocks - CRITICAL FOR CONSTRUCTION!
+export const plots = pgTable("plots", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: text("code"),
+  nameAr: text("name_ar").notNull(),
+  nameEn: text("name_en"),
+  blockId: uuid("block_id")
+    .references(() => blocks.id, { onDelete: "cascade" })
+    .notNull(),
+  plotNumber: text("plot_number").notNull(), // رقم القطعة الرسمي
+  area: decimal("area", { precision: 12, scale: 2 }), // المساحة بالمتر المربع
+  plotType: text("plot_type").default("residential"), // residential, commercial, industrial, public
+  ownershipType: text("ownership_type").default("private"), // private, public, mixed
+  geometry: jsonb("geometry"),
+  properties: jsonb("properties"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Streets table (الشوارع) - can be linked to multiple administrative levels
+export const streets = pgTable("streets", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: text("code"),
+  nameAr: text("name_ar").notNull(),
+  nameEn: text("name_en"),
+  streetType: text("street_type").default("local"), // main, secondary, local, alley
+  width: decimal("width", { precision: 8, scale: 2 }), // عرض الشارع بالمتر
+  length: decimal("length", { precision: 12, scale: 2 }), // طول الشارع بالمتر
+  surfaceType: text("surface_type").default("asphalt"), // asphalt, concrete, gravel, dirt
+  geometry: jsonb("geometry"),
+  properties: jsonb("properties"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Street Segments table (أجزاء الشوارع) - child of streets
+export const streetSegments = pgTable("street_segments", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: text("code"),
+  nameAr: text("name_ar").notNull(),
+  nameEn: text("name_en"),
+  streetId: uuid("street_id")
+    .references(() => streets.id, { onDelete: "cascade" })
+    .notNull(),
+  segmentNumber: integer("segment_number").notNull(),
+  startPoint: jsonb("start_point"), // نقطة البداية
+  endPoint: jsonb("end_point"), // نقطة النهاية
+  length: decimal("length", { precision: 10, scale: 2 }), // طول الجزء
+  geometry: jsonb("geometry"),
+  properties: jsonb("properties"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ one, many }) => ({
   department: one(departments, {
@@ -1488,6 +1644,90 @@ export const surveyReportsRelations = relations(surveyReports, ({ one }) => ({
   }),
 }));
 
+// Geographic Relations
+export const governoratesRelations = relations(governorates, ({ many }) => ({
+  districts: many(districts),
+  sectors: many(sectors),
+}));
+
+export const districtsRelations = relations(districts, ({ one, many }) => ({
+  governorate: one(governorates, {
+    fields: [districts.governorateId],
+    references: [governorates.id],
+  }),
+  subDistricts: many(subDistricts),
+}));
+
+export const subDistrictsRelations = relations(subDistricts, ({ one, many }) => ({
+  district: one(districts, {
+    fields: [subDistricts.districtId],
+    references: [districts.id],
+  }),
+  neighborhoods: many(neighborhoods),
+}));
+
+export const neighborhoodsRelations = relations(neighborhoods, ({ one, many }) => ({
+  subDistrict: one(subDistricts, {
+    fields: [neighborhoods.subDistrictId],
+    references: [subDistricts.id],
+  }),
+  harat: many(harat),
+  neighborhoodUnits: many(neighborhoodUnits),
+}));
+
+export const haratRelations = relations(harat, ({ one }) => ({
+  neighborhood: one(neighborhoods, {
+    fields: [harat.neighborhoodId],
+    references: [neighborhoods.id],
+  }),
+}));
+
+export const sectorsRelations = relations(sectors, ({ one, many }) => ({
+  governorate: one(governorates, {
+    fields: [sectors.governorateId],
+    references: [governorates.id],
+  }),
+  neighborhoodUnits: many(neighborhoodUnits),
+}));
+
+export const neighborhoodUnitsRelations = relations(neighborhoodUnits, ({ one, many }) => ({
+  neighborhood: one(neighborhoods, {
+    fields: [neighborhoodUnits.neighborhoodId],
+    references: [neighborhoods.id],
+  }),
+  sector: one(sectors, {
+    fields: [neighborhoodUnits.sectorId],
+    references: [sectors.id],
+  }),
+  blocks: many(blocks),
+}));
+
+export const blocksRelations = relations(blocks, ({ one, many }) => ({
+  neighborhoodUnit: one(neighborhoodUnits, {
+    fields: [blocks.neighborhoodUnitId],
+    references: [neighborhoodUnits.id],
+  }),
+  plots: many(plots),
+}));
+
+export const plotsRelations = relations(plots, ({ one }) => ({
+  block: one(blocks, {
+    fields: [plots.blockId],
+    references: [blocks.id],
+  }),
+}));
+
+export const streetsRelations = relations(streets, ({ many }) => ({
+  streetSegments: many(streetSegments),
+}));
+
+export const streetSegmentsRelations = relations(streetSegments, ({ one }) => ({
+  street: one(streets, {
+    fields: [streetSegments.streetId],
+    references: [streets.id],
+  }),
+}));
+
 // Insert Schemas for new tables
 export const insertFieldVisitSchema = createInsertSchema(fieldVisits).omit({
   id: true,
@@ -1537,3 +1777,103 @@ export const insertDistrictSchema = createInsertSchema(districts).omit({
 
 export type District = typeof districts.$inferSelect;
 export type InsertDistrict = z.infer<typeof insertDistrictSchema>;
+
+// Sub-districts schemas
+export const insertSubDistrictSchema = createInsertSchema(subDistricts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type SubDistrict = typeof subDistricts.$inferSelect;
+export type InsertSubDistrict = z.infer<typeof insertSubDistrictSchema>;
+
+// Neighborhoods schemas
+export const insertNeighborhoodSchema = createInsertSchema(neighborhoods).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type Neighborhood = typeof neighborhoods.$inferSelect;
+export type InsertNeighborhood = z.infer<typeof insertNeighborhoodSchema>;
+
+// Harat schemas
+export const insertHaratSchema = createInsertSchema(harat).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type Harat = typeof harat.$inferSelect;
+export type InsertHarat = z.infer<typeof insertHaratSchema>;
+
+// Sectors schemas
+export const insertSectorSchema = createInsertSchema(sectors).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type Sector = typeof sectors.$inferSelect;
+export type InsertSector = z.infer<typeof insertSectorSchema>;
+
+// Neighborhood Units schemas
+export const insertNeighborhoodUnitSchema = createInsertSchema(neighborhoodUnits).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).refine(
+  (data) => {
+    const hasNeighborhood = !!data.neighborhoodId;
+    const hasSector = !!data.sectorId;
+    return hasNeighborhood !== hasSector; // Exactly one must be true (XOR)
+  },
+  {
+    message: "يجب تحديد حي أو قطاع واحد فقط، وليس كلاهما معاً",
+    path: ["neighborhoodId", "sectorId"],
+  }
+);
+
+export type NeighborhoodUnit = typeof neighborhoodUnits.$inferSelect;
+export type InsertNeighborhoodUnit = z.infer<typeof insertNeighborhoodUnitSchema>;
+
+// Blocks schemas
+export const insertBlockSchema = createInsertSchema(blocks).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type Block = typeof blocks.$inferSelect;
+export type InsertBlock = z.infer<typeof insertBlockSchema>;
+
+// Plots schemas - CRITICAL FOR CONSTRUCTION INDUSTRY!
+export const insertPlotSchema = createInsertSchema(plots).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type Plot = typeof plots.$inferSelect;
+export type InsertPlot = z.infer<typeof insertPlotSchema>;
+
+// Streets schemas
+export const insertStreetSchema = createInsertSchema(streets).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type Street = typeof streets.$inferSelect;
+export type InsertStreet = z.infer<typeof insertStreetSchema>;
+
+// Street Segments schemas
+export const insertStreetSegmentSchema = createInsertSchema(streetSegments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type StreetSegment = typeof streetSegments.$inferSelect;
+export type InsertStreetSegment = z.infer<typeof insertStreetSegmentSchema>;
