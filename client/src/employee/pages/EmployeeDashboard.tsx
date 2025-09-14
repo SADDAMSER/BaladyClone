@@ -12,11 +12,14 @@ import {
   Calendar,
   MessageSquare,
   ArrowRight,
-  Filter
+  Filter,
+  MapPin,
+  Shield
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiRequest } from "@/lib/queryClient";
+import { useLBACFilter } from "@/hooks/useLBACFilter";
 
 type ApplicationStatus = 'pending' | 'under_review' | 'approved' | 'rejected' | 'on_hold';
 
@@ -64,6 +67,14 @@ export default function EmployeeDashboard() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const queryClient = useQueryClient();
+
+  // LBAC Filter Integration
+  const { 
+    filterAssignments, 
+    getGeographicScopeSummary,
+    hasAnyGeographicAccess,
+    isAdmin
+  } = useLBACFilter();
 
   // Get user assignments
   const { data: assignments = [], isLoading: assignmentsLoading } = useQuery({
@@ -116,15 +127,19 @@ export default function EmployeeDashboard() {
 
   const assignmentsArray = Array.isArray(assignments) ? assignments as Assignment[] : [];
   
-  const filteredAssignments = assignmentsArray.filter((assignment: Assignment) => {
+  // Apply LBAC filtering first, then user filters
+  const lbacFilteredAssignments = filterAssignments(assignmentsArray);
+  
+  const filteredAssignments = lbacFilteredAssignments.filter((assignment: Assignment) => {
     const statusMatch = statusFilter === 'all' || assignment.application?.status === statusFilter;
     const priorityMatch = priorityFilter === 'all' || assignment.priority === priorityFilter;
     return statusMatch && priorityMatch;
   });
 
-  const pendingAssignments = assignmentsArray.filter((a: Assignment) => a.status === 'pending');
-  const inProgressAssignments = assignmentsArray.filter((a: Assignment) => a.status === 'in_progress');
-  const completedAssignments = assignmentsArray.filter((a: Assignment) => a.status === 'completed');
+  // Use LBAC-filtered assignments for statistics
+  const pendingAssignments = lbacFilteredAssignments.filter((a: Assignment) => a.status === 'pending');
+  const inProgressAssignments = lbacFilteredAssignments.filter((a: Assignment) => a.status === 'in_progress');
+  const completedAssignments = lbacFilteredAssignments.filter((a: Assignment) => a.status === 'completed');
 
   const handleStartReview = async (assignmentId: string) => {
     await updateAssignmentMutation.mutateAsync({
@@ -277,6 +292,9 @@ export default function EmployeeDashboard() {
     );
   }
 
+  // Get geographic scope summary for display
+  const scopeSummary = getGeographicScopeSummary();
+
   return (
     <div className="p-6 max-w-7xl mx-auto" dir="rtl">
       <div className="mb-6">
@@ -287,6 +305,65 @@ export default function EmployeeDashboard() {
           مراجعة ومعالجة الطلبات المعينة لك
         </p>
       </div>
+
+      {/* Geographic Scope Indicator */}
+      {!isAdmin && (
+        <Card className="mb-6 border-blue-200 bg-blue-50" data-testid="geographic-scope-card">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2">
+                  <MapPin className="h-5 w-5 text-blue-600" />
+                  <span className="font-medium text-blue-900">النطاق الجغرافي:</span>
+                </div>
+                <span className="text-blue-800 font-semibold" data-testid="text-geographic-scope">
+                  {scopeSummary.description}
+                </span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Shield className="h-4 w-4 text-blue-600" />
+                <span className="text-xs text-blue-700">
+                  تظهر فقط الطلبات من نطاقك المخصص
+                </span>
+              </div>
+            </div>
+            {hasAnyGeographicAccess() ? (
+              <div className="mt-2 text-xs text-blue-600">
+                <span className="font-medium">المناطق المتاحة:</span>
+                {scopeSummary.scope && (
+                  <span className="mr-2">
+                    {scopeSummary.scope.governorateIds.length > 0 && `${scopeSummary.scope.governorateIds.length} محافظة`}
+                    {scopeSummary.scope.districtIds.length > 0 && ` • ${scopeSummary.scope.districtIds.length} مديرية`}
+                    {scopeSummary.scope.subDistrictIds.length > 0 && ` • ${scopeSummary.scope.subDistrictIds.length} مديرية فرعية`}
+                    {scopeSummary.scope.neighborhoodIds.length > 0 && ` • ${scopeSummary.scope.neighborhoodIds.length} حي`}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                <div className="flex items-center space-x-2">
+                  <AlertCircle className="h-4 w-4 text-yellow-600" />
+                  <span className="text-sm text-yellow-800">
+                    تحذير: لا يوجد نطاق جغرافي مخصص - لن تظهر أي طلبات
+                  </span>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {isAdmin && (
+        <Card className="mb-6 border-green-200 bg-green-50" data-testid="admin-scope-card">
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-3">
+              <Shield className="h-5 w-5 text-green-600" />
+              <span className="font-medium text-green-900">صلاحيات مدير النظام</span>
+              <span className="text-green-800">- وصول كامل لجميع المناطق والطلبات</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
