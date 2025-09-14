@@ -1877,3 +1877,144 @@ export const insertStreetSegmentSchema = createInsertSchema(streetSegments).omit
 
 export type StreetSegment = typeof streetSegments.$inferSelect;
 export type InsertStreetSegment = z.infer<typeof insertStreetSegmentSchema>;
+
+// ===========================================
+// MOBILE SYNC & OFFLINE OPERATIONS TABLES
+// ===========================================
+
+// Device Registrations table (تسجيل الأجهزة المحمولة) - للمساحين والمهندسين في الميدان
+export const deviceRegistrations = pgTable("device_registrations", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  deviceId: text("device_id").notNull().unique(), // unique device identifier
+  userId: uuid("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  deviceName: text("device_name").notNull(), // user-friendly device name
+  deviceType: text("device_type").default("mobile"), // mobile, tablet, desktop
+  platform: text("platform").notNull(), // android, ios, web
+  appVersion: text("app_version").notNull(),
+  lastSync: timestamp("last_sync"),
+  isActive: boolean("is_active").default(true),
+  properties: jsonb("properties"), // device-specific metadata
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Sync Sessions table (جلسات المزامنة) - لتتبع عمليات المزامنة بين الأجهزة والمنصة
+export const syncSessions = pgTable("sync_sessions", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  deviceId: uuid("device_id")
+    .references(() => deviceRegistrations.id, { onDelete: "cascade" })
+    .notNull(),
+  userId: uuid("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  sessionType: text("session_type").notNull(), // pull, push, full_sync
+  status: text("status").default("in_progress"), // in_progress, completed, failed, cancelled
+  startTime: timestamp("start_time").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  endTime: timestamp("end_time"),
+  totalOperations: integer("total_operations").default(0),
+  successfulOperations: integer("successful_operations").default(0),
+  failedOperations: integer("failed_operations").default(0),
+  conflictOperations: integer("conflict_operations").default(0),
+  lastSyncTimestamp: timestamp("last_sync_timestamp"), // للـ differential sync
+  errorLog: jsonb("error_log"), // تفاصيل الأخطاء
+  metadata: jsonb("metadata"), // معلومات إضافية عن الجلسة
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Offline Operations table (العمليات دون اتصال) - لحفظ التغييرات المحلية قبل المزامنة
+export const offlineOperations = pgTable("offline_operations", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  deviceId: uuid("device_id")
+    .references(() => deviceRegistrations.id, { onDelete: "cascade" })
+    .notNull(),
+  userId: uuid("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  operationType: text("operation_type").notNull(), // create, update, delete
+  tableName: text("table_name").notNull(), // الجدول المتأثر
+  recordId: text("record_id").notNull(), // ID الخاص بالسجل
+  oldData: jsonb("old_data"), // البيانات القديمة (للـ update/delete)
+  newData: jsonb("new_data").notNull(), // البيانات الجديدة
+  localTimestamp: timestamp("local_timestamp").notNull(), // وقت العملية على الجهاز
+  serverTimestamp: timestamp("server_timestamp"), // وقت المزامنة مع الخادم
+  status: text("status").default("pending"), // pending, synced, conflict, failed
+  conflictReason: text("conflict_reason"), // سبب التعارض
+  retryCount: integer("retry_count").default(0),
+  isDeleted: boolean("is_deleted").default(false),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Sync Conflicts table (تعارضات المزامنة) - لإدارة التعارضات بين البيانات المحلية والخادم
+export const syncConflicts = pgTable("sync_conflicts", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: uuid("session_id")
+    .references(() => syncSessions.id, { onDelete: "cascade" })
+    .notNull(),
+  operationId: uuid("operation_id")
+    .references(() => offlineOperations.id, { onDelete: "cascade" })
+    .notNull(),
+  conflictType: text("conflict_type").notNull(), // concurrent_update, deleted_on_server, validation_error
+  tableName: text("table_name").notNull(),
+  recordId: text("record_id").notNull(),
+  localData: jsonb("local_data").notNull(), // البيانات من الجهاز
+  serverData: jsonb("server_data"), // البيانات من الخادم
+  conflictFields: text("conflict_fields").array(), // الحقول المتعارضة
+  resolutionStrategy: text("resolution_strategy"), // server_wins, client_wins, merge, manual
+  resolvedData: jsonb("resolved_data"), // البيانات بعد حل التعارض
+  status: text("status").default("unresolved"), // unresolved, resolved, ignored
+  resolvedBy: uuid("resolved_by").references(() => users.id),
+  resolvedAt: timestamp("resolved_at"),
+  notes: text("notes"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+// ===========================================
+// MOBILE SYNC SCHEMAS & TYPES
+// ===========================================
+
+// Device Registrations schemas
+export const insertDeviceRegistrationSchema = createInsertSchema(deviceRegistrations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type DeviceRegistration = typeof deviceRegistrations.$inferSelect;
+export type InsertDeviceRegistration = z.infer<typeof insertDeviceRegistrationSchema>;
+
+// Sync Sessions schemas
+export const insertSyncSessionSchema = createInsertSchema(syncSessions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type SyncSession = typeof syncSessions.$inferSelect;
+export type InsertSyncSession = z.infer<typeof insertSyncSessionSchema>;
+
+// Offline Operations schemas
+export const insertOfflineOperationSchema = createInsertSchema(offlineOperations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type OfflineOperation = typeof offlineOperations.$inferSelect;
+export type InsertOfflineOperation = z.infer<typeof insertOfflineOperationSchema>;
+
+// Sync Conflicts schemas
+export const insertSyncConflictSchema = createInsertSchema(syncConflicts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type SyncConflict = typeof syncConflicts.$inferSelect;
+export type InsertSyncConflict = z.infer<typeof insertSyncConflictSchema>;
