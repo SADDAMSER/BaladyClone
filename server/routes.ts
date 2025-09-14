@@ -304,6 +304,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Simple login test endpoint (for debugging)
+  app.post("/api/auth/simple-login", async (req, res) => {
+    try {
+      const { username, password } = req.body;
+      console.log('Simple login attempt for user:', username);
+      
+      const user = await storage.getUserByUsername(username);
+      if (!user) {
+        console.log('User not found:', username);
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+      
+      console.log('User found, checking password');
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (!isPasswordValid) {
+        console.log('Password invalid');
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+      
+      console.log('Password valid, creating token');
+      const token = jwt.sign(
+        { id: user.id, username: user.username, role: user.role },
+        jwtSecret,
+        { expiresIn: '24h' }
+      );
+      
+      console.log('Token created successfully');
+      res.json({
+        token,
+        user: {
+          id: user.id,
+          username: user.username,
+          role: user.role
+        }
+      });
+    } catch (error) {
+      console.error("Simple login error:", error);
+      res.status(500).json({ message: "Internal server error", error: (error as Error).message });
+    }
+  });
+
   // Authentication routes
   app.post("/api/auth/login", async (req, res) => {
     try {
@@ -319,12 +360,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
-      // Fetch user's geographic assignments for LBAC
-      const geographicAssignments = await storage.getUserGeographicAssignments({
-        userId: user.id,
-        isActive: true,
-        includeExpired: false
-      });
+      // Fetch user's geographic assignments for LBAC (with error handling)
+      let geographicAssignments = [];
+      try {
+        geographicAssignments = await storage.getUserGeographicAssignments({
+          userId: user.id,
+          isActive: true,
+          includeExpired: false
+        });
+      } catch (geoError) {
+        console.error('Error fetching geographic assignments:', geoError);
+        // Continue with empty assignments - not critical for login
+      }
 
       const token = jwt.sign(
         { id: user.id, username: user.username, role: user.role },
@@ -346,6 +393,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
     } catch (error) {
+      console.error("Login error details:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });
@@ -3294,6 +3342,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===========================================
   // MOBILE SYNC & OFFLINE OPERATIONS API
   // ===========================================
+
+  // Get sync session info
+  app.get('/api/sync/session/:deviceId', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { deviceId } = req.params;
+      
+      // Verify device exists and user has access
+      const device = await storage.getDeviceByDeviceId(deviceId);
+      if (!device) {
+        return res.status(404).json({ error: 'الجهاز غير موجود' });
+      }
+
+      // Get latest sync session for this device
+      const sessions = await storage.getSyncSessions({
+        deviceId: device.id,
+        userId: req.user!.id
+      });
+
+      const latestSession = sessions.sort((a, b) => 
+        (b.createdAt ? new Date(b.createdAt).getTime() : 0) - (a.createdAt ? new Date(a.createdAt).getTime() : 0)
+      )[0];
+
+      res.json({
+        deviceId: device.deviceId,
+        lastSync: device.lastSync,
+        latestSession: latestSession ? {
+          id: latestSession.id,
+          status: latestSession.status,
+          startTime: latestSession.startTime,
+          endTime: latestSession.endTime,
+          operationsCount: (latestSession.metadata as any)?.totalOperations || 0
+        } : null,
+        isActive: device.isActive
+      });
+    } catch (error) {
+      console.error('Error getting sync session:', error);
+      res.status(500).json({ error: 'فشل في استرجاع معلومات جلسة المزامنة' });
+    }
+  });
+
+  // Get syncable tables info
+  app.get('/api/sync/tables', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      // Import sync registry for table information
+      const { getSyncableTablesForUser, SYNC_REGISTRY } = await import('./syncRegistry');
+      
+      const allowedTables = getSyncableTablesForUser(req.user!);
+      
+      const tablesInfo = allowedTables.map(tableName => {
+        const config = SYNC_REGISTRY[tableName];
+        return {
+          tableName,
+          allowedOperations: config.allowedOperations,
+          requiredRoles: config.requiredRoles,
+          hasUpdatedAt: config.hasUpdatedAt,
+          description: `جدول ${tableName} للمزامنة الميدانية`
+        };
+      });
+
+      res.json({
+        tables: tablesInfo,
+        totalTables: tablesInfo.length,
+        userRole: req.user!.role
+      });
+    } catch (error) {
+      console.error('Error getting sync tables:', error);
+      res.status(500).json({ error: 'فشل في استرجاع معلومات الجداول' });
+    }
+  });
 
   // Pull changes from server (differential sync)
   app.post('/api/sync/pull', authenticateToken, async (req: AuthenticatedRequest, res) => {
