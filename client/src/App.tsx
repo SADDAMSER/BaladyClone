@@ -152,6 +152,11 @@ function MainRouter() {
           <AuthenticatedRouter />
         </AuthProvider>
       </Route>
+      <Route path="/geographic-data">
+        <AuthProvider>
+          <AuthenticatedRouter />
+        </AuthProvider>
+      </Route>
       <Route path="/document-archive">
         <AuthProvider>
           <AuthenticatedRouter />

@@ -30,26 +30,33 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { apiRequest } from '@/lib/queryClient';
+import { insertGovernorateSchema, insertDistrictSchema, type InsertGovernorate, type InsertDistrict } from '@shared/schema';
 
-// Form schemas
-const governorateFormSchema = z.object({
-  code: z.string().min(1, 'رمز المحافظة مطلوب'),
-  nameAr: z.string().min(1, 'الاسم العربي مطلوب'),
+// Form schemas - extending the shared schemas with JSON string handling and proper nullability
+const governorateFormSchema = insertGovernorateSchema.extend({
+  geometry: z.string().optional(),
+  properties: z.string().optional(),
   nameEn: z.string().min(1, 'الاسم الإنجليزي مطلوب'),
-  geometry: z.string().optional(),
-  properties: z.string().optional(),
   isActive: z.boolean().default(true),
 });
 
-const districtFormSchema = z.object({
-  code: z.string().optional(),
-  nameAr: z.string().min(1, 'الاسم العربي مطلوب'),
-  nameEn: z.string().optional(),
-  governorateId: z.string().min(1, 'المحافظة مطلوبة'),
+const districtFormSchema = insertDistrictSchema.extend({
   geometry: z.string().optional(),
   properties: z.string().optional(),
+  code: z.string().optional(),
+  nameEn: z.string().optional(),
   isActive: z.boolean().default(true),
 });
+
+// Safe JSON parsing utility
+const safeJsonParse = (jsonString: string | undefined, fieldName: string): any => {
+  if (!jsonString?.trim()) return null;
+  try {
+    return JSON.parse(jsonString);
+  } catch (error) {
+    throw new Error(`خطأ في تنسيق ${fieldName}: يجب أن يكون JSON صحيح`);
+  }
+};
 
 type GovernorateFormData = z.infer<typeof governorateFormSchema>;
 type DistrictFormData = z.infer<typeof districtFormSchema>;
@@ -106,32 +113,44 @@ export default function GeographicDataManager() {
   // Create governorate mutation
   const createGovernorateMutation = useMutation({
     mutationFn: async (data: GovernorateFormData) => {
-      const response = await apiRequest('POST', '/api/governorates', {
-        ...data,
-        geometry: data.geometry ? JSON.parse(data.geometry) : null,
-        properties: data.properties ? JSON.parse(data.properties) : null,
-      });
-      return response.json();
+      try {
+        const response = await apiRequest('POST', '/api/governorates', {
+          ...data,
+          geometry: safeJsonParse(data.geometry, 'البيانات الجغرافية'),
+          properties: safeJsonParse(data.properties, 'الخصائص الإضافية'),
+        });
+        return response.json();
+      } catch (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/governorates'] });
       setShowAddGovernorate(false);
       toast({ title: 'تم إضافة المحافظة بنجاح' });
     },
-    onError: () => {
-      toast({ title: 'خطأ في إضافة المحافظة', variant: 'destructive' });
+    onError: (error: any) => {
+      toast({ 
+        title: 'خطأ في إضافة المحافظة', 
+        description: error.message || 'حدث خطأ غير متوقع',
+        variant: 'destructive' 
+      });
     },
   });
 
   // Update governorate mutation
   const updateGovernorateMutation = useMutation({
     mutationFn: async (data: GovernorateFormData & { id: string }) => {
-      const response = await apiRequest('PUT', `/api/governorates/${data.id}`, {
-        ...data,
-        geometry: data.geometry ? JSON.parse(data.geometry) : null,
-        properties: data.properties ? JSON.parse(data.properties) : null,
-      });
-      return response.json();
+      try {
+        const response = await apiRequest('PUT', `/api/governorates/${data.id}`, {
+          ...data,
+          geometry: safeJsonParse(data.geometry, 'البيانات الجغرافية'),
+          properties: safeJsonParse(data.properties, 'الخصائص الإضافية'),
+        });
+        return response.json();
+      } catch (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/governorates'] });
@@ -139,8 +158,12 @@ export default function GeographicDataManager() {
       setSelectedGovernorate(null);
       toast({ title: 'تم تحديث المحافظة بنجاح' });
     },
-    onError: () => {
-      toast({ title: 'خطأ في تحديث المحافظة', variant: 'destructive' });
+    onError: (error: any) => {
+      toast({ 
+        title: 'خطأ في تحديث المحافظة', 
+        description: error.message || 'حدث خطأ غير متوقع',
+        variant: 'destructive' 
+      });
     },
   });
 
@@ -161,32 +184,44 @@ export default function GeographicDataManager() {
   // Create district mutation
   const createDistrictMutation = useMutation({
     mutationFn: async (data: DistrictFormData) => {
-      const response = await apiRequest('POST', '/api/districts', {
-        ...data,
-        geometry: data.geometry ? JSON.parse(data.geometry) : null,
-        properties: data.properties ? JSON.parse(data.properties) : null,
-      });
-      return response.json();
+      try {
+        const response = await apiRequest('POST', '/api/districts', {
+          ...data,
+          geometry: safeJsonParse(data.geometry, 'البيانات الجغرافية'),
+          properties: safeJsonParse(data.properties, 'الخصائص الإضافية'),
+        });
+        return response.json();
+      } catch (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/districts'] });
       setShowAddDistrict(false);
       toast({ title: 'تم إضافة المديرية بنجاح' });
     },
-    onError: () => {
-      toast({ title: 'خطأ في إضافة المديرية', variant: 'destructive' });
+    onError: (error: any) => {
+      toast({ 
+        title: 'خطأ في إضافة المديرية', 
+        description: error.message || 'حدث خطأ غير متوقع',
+        variant: 'destructive' 
+      });
     },
   });
 
   // Update district mutation
   const updateDistrictMutation = useMutation({
     mutationFn: async (data: DistrictFormData & { id: string }) => {
-      const response = await apiRequest('PUT', `/api/districts/${data.id}`, {
-        ...data,
-        geometry: data.geometry ? JSON.parse(data.geometry) : null,
-        properties: data.properties ? JSON.parse(data.properties) : null,
-      });
-      return response.json();
+      try {
+        const response = await apiRequest('PUT', `/api/districts/${data.id}`, {
+          ...data,
+          geometry: safeJsonParse(data.geometry, 'البيانات الجغرافية'),
+          properties: safeJsonParse(data.properties, 'الخصائص الإضافية'),
+        });
+        return response.json();
+      } catch (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/districts'] });
@@ -194,8 +229,12 @@ export default function GeographicDataManager() {
       setSelectedDistrict(null);
       toast({ title: 'تم تحديث المديرية بنجاح' });
     },
-    onError: () => {
-      toast({ title: 'خطأ في تحديث المديرية', variant: 'destructive' });
+    onError: (error: any) => {
+      toast({ 
+        title: 'خطأ في تحديث المديرية', 
+        description: error.message || 'حدث خطأ غير متوقع',
+        variant: 'destructive' 
+      });
     },
   });
 
