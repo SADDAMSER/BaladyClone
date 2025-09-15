@@ -51,78 +51,46 @@ export default function UserManagement() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // TODO: Replace with real API calls - keeping mock temporarily until API connection
-  const temporaryMockUsers: FrontendUser[] = [
-    {
-      id: '1',
-      username: 'ahmed.manager',
-      email: 'ahmed.manager@yemen.gov.ye',
-      fullName: 'أحمد المدير',
-      phoneNumber: '967-771234567',
-      roles: [{
-        id: '2',
-        code: 'manager',
-        nameAr: 'مدير قسم',
-        nameEn: 'Manager',
-        description: 'مدير قسم مع صلاحيات الإشراف',
-        level: 2,
-        isSystemRole: false,
-        isActive: true
-      }],
-      legacyRole: 'manager',
-      departmentName: 'التراخيص',
-      positionTitle: 'مدير قسم التراخيص',
-      isActive: true,
-      lastLogin: new Date(Date.now() - 2 * 60 * 60 * 1000),
-      createdAt: new Date('2023-01-15')
-    },
-    {
-      id: '2',
-      username: 'fatima.employee',
-      email: 'fatima.employee@yemen.gov.ye',
-      fullName: 'فاطمة الموظفة',
-      phoneNumber: '967-773456789',
-      roles: [{
-        id: '3',
-        code: 'engineer',
-        nameAr: 'مهندس',
-        nameEn: 'Engineer',
-        description: 'مهندس مع صلاحيات تقنية',
-        level: 3,
-        isSystemRole: false,
-        isActive: true
-      }],
-      legacyRole: 'employee',
-      departmentName: 'المساحة',
-      positionTitle: 'مساح أول',
-      isActive: true,
-      lastLogin: new Date(Date.now() - 6 * 60 * 60 * 1000),
-      createdAt: new Date('2023-03-20')
-    },
-    {
-      id: '3',
-      username: 'mohamed.citizen',
-      email: 'mohamed.citizen@gmail.com',
-      fullName: 'محمد المواطن',
-      phoneNumber: '967-775678901',
-      roles: [{
-        id: '4',
-        code: 'citizen',
-        nameAr: 'مواطن',
-        nameEn: 'Citizen',
-        description: 'مواطن عادي يستخدم الخدمات',
-        level: 4,
-        isSystemRole: false,
-        isActive: true
-      }],
-      legacyRole: 'citizen',
-      departmentName: 'غير محدد',
-      positionTitle: 'مواطن',
-      isActive: true,
-      lastLogin: new Date(Date.now() - 24 * 60 * 60 * 1000),
-      createdAt: new Date('2023-06-10')
-    }
-  ];
+  // Query parameters for API filtering
+  const userQueryParams: UserQueryParams = {
+    roleId: filterRole !== 'all' ? filterRole : undefined,
+    departmentId: filterDepartment !== 'all' ? filterDepartment : undefined,
+    isActive: true
+  };
+
+  // Fetch users with real API
+  const { 
+    data: usersApiResponse, 
+    isLoading: usersApiLoading, 
+    error: usersApiError 
+  } = useQuery({
+    queryKey: ['/api/users', userQueryParams],
+    enabled: true
+  });
+
+  // Fetch roles with real API  
+  const { 
+    data: rolesApiResponse, 
+    isLoading: rolesApiLoading, 
+    error: rolesApiError 
+  } = useQuery({
+    queryKey: ['/api/roles', { isActive: true }],
+    enabled: true
+  });
+
+  // Fetch departments for filters
+  const { 
+    data: departmentsApiResponse, 
+    isLoading: departmentsApiLoading 
+  } = useQuery({
+    queryKey: ['/api/departments'],
+    enabled: true
+  });
+
+  // Transform API responses to frontend format
+  const users: FrontendUser[] = Array.isArray(usersApiResponse) ? usersApiResponse.map(adaptUserToFrontend) : [];
+  const roles: FrontendRole[] = Array.isArray(rolesApiResponse) ? rolesApiResponse.map(adaptRoleToFrontend) : [];
+  const departments = departmentsApiResponse || [];
 
   const temporaryMockRoles: FrontendRole[] = [
     {
@@ -167,15 +135,8 @@ export default function UserManagement() {
     }
   ];
 
-  const { data: users, isLoading: usersLoading } = useQuery({
-    queryKey: ['/api/users', searchTerm, filterRole, filterDepartment],
-    queryFn: () => Promise.resolve(temporaryMockUsers),
-  });
-
-  const { data: roles, isLoading: rolesLoading } = useQuery({
-    queryKey: ['/api/roles'],
-    queryFn: () => Promise.resolve(temporaryMockRoles),
-  });
+  // Use the API data we already fetched
+  const isLoading = usersApiLoading || rolesApiLoading || departmentsApiLoading;
 
   const toggleUserStatus = useMutation({
     mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
@@ -237,7 +198,7 @@ export default function UserManagement() {
     return `منذ ${days} يوم`;
   };
 
-  if (usersLoading || rolesLoading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50" dir="rtl">
         <Header />
