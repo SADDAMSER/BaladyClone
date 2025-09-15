@@ -33,7 +33,8 @@ interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
     username: string;
-    role: string;
+    role: string; // Legacy compatibility
+    roleCodes?: string[]; // New RBAC system - array of role codes
     geographicAssignments?: any[];
   };
   requiredOwnership?: {
@@ -430,9 +431,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Invalid credentials" });
       }
       
-      console.log('Password valid, creating token');
+      console.log('Password valid, fetching roles and creating token');
+      
+      // Fetch user's active roles for new RBAC system
+      let userRoles: any[] = [];
+      let roleCodes: string[] = [];
+      try {
+        userRoles = await storage.getUserActiveRoles(user.id);
+        roleCodes = userRoles.map(role => role.code);
+        // Fallback to legacy role if no RBAC roles assigned
+        if (roleCodes.length === 0 && user.role) {
+          roleCodes = [user.role];
+        }
+      } catch (roleError) {
+        console.error('Error fetching user roles for simple login:', roleError);
+        // Fallback to legacy role system
+        roleCodes = user.role ? [user.role] : [];
+      }
+      
       const token = jwt.sign(
-        { id: user.id, username: user.username, role: user.role },
+        { 
+          id: user.id, 
+          username: user.username, 
+          role: user.role, // Legacy compatibility
+          roleCodes: roleCodes // New RBAC system
+        },
         jwtSecret,
         { expiresIn: '24h' }
       );
@@ -443,7 +466,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user: {
           id: user.id,
           username: user.username,
-          role: user.role
+          role: user.role, // Legacy compatibility
+          roleCodes: roleCodes, // New RBAC system
+          roles: userRoles // Full role objects for UI
         }
       });
     } catch (error) {
@@ -480,8 +505,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Continue with empty assignments - not critical for login
       }
 
+      // Fetch user's active roles for new RBAC system
+      let userRoles: any[] = [];
+      let roleCodes: string[] = [];
+      try {
+        userRoles = await storage.getUserActiveRoles(user.id);
+        roleCodes = userRoles.map(role => role.code);
+        // Fallback to legacy role if no RBAC roles assigned
+        if (roleCodes.length === 0 && user.role) {
+          roleCodes = [user.role];
+        }
+      } catch (roleError) {
+        console.error('Error fetching user roles:', roleError);
+        // Fallback to legacy role system
+        roleCodes = user.role ? [user.role] : [];
+      }
+
       const token = jwt.sign(
-        { id: user.id, username: user.username, role: user.role },
+        { 
+          id: user.id, 
+          username: user.username, 
+          role: user.role, // Legacy compatibility
+          roleCodes: roleCodes // New RBAC system
+        },
         jwtSecret,
         { expiresIn: '24h' }
       );
@@ -493,7 +539,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           username: user.username,
           email: user.email,
           fullName: user.fullName,
-          role: user.role,
+          role: user.role, // Legacy compatibility
+          roleCodes: roleCodes, // New RBAC system
+          roles: userRoles, // Full role objects for UI
           departmentId: user.departmentId,
           positionId: user.positionId,
           geographicAssignments: geographicAssignments

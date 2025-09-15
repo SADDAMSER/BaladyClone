@@ -2073,7 +2073,6 @@ export type InsertSyncSession = z.infer<typeof insertSyncSessionSchema>;
 export const insertOfflineOperationSchema = createInsertSchema(offlineOperations).omit({
   id: true,
   createdAt: true,
-  updatedAt: true,
 });
 
 export type OfflineOperation = typeof offlineOperations.$inferSelect;
@@ -2083,7 +2082,6 @@ export type InsertOfflineOperation = z.infer<typeof insertOfflineOperationSchema
 export const insertSyncConflictSchema = createInsertSchema(syncConflicts).omit({
   id: true,
   createdAt: true,
-  updatedAt: true,
 });
 
 export type SyncConflict = typeof syncConflicts.$inferSelect;

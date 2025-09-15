@@ -8,6 +8,7 @@ import {
   applicationAssignments, applicationStatusHistory, applicationReviews, notifications,
   appointments, contactAttempts, surveyAssignmentForms, userGeographicAssignments,
   fieldVisits, surveyResults, surveyReports,
+  roles, permissions, rolePermissions, userRoles,
   type User, type InsertUser, type Department, type InsertDepartment,
   type Position, type InsertPosition, type LawRegulation, type InsertLawRegulation,
   type LawSection, type InsertLawSection, type LawArticle, type InsertLawArticle,
@@ -39,7 +40,9 @@ import {
   type FieldVisit, type InsertFieldVisit,
   type SurveyResult, type InsertSurveyResult,
   type SurveyReport, type InsertSurveyReport,
-  type UserGeographicAssignment, type InsertUserGeographicAssignment
+  type UserGeographicAssignment, type InsertUserGeographicAssignment,
+  type Role, type InsertRole, type Permission, type InsertPermission,
+  type RolePermission, type InsertRolePermission, type UserRole, type InsertUserRole
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, like, ilike, and, or, desc, asc, sql, count, inArray } from "drizzle-orm";
@@ -75,6 +78,38 @@ export interface IStorage {
   createUserGeographicAssignment(assignment: any): Promise<any>;
   updateUserGeographicAssignment(id: string, updates: any): Promise<any>;
   deleteUserGeographicAssignment(id: string): Promise<void>;
+
+  // RBAC (Role-Based Access Control) - النظام الجديد للصلاحيات
+  // Roles management
+  getRoles(filters?: { isActive?: boolean; isSystemRole?: boolean }): Promise<Role[]>;
+  getRole(id: string): Promise<Role | undefined>;
+  getRoleByCode(code: string): Promise<Role | undefined>;
+  createRole(role: InsertRole): Promise<Role>;
+  updateRole(id: string, updates: Partial<InsertRole>): Promise<Role>;
+  deleteRole(id: string): Promise<void>;
+
+  // Permissions management
+  getPermissions(filters?: { category?: string; resource?: string; isActive?: boolean }): Promise<Permission[]>;
+  getPermission(id: string): Promise<Permission | undefined>;
+  getPermissionByCode(code: string): Promise<Permission | undefined>;
+  createPermission(permission: InsertPermission): Promise<Permission>;
+  updatePermission(id: string, updates: Partial<InsertPermission>): Promise<Permission>;
+  deletePermission(id: string): Promise<void>;
+
+  // Role-Permission mapping
+  getRolePermissions(roleId?: string): Promise<RolePermission[]>;
+  assignPermissionToRole(rolePermission: InsertRolePermission): Promise<RolePermission>;
+  removePermissionFromRole(roleId: string, permissionId: string): Promise<void>;
+
+  // User-Role mapping 
+  getUserRoles(userId?: string): Promise<UserRole[]>;
+  assignRoleToUser(userRole: InsertUserRole): Promise<UserRole>;
+  removeRoleFromUser(userId: string, roleId: string): Promise<void>;
+
+  // Core RBAC functions
+  hasPermission(userId: string, permissionCode: string): Promise<boolean>;
+  getUserPermissions(userId: string): Promise<Permission[]>;
+  getUserActiveRoles(userId: string): Promise<Role[]>;
 
   // Organizational structure
   getDepartments(): Promise<Department[]>;
@@ -666,6 +701,309 @@ export class DatabaseStorage implements IStorage {
       subDistrictIds: Array.from(scope.subDistrictIds),
       neighborhoodIds: Array.from(scope.neighborhoodIds)
     };
+  }
+
+  // ===========================================
+  // RBAC (Role-Based Access Control) - النظام الجديد للصلاحيات
+  // ===========================================
+
+  // Roles management
+  async getRoles(filters?: { isActive?: boolean; isSystemRole?: boolean }): Promise<Role[]> {
+    const conditions = [];
+    if (filters?.isActive !== undefined) conditions.push(eq(roles.isActive, filters.isActive));
+    if (filters?.isSystemRole !== undefined) conditions.push(eq(roles.isSystemRole, filters.isSystemRole));
+    
+    if (conditions.length > 0) {
+      return await db.select().from(roles).where(and(...conditions)).orderBy(asc(roles.level), asc(roles.nameAr));
+    }
+    return await db.select().from(roles).orderBy(asc(roles.level), asc(roles.nameAr));
+  }
+
+  async getRole(id: string): Promise<Role | undefined> {
+    const [role] = await db.select().from(roles).where(eq(roles.id, id));
+    return role || undefined;
+  }
+
+  async getRoleByCode(code: string): Promise<Role | undefined> {
+    const [role] = await db.select().from(roles).where(eq(roles.code, code));
+    return role || undefined;
+  }
+
+  async createRole(role: InsertRole): Promise<Role> {
+    const [result] = await db.insert(roles).values(role).returning();
+    return result;
+  }
+
+  async updateRole(id: string, updates: Partial<InsertRole>): Promise<Role> {
+    const [role] = await db
+      .update(roles)
+      .set({ ...updates, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(roles.id, id))
+      .returning();
+    return role;
+  }
+
+  async deleteRole(id: string): Promise<void> {
+    await db.delete(roles).where(eq(roles.id, id));
+  }
+
+  // Permissions management
+  async getPermissions(filters?: { category?: string; resource?: string; isActive?: boolean }): Promise<Permission[]> {
+    const conditions = [];
+    if (filters?.category) conditions.push(eq(permissions.category, filters.category));
+    if (filters?.resource) conditions.push(eq(permissions.resource, filters.resource));
+    if (filters?.isActive !== undefined) conditions.push(eq(permissions.isActive, filters.isActive));
+    
+    if (conditions.length > 0) {
+      return await db.select().from(permissions).where(and(...conditions)).orderBy(asc(permissions.category), asc(permissions.resource), asc(permissions.action));
+    }
+    return await db.select().from(permissions).orderBy(asc(permissions.category), asc(permissions.resource), asc(permissions.action));
+  }
+
+  async getPermission(id: string): Promise<Permission | undefined> {
+    const [permission] = await db.select().from(permissions).where(eq(permissions.id, id));
+    return permission || undefined;
+  }
+
+  async getPermissionByCode(code: string): Promise<Permission | undefined> {
+    const [permission] = await db.select().from(permissions).where(eq(permissions.code, code));
+    return permission || undefined;
+  }
+
+  async createPermission(permission: InsertPermission): Promise<Permission> {
+    const [result] = await db.insert(permissions).values(permission).returning();
+    return result;
+  }
+
+  async updatePermission(id: string, updates: Partial<InsertPermission>): Promise<Permission> {
+    const [permission] = await db
+      .update(permissions)
+      .set({ ...updates, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(permissions.id, id))
+      .returning();
+    return permission;
+  }
+
+  async deletePermission(id: string): Promise<void> {
+    await db.delete(permissions).where(eq(permissions.id, id));
+  }
+
+  // Role-Permission mapping
+  async getRolePermissions(roleId?: string): Promise<RolePermission[]> {
+    if (roleId) {
+      return await db.select().from(rolePermissions)
+        .where(and(eq(rolePermissions.roleId, roleId), eq(rolePermissions.isActive, true)));
+    }
+    return await db.select().from(rolePermissions).where(eq(rolePermissions.isActive, true));
+  }
+
+  async assignPermissionToRole(rolePermission: InsertRolePermission): Promise<RolePermission> {
+    // Check if mapping already exists
+    const existing = await db.select().from(rolePermissions)
+      .where(and(
+        eq(rolePermissions.roleId, rolePermission.roleId),
+        eq(rolePermissions.permissionId, rolePermission.permissionId)
+      ))
+      .limit(1);
+    
+    if (existing.length > 0) {
+      // Update existing mapping to be active
+      const [updated] = await db
+        .update(rolePermissions)
+        .set({ isActive: true })
+        .where(and(
+          eq(rolePermissions.roleId, rolePermission.roleId),
+          eq(rolePermissions.permissionId, rolePermission.permissionId)
+        ))
+        .returning();
+      return updated;
+    }
+    
+    // Create new mapping
+    const [result] = await db.insert(rolePermissions).values(rolePermission).returning();
+    return result;
+  }
+
+  async removePermissionFromRole(roleId: string, permissionId: string): Promise<void> {
+    await db.delete(rolePermissions)
+      .where(and(eq(rolePermissions.roleId, roleId), eq(rolePermissions.permissionId, permissionId)));
+  }
+
+  // User-Role mapping
+  async getUserRoles(userId?: string): Promise<UserRole[]> {
+    if (userId) {
+      return await db.select().from(userRoles)
+        .where(and(
+          eq(userRoles.userId, userId), 
+          eq(userRoles.isActive, true),
+          or(
+            sql`${userRoles.validUntil} IS NULL`,
+            sql`${userRoles.validUntil} > CURRENT_TIMESTAMP`
+          )
+        ));
+    }
+    return await db.select().from(userRoles)
+      .where(and(
+        eq(userRoles.isActive, true),
+        or(
+          sql`${userRoles.validUntil} IS NULL`,
+          sql`${userRoles.validUntil} > CURRENT_TIMESTAMP`
+        )
+      ));
+  }
+
+  async assignRoleToUser(userRole: InsertUserRole): Promise<UserRole> {
+    // Check if mapping already exists
+    const existing = await db.select().from(userRoles)
+      .where(and(
+        eq(userRoles.userId, userRole.userId),
+        eq(userRoles.roleId, userRole.roleId)
+      ))
+      .limit(1);
+    
+    if (existing.length > 0) {
+      // Update existing mapping to be active with new validity period
+      const [updated] = await db
+        .update(userRoles)
+        .set({ 
+          isActive: true,
+          validFrom: userRole.validFrom || sql`CURRENT_TIMESTAMP`,
+          validUntil: userRole.validUntil || null,
+          assignedBy: userRole.assignedBy
+        })
+        .where(and(
+          eq(userRoles.userId, userRole.userId),
+          eq(userRoles.roleId, userRole.roleId)
+        ))
+        .returning();
+      return updated;
+    }
+    
+    // Create new mapping
+    const [result] = await db.insert(userRoles).values(userRole).returning();
+    return result;
+  }
+
+  async removeRoleFromUser(userId: string, roleId: string): Promise<void> {
+    await db.delete(userRoles)
+      .where(and(eq(userRoles.userId, userId), eq(userRoles.roleId, roleId)));
+  }
+
+  // Core RBAC functions
+  async hasPermission(userId: string, permissionCode: string): Promise<boolean> {
+    try {
+      // Get user's active roles with full validation chain
+      const userActiveRoles = await db
+        .select({ roleId: userRoles.roleId })
+        .from(userRoles)
+        .leftJoin(roles, eq(userRoles.roleId, roles.id))
+        .where(and(
+          eq(userRoles.userId, userId),
+          eq(userRoles.isActive, true),
+          eq(roles.isActive, true),
+          or(
+            sql`${userRoles.validUntil} IS NULL`,
+            sql`${userRoles.validUntil} > CURRENT_TIMESTAMP`
+          )
+        ));
+
+      if (userActiveRoles.length === 0) return false;
+
+      const roleIds = userActiveRoles.map(ur => ur.roleId);
+
+      // Check if any of user's active roles have the active permission
+      const hasPermissionCheck = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(rolePermissions)
+        .leftJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
+        .where(and(
+          inArray(rolePermissions.roleId, roleIds),
+          eq(permissions.code, permissionCode),
+          eq(permissions.isActive, true),
+          eq(rolePermissions.isActive, true)
+        ));
+
+      return hasPermissionCheck[0]?.count > 0;
+    } catch (error) {
+      console.error('Error checking permission:', error);
+      return false;
+    }
+  }
+
+  async getUserPermissions(userId: string): Promise<Permission[]> {
+    try {
+      // Get user's active roles with full validation chain
+      const userActiveRoles = await db
+        .select({ roleId: userRoles.roleId })
+        .from(userRoles)
+        .leftJoin(roles, eq(userRoles.roleId, roles.id))
+        .where(and(
+          eq(userRoles.userId, userId),
+          eq(userRoles.isActive, true),
+          eq(roles.isActive, true),
+          or(
+            sql`${userRoles.validUntil} IS NULL`,
+            sql`${userRoles.validUntil} > CURRENT_TIMESTAMP`
+          )
+        ));
+
+      if (userActiveRoles.length === 0) return [];
+
+      const roleIds = userActiveRoles.map(ur => ur.roleId);
+
+      // Get all DISTINCT active permissions for these active roles
+      const userPermissions = await db
+        .selectDistinct({
+          id: permissions.id,
+          code: permissions.code,
+          nameAr: permissions.nameAr,
+          nameEn: permissions.nameEn,
+          description: permissions.description,
+          category: permissions.category,
+          resource: permissions.resource,
+          action: permissions.action,
+          scope: permissions.scope,
+          isSystemPermission: permissions.isSystemPermission,
+          isActive: permissions.isActive,
+          createdAt: permissions.createdAt,
+          updatedAt: permissions.updatedAt,
+        })
+        .from(permissions)
+        .innerJoin(rolePermissions, and(
+          eq(rolePermissions.permissionId, permissions.id),
+          eq(rolePermissions.isActive, true)
+        ))
+        .where(and(
+          inArray(rolePermissions.roleId, roleIds),
+          eq(permissions.isActive, true)
+        ))
+        .orderBy(asc(permissions.category), asc(permissions.resource), asc(permissions.action));
+
+      return userPermissions;
+    } catch (error) {
+      console.error('Error getting user permissions:', error);
+      return [];
+    }
+  }
+
+  async getUserActiveRoles(userId: string): Promise<Role[]> {
+    try {
+      const userActiveRoles = await this.getUserRoles(userId);
+      if (userActiveRoles.length === 0) return [];
+
+      const roleIds = userActiveRoles.map(ur => ur.roleId);
+
+      // Get role details
+      const userRolesDetails = await db
+        .select()
+        .from(roles)
+        .where(and(inArray(roles.id, roleIds), eq(roles.isActive, true)));
+
+      return userRolesDetails;
+    } catch (error) {
+      console.error('Error getting user active roles:', error);
+      return [];
+    }
   }
 
   // Organizational structure
@@ -2754,7 +3092,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createOfflineOperation(operation: InsertOfflineOperation): Promise<OfflineOperation> {
-    // Whitelist only existing database columns to prevent schema mismatch
+    // Type-safe payload creation with explicit property access
     const payload = {
       deviceId: operation.deviceId,
       userId: operation.userId,
@@ -2767,7 +3105,7 @@ export class DatabaseStorage implements IStorage {
       conflictResolution: operation.conflictResolution ?? null,
       errorMessage: operation.errorMessage ?? null,
       retryCount: operation.retryCount ?? 0,
-    };
+    } as const;
     
     const [newOperation] = await db
       .insert(offlineOperations)
@@ -2803,8 +3141,7 @@ export class DatabaseStorage implements IStorage {
       .set({ 
         syncStatus: 'conflicted',
         conflictResolution: conflictReason,
-        retryCount: sql`${offlineOperations.retryCount} + 1`,
-        updatedAt: sql`CURRENT_TIMESTAMP` 
+        retryCount: sql`${offlineOperations.retryCount} + 1`
       })
       .where(eq(offlineOperations.id, id))
       .returning();
@@ -2836,8 +3173,8 @@ export class DatabaseStorage implements IStorage {
     conflictType?: string;
   }): Promise<SyncConflict[]> {
     const conditions = [];
-    if (filters?.sessionId) conditions.push(eq(syncConflicts.sessionId, filters.sessionId));
-    if (filters?.status) conditions.push(eq(syncConflicts.status, filters.status));
+    if (filters?.sessionId) conditions.push(eq(syncConflicts.syncSessionId, filters.sessionId));
+    // Note: syncConflicts table doesn't have a 'status' column - conflicts are tracked by resolutionStrategy
     if (filters?.tableName) conditions.push(eq(syncConflicts.tableName, filters.tableName));
     if (filters?.conflictType) conditions.push(eq(syncConflicts.conflictType, filters.conflictType));
     
@@ -2860,23 +3197,36 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createSyncConflict(conflict: InsertSyncConflict): Promise<SyncConflict> {
+    // Type-safe conflict creation
+    const payload = {
+      syncSessionId: conflict.syncSessionId,
+      tableName: conflict.tableName,
+      recordId: conflict.recordId,
+      fieldName: conflict.fieldName,
+      serverValue: conflict.serverValue,
+      clientValue: conflict.clientValue,
+      conflictType: conflict.conflictType,
+      resolutionStrategy: conflict.resolutionStrategy,
+      resolvedValue: conflict.resolvedValue,
+      resolvedBy: conflict.resolvedBy,
+      resolvedAt: conflict.resolvedAt,
+    } as const;
+    
     const [newConflict] = await db
       .insert(syncConflicts)
-      .values(conflict)
+      .values(payload)
       .returning();
     return newConflict;
   }
 
-  async resolveSyncConflict(id: string, resolutionStrategy: string, resolvedData: any, resolvedBy: string): Promise<SyncConflict> {
+  async resolveSyncConflict(id: string, resolutionStrategy: string, resolvedValue: any, resolvedBy: string): Promise<SyncConflict> {
     const [updated] = await db
       .update(syncConflicts)
       .set({ 
-        status: 'resolved',
         resolutionStrategy,
-        resolvedData,
+        resolvedValue,
         resolvedBy,
-        resolvedAt: sql`CURRENT_TIMESTAMP`,
-        updatedAt: sql`CURRENT_TIMESTAMP` 
+        resolvedAt: sql`CURRENT_TIMESTAMP`
       })
       .where(eq(syncConflicts.id, id))
       .returning();
@@ -2884,10 +3234,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUnresolvedConflicts(sessionId?: string): Promise<SyncConflict[]> {
-    const conditions = [eq(syncConflicts.status, 'unresolved')];
+    const conditions = [sql`${syncConflicts.resolvedAt} IS NULL`]; // unresolved conflicts
     
     if (sessionId) {
-      conditions.push(eq(syncConflicts.sessionId, sessionId));
+      conditions.push(eq(syncConflicts.syncSessionId, sessionId));
     }
     
     return await db
@@ -3097,10 +3447,11 @@ export class DatabaseStorage implements IStorage {
           
           // Get timestamp columns from actual schema metadata
           const tableColumns = Object.entries(resolvedTable).filter(([key, col]) => 
-            col && typeof col === 'object' && (
-              col.columnType === 'PgTimestamp' || 
-              col.dataType === 'timestamp' ||
-              (col.constructor && col.constructor.name === 'PgTimestamp')
+            col && typeof col === 'object' && 
+            'columnType' in col && 'dataType' in col && (
+              (col as any).columnType === 'PgTimestamp' || 
+              (col as any).dataType === 'timestamp' ||
+              ((col as any).constructor && (col as any).constructor.name === 'PgTimestamp')
             )
           );
           
