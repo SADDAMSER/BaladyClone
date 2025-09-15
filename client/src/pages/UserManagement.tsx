@@ -389,9 +389,11 @@ export default function UserManagement() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">جميع الأقسام</SelectItem>
-                    <SelectItem value="التراخيص">التراخيص</SelectItem>
-                    <SelectItem value="المساحة">المساحة</SelectItem>
-                    <SelectItem value="الاشتراطات">الاشتراطات</SelectItem>
+                    {departments?.map((department: any) => (
+                      <SelectItem key={department.id} value={department.id}>
+                        {department.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
