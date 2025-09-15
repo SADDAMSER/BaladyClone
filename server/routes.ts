@@ -756,6 +756,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/roles", authenticateToken, requireRole('admin'), validateRequest(insertRoleSchema), async (req, res) => {
     try {
+      console.log('POST /api/roles - Request body:', req.body);
       const roleData = insertRoleSchema.parse(req.body);
       const role = await storage.createRole(roleData);
       res.status(201).json(role);
