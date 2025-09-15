@@ -12,12 +12,13 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  const token = localStorage.getItem("auth-token");
+  const token = localStorage.getItem("token");
   const headers: Record<string, string> = {
     ...(data ? { "Content-Type": "application/json" } : {}),
     ...(token ? { "Authorization": `Bearer ${token}` } : {}),
   };
 
+  console.log('[DEBUG] Sending API request with headers:', JSON.stringify(headers, null, 2));
   const res = await fetch(url, {
     method,
     headers,
@@ -35,7 +36,7 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const token = localStorage.getItem("auth-token");
+    const token = localStorage.getItem("token");
     const headers: Record<string, string> = {
       ...(token ? { "Authorization": `Bearer ${token}` } : {}),
     };
@@ -66,6 +67,7 @@ export const getQueryFn: <T>(options: {
       }
     }
 
+    console.log('[DEBUG] Sending GET query with headers:', JSON.stringify(headers, null, 2));
     const res = await fetch(url, {
       headers,
       credentials: "include",
