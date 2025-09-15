@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -85,6 +85,8 @@ export default function UserManagement() {
   const [showUserDetails, setShowUserDetails] = useState(false);
   const [showAddRole, setShowAddRole] = useState(false);
   const [showRolePermissions, setShowRolePermissions] = useState(false);
+  // Local state for permissions to prevent race conditions  
+  const [localSelectedPermissions, setLocalSelectedPermissions] = useState<Set<string>>(new Set());
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -178,20 +180,35 @@ export default function UserManagement() {
   const permissions = Array.isArray(permissionsApiResponse) ? permissionsApiResponse : [];
   const rolePermissions = Array.isArray(rolePermissionsApiResponse) ? rolePermissionsApiResponse : [];
   
-  // Get assigned permission IDs for selected role
-  const assignedPermissionIds = rolePermissions.map(rp => rp.permissionId);
-
-  // Handle permission checkbox changes
-  const handlePermissionChange = (permissionId: string, checked: boolean) => {
-    let newPermissionIds = [...assignedPermissionIds];
-    if (checked) {
-      newPermissionIds.push(permissionId);
-    } else {
-      newPermissionIds = newPermissionIds.filter(id => id !== permissionId);
+  // Initialize local permissions when role permissions are loaded
+  useEffect(() => {
+    if (rolePermissions.length > 0) {
+      const permissionIds = rolePermissions.map(rp => rp.permissionId);
+      setLocalSelectedPermissions(new Set(permissionIds));
     }
+  }, [rolePermissions]);
+  
+  // Get assigned permission IDs for selected role (fallback to local state)
+  const assignedPermissionIds = Array.from(localSelectedPermissions);
+
+  // Handle permission checkbox changes with local state management
+  const handlePermissionChange = (permissionId: string, checked: boolean | "indeterminate") => {
+    // Only handle boolean values (ignore indeterminate)
+    if (typeof checked !== 'boolean') return;
+    
+    // Update local state immediately for optimistic UI
+    const newPermissions = new Set(localSelectedPermissions);
+    if (checked) {
+      newPermissions.add(permissionId);
+    } else {
+      newPermissions.delete(permissionId);
+    }
+    setLocalSelectedPermissions(newPermissions);
+    
+    // Send to server
     updateRolePermissionsMutation.mutate({ 
       roleId: selectedRole!.id, 
-      permissionIds: newPermissionIds 
+      permissionIds: Array.from(newPermissions)
     });
   };
 
@@ -345,7 +362,7 @@ export default function UserManagement() {
         title: "تم التحديث",
         description: "تم تحديث صلاحيات الدور بنجاح",
       });
-      setShowRolePermissions(false);
+      // Don't close dialog - keep it open for multi-edit
       queryClient.invalidateQueries({ queryKey: ['/api/roles'] });
       queryClient.invalidateQueries({ queryKey: ['/api/roles', selectedRole?.id, 'permissions'] });
     },
@@ -960,6 +977,8 @@ export default function UserManagement() {
                             size="sm"
                             onClick={() => {
                               setSelectedRole(role);
+                              // Initialize local permissions state when opening dialog
+                              setLocalSelectedPermissions(new Set());
                               setShowRolePermissions(true);
                             }}
                             data-testid={`manage-permissions-${role.id}`}
@@ -1080,9 +1099,12 @@ export default function UserManagement() {
                   </div>
                 </div>
 
-                {permissionsApiLoading ? (
+                {(permissionsApiLoading || rolePermissionsApiLoading) ? (
                   <div className="flex items-center justify-center py-8">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    <p className="mr-2 text-sm text-muted-foreground">
+                      جاري تحميل {permissionsApiLoading ? 'الصلاحيات' : 'صلاحيات الدور'}...
+                    </p>
                   </div>
                 ) : (
                   <div className="space-y-4">
