@@ -2029,27 +2029,20 @@ export const offlineOperations = pgTable("offline_operations", {
 // Sync Conflicts table (تعارضات المزامنة) - لإدارة التعارضات بين البيانات المحلية والخادم
 export const syncConflicts = pgTable("sync_conflicts", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  sessionId: uuid("session_id")
+  syncSessionId: uuid("sync_session_id")
     .references(() => syncSessions.id, { onDelete: "cascade" })
     .notNull(),
-  operationId: uuid("operation_id")
-    .references(() => offlineOperations.id, { onDelete: "cascade" })
-    .notNull(),
-  conflictType: text("conflict_type").notNull(), // concurrent_update, deleted_on_server, validation_error
   tableName: text("table_name").notNull(),
   recordId: text("record_id").notNull(),
-  localData: jsonb("local_data").notNull(), // البيانات من الجهاز
-  serverData: jsonb("server_data"), // البيانات من الخادم
-  conflictFields: text("conflict_fields").array(), // الحقول المتعارضة
+  fieldName: text("field_name"), // الحقل المتعارض
+  serverValue: jsonb("server_value"), // القيمة من الخادم
+  clientValue: jsonb("client_value"), // القيمة من العميل
+  conflictType: text("conflict_type").notNull(), // concurrent_update, deleted_on_server, validation_error
   resolutionStrategy: text("resolution_strategy"), // server_wins, client_wins, merge, manual
-  resolvedData: jsonb("resolved_data"), // البيانات بعد حل التعارض
-  status: text("status").default("unresolved"), // unresolved, resolved, ignored
+  resolvedValue: jsonb("resolved_value"), // القيمة بعد حل التعارض
   resolvedBy: uuid("resolved_by").references(() => users.id),
   resolvedAt: timestamp("resolved_at"),
-  notes: text("notes"),
-  metadata: jsonb("metadata"),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
 // ===========================================
@@ -2095,3 +2088,133 @@ export const insertSyncConflictSchema = createInsertSchema(syncConflicts).omit({
 
 export type SyncConflict = typeof syncConflicts.$inferSelect;
 export type InsertSyncConflict = z.infer<typeof insertSyncConflictSchema>;
+
+// ===========================================
+// FLEXIBLE RBAC SYSTEM - ADVANCED PERMISSION MANAGEMENT
+// ===========================================
+
+// Roles table - قاعدة الأدوار النظامية
+export const roles = pgTable("roles", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: text("code").notNull().unique(), // admin, manager, engineer, employee, citizen
+  nameAr: text("name_ar").notNull(), // اسم الدور بالعربية
+  nameEn: text("name_en").notNull(), // اسم الدور بالإنجليزية
+  description: text("description"), // وصف الدور ومسؤولياته
+  level: integer("level").notNull().default(1), // مستوى الدور في الهرمية (1=highest)
+  isSystemRole: boolean("is_system_role").default(false), // أدوار النظام الأساسية
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Permissions table - قاعدة الصلاحيات التفصيلية
+export const permissions = pgTable("permissions", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: text("code").notNull().unique(), // users.create, applications.approve, etc.
+  nameAr: text("name_ar").notNull(), // اسم الصلاحية بالعربية
+  nameEn: text("name_en").notNull(), // اسم الصلاحية بالإنجليزية
+  description: text("description"), // وصف الصلاحية
+  category: text("category").notNull(), // users, applications, geographic, system
+  resource: text("resource").notNull(), // users, applications, districts, etc.
+  action: text("action").notNull(), // create, read, update, delete, approve, assign
+  scope: text("scope").default("own"), // own, department, region, all
+  isSystemPermission: boolean("is_system_permission").default(false), // صلاحيات النظام الأساسية
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  // CONSTRAINTS for data integrity and consistency
+  validAction: sql`CONSTRAINT valid_action CHECK (
+    action IN ('create', 'read', 'update', 'delete', 'approve', 'assign', 'export', 'review')
+  )`,
+  validScope: sql`CONSTRAINT valid_scope CHECK (
+    scope IN ('own', 'department', 'region', 'all')
+  )`,
+  validCategory: sql`CONSTRAINT valid_category CHECK (
+    category IN ('users', 'applications', 'geographic', 'system', 'reports', 'tasks')
+  )`,
+}));
+
+// Role-Permission mapping - ربط الأدوار بالصلاحيات
+export const rolePermissions = pgTable("role_permissions", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  roleId: uuid("role_id")
+    .references(() => roles.id, { onDelete: "cascade" })
+    .notNull(),
+  permissionId: uuid("permission_id")
+    .references(() => permissions.id, { onDelete: "cascade" })
+    .notNull(),
+  grantedAt: timestamp("granted_at").default(sql`CURRENT_TIMESTAMP`),
+  grantedBy: uuid("granted_by")
+    .references(() => users.id),
+  isActive: boolean("is_active").default(true),
+}, (table) => ({
+  // منع التكرار في ربط الدور بنفس الصلاحية
+  uniqueRolePermission: sql`CONSTRAINT unique_role_permission UNIQUE (role_id, permission_id)`,
+}));
+
+// User-Role mapping - ربط المستخدمين بالأدوار (many-to-many)
+export const userRoles = pgTable("user_roles", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  roleId: uuid("role_id")
+    .references(() => roles.id, { onDelete: "cascade" })
+    .notNull(),
+  assignedAt: timestamp("assigned_at").default(sql`CURRENT_TIMESTAMP`),
+  assignedBy: uuid("assigned_by")
+    .references(() => users.id),
+  validFrom: timestamp("valid_from").default(sql`CURRENT_TIMESTAMP`),
+  validUntil: timestamp("valid_until"), // null = دائم
+  isActive: boolean("is_active").default(true),
+}, (table) => ({
+  // منع تكرار نفس الدور للمستخدم الواحد (مؤقتاً)
+  uniqueUserRole: sql`CONSTRAINT unique_user_role UNIQUE (user_id, role_id)`,
+  // التأكد من صحة الفترة الزمنية
+  validPeriodCheck: sql`CONSTRAINT valid_period_check CHECK (
+    valid_until IS NULL OR valid_from < valid_until
+  )`,
+}));
+
+// ===========================================
+// SCHEMAS & TYPES FOR NEW RBAC SYSTEM
+// ===========================================
+
+// Roles schemas
+export const insertRoleSchema = createInsertSchema(roles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type Role = typeof roles.$inferSelect;
+export type InsertRole = z.infer<typeof insertRoleSchema>;
+
+// Permissions schemas
+export const insertPermissionSchema = createInsertSchema(permissions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type Permission = typeof permissions.$inferSelect;
+export type InsertPermission = z.infer<typeof insertPermissionSchema>;
+
+// Role-Permission schemas
+export const insertRolePermissionSchema = createInsertSchema(rolePermissions).omit({
+  id: true,
+  grantedAt: true,
+});
+
+export type RolePermission = typeof rolePermissions.$inferSelect;
+export type InsertRolePermission = z.infer<typeof insertRolePermissionSchema>;
+
+// User-Role schemas
+export const insertUserRoleSchema = createInsertSchema(userRoles).omit({
+  id: true,
+  assignedAt: true,
+});
+
+export type UserRole = typeof userRoles.$inferSelect;
+export type InsertUserRole = z.infer<typeof insertUserRoleSchema>;
