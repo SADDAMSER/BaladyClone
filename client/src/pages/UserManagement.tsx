@@ -28,47 +28,22 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Header from '@/components/Header';
-
-interface User {
-  id: string;
-  username: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  phone?: string;
-  role: UserRole;
-  department: string;
-  position: string;
-  isActive: boolean;
-  lastLogin?: Date;
-  createdAt: Date;
-  permissions: Permission[];
-}
-
-interface UserRole {
-  id: string;
-  name: string;
-  nameAr: string;
-  description: string;
-  level: number; // 1=admin, 2=manager, 3=employee, 4=citizen
-  permissions: Permission[];
-}
-
-interface Permission {
-  id: string;
-  name: string;
-  nameAr: string;
-  module: string;
-  action: 'create' | 'read' | 'update' | 'delete' | 'execute';
-  resource: string;
-}
+import { 
+  type FrontendUser, 
+  type FrontendRole, 
+  type FrontendPermission,
+  type UserQueryParams,
+  adaptUserToFrontend,
+  adaptRoleToFrontend,
+  adaptPermissionToFrontend
+} from '@/types/userManagement';
 
 export default function UserManagement() {
   const [selectedView, setSelectedView] = useState('users');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState<string>('all');
   const [filterDepartment, setFilterDepartment] = useState<string>('all');
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedUser, setSelectedUser] = useState<FrontendUser | null>(null);
   const [showAddUser, setShowAddUser] = useState(false);
   const [showEditUser, setShowEditUser] = useState(false);
   const [showUserDetails, setShowUserDetails] = useState(false);
@@ -76,119 +51,130 @@ export default function UserManagement() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Mock data for demonstration
-  const mockUsers: User[] = [
+  // TODO: Replace with real API calls - keeping mock temporarily until API connection
+  const temporaryMockUsers: FrontendUser[] = [
     {
       id: '1',
       username: 'ahmed.manager',
       email: 'ahmed.manager@yemen.gov.ye',
-      firstName: 'أحمد',
-      lastName: 'المدير',
-      phone: '967-771234567',
-      role: {
+      fullName: 'أحمد المدير',
+      phoneNumber: '967-771234567',
+      roles: [{
         id: '2',
-        name: 'manager',
+        code: 'manager',
         nameAr: 'مدير قسم',
+        nameEn: 'Manager',
         description: 'مدير قسم مع صلاحيات الإشراف',
         level: 2,
-        permissions: []
-      },
-      department: 'التراخيص',
-      position: 'مدير قسم التراخيص',
+        isSystemRole: false,
+        isActive: true
+      }],
+      legacyRole: 'manager',
+      departmentName: 'التراخيص',
+      positionTitle: 'مدير قسم التراخيص',
       isActive: true,
       lastLogin: new Date(Date.now() - 2 * 60 * 60 * 1000),
-      createdAt: new Date('2023-01-15'),
-      permissions: []
+      createdAt: new Date('2023-01-15')
     },
     {
       id: '2',
       username: 'fatima.employee',
       email: 'fatima.employee@yemen.gov.ye',
-      firstName: 'فاطمة',
-      lastName: 'الموظفة',
-      phone: '967-773456789',
-      role: {
+      fullName: 'فاطمة الموظفة',
+      phoneNumber: '967-773456789',
+      roles: [{
         id: '3',
-        name: 'employee',
-        nameAr: 'موظف',
-        description: 'موظف عادي مع صلاحيات محدودة',
+        code: 'engineer',
+        nameAr: 'مهندس',
+        nameEn: 'Engineer',
+        description: 'مهندس مع صلاحيات تقنية',
         level: 3,
-        permissions: []
-      },
-      department: 'المساحة',
-      position: 'مساح أول',
+        isSystemRole: false,
+        isActive: true
+      }],
+      legacyRole: 'employee',
+      departmentName: 'المساحة',
+      positionTitle: 'مساح أول',
       isActive: true,
       lastLogin: new Date(Date.now() - 6 * 60 * 60 * 1000),
-      createdAt: new Date('2023-03-20'),
-      permissions: []
+      createdAt: new Date('2023-03-20')
     },
     {
       id: '3',
       username: 'mohamed.citizen',
       email: 'mohamed.citizen@gmail.com',
-      firstName: 'محمد',
-      lastName: 'المواطن',
-      phone: '967-775678901',
-      role: {
+      fullName: 'محمد المواطن',
+      phoneNumber: '967-775678901',
+      roles: [{
         id: '4',
-        name: 'citizen',
+        code: 'citizen',
         nameAr: 'مواطن',
+        nameEn: 'Citizen',
         description: 'مواطن عادي يستخدم الخدمات',
         level: 4,
-        permissions: []
-      },
-      department: 'غير محدد',
-      position: 'مواطن',
+        isSystemRole: false,
+        isActive: true
+      }],
+      legacyRole: 'citizen',
+      departmentName: 'غير محدد',
+      positionTitle: 'مواطن',
       isActive: true,
       lastLogin: new Date(Date.now() - 24 * 60 * 60 * 1000),
-      createdAt: new Date('2023-06-10'),
-      permissions: []
+      createdAt: new Date('2023-06-10')
     }
   ];
 
-  const mockRoles: UserRole[] = [
+  const temporaryMockRoles: FrontendRole[] = [
     {
       id: '1',
-      name: 'admin',
+      code: 'admin',
       nameAr: 'مدير عام',
+      nameEn: 'Administrator',
       description: 'مدير عام مع صلاحيات كاملة',
       level: 1,
-      permissions: []
+      isSystemRole: true,
+      isActive: true
     },
     {
       id: '2',
-      name: 'manager',
+      code: 'manager',
       nameAr: 'مدير قسم',
+      nameEn: 'Manager',
       description: 'مدير قسم مع صلاحيات الإشراف',
       level: 2,
-      permissions: []
+      isSystemRole: false,
+      isActive: true
     },
     {
       id: '3',
-      name: 'employee',
-      nameAr: 'موظف',
-      description: 'موظف عادي مع صلاحيات محدودة',
+      code: 'engineer',
+      nameAr: 'مهندس',
+      nameEn: 'Engineer',
+      description: 'مهندس مع صلاحيات تقنية',
       level: 3,
-      permissions: []
+      isSystemRole: false,
+      isActive: true
     },
     {
       id: '4',
-      name: 'citizen',
+      code: 'citizen',
       nameAr: 'مواطن',
+      nameEn: 'Citizen',
       description: 'مواطن عادي يستخدم الخدمات',
       level: 4,
-      permissions: []
+      isSystemRole: false,
+      isActive: true
     }
   ];
 
   const { data: users, isLoading: usersLoading } = useQuery({
     queryKey: ['/api/users', searchTerm, filterRole, filterDepartment],
-    queryFn: () => Promise.resolve(mockUsers),
+    queryFn: () => Promise.resolve(temporaryMockUsers),
   });
 
   const { data: roles, isLoading: rolesLoading } = useQuery({
     queryKey: ['/api/roles'],
-    queryFn: () => Promise.resolve(mockRoles),
+    queryFn: () => Promise.resolve(temporaryMockRoles),
   });
 
   const toggleUserStatus = useMutation({
@@ -220,12 +206,11 @@ export default function UserManagement() {
   });
 
   const filteredUsers = users?.filter(user => {
-    const matchesSearch = user.firstName.includes(searchTerm) || 
-                         user.lastName.includes(searchTerm) || 
+    const matchesSearch = user.fullName.includes(searchTerm) || 
                          user.email.includes(searchTerm) ||
                          user.username.includes(searchTerm);
-    const matchesRole = filterRole === 'all' || user.role.id === filterRole;
-    const matchesDepartment = filterDepartment === 'all' || user.department === filterDepartment;
+    const matchesRole = filterRole === 'all' || (user.roles.length > 0 && user.roles[0].id === filterRole);
+    const matchesDepartment = filterDepartment === 'all' || user.departmentName === filterDepartment;
     
     return matchesSearch && matchesRole && matchesDepartment;
   }) || [];
@@ -484,20 +469,20 @@ export default function UserManagement() {
                     >
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
-                          {user.firstName.charAt(0)}{user.lastName.charAt(0)}
+                          {user.fullName.split(' ').map(n => n.charAt(0)).slice(0, 2).join('')}
                         </div>
                         
                         <div>
-                          <h3 className="font-medium text-lg">{user.firstName} {user.lastName}</h3>
+                          <h3 className="font-medium text-lg">{user.fullName}</h3>
                           <p className="text-sm text-gray-600">{user.email}</p>
-                          <p className="text-sm text-gray-500">{user.position} - {user.department}</p>
+                          <p className="text-sm text-gray-500">{user.positionTitle} - {user.departmentName}</p>
                         </div>
                       </div>
                       
                       <div className="flex items-center gap-4">
                         <div className="text-center">
-                          <Badge className={getRoleColor(user.role.level)}>
-                            {user.role.nameAr}
+                          <Badge className={getRoleColor(user.roles[0]?.level || 4)}>
+                            {user.roles[0]?.nameAr || 'غير محدد'}
                           </Badge>
                           <p className="text-xs text-gray-500 mt-1">
                             {formatLastLogin(user.lastLogin)}
@@ -594,7 +579,7 @@ export default function UserManagement() {
                         
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-gray-500">
-                            {users?.filter(u => u.role.id === role.id).length || 0} مستخدم
+                            {users?.filter(u => u.roles[0]?.id === role.id).length || 0} مستخدم
                           </span>
                           <Button variant="outline" size="sm">
                             <Key className="w-4 h-4 ml-1" />
@@ -642,13 +627,13 @@ export default function UserManagement() {
               <div className="space-y-6">
                 <div className="flex items-center gap-4">
                   <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-xl">
-                    {selectedUser.firstName.charAt(0)}{selectedUser.lastName.charAt(0)}
+                    {selectedUser.fullName.split(' ').map(n => n.charAt(0)).slice(0, 2).join('')}
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold">{selectedUser.firstName} {selectedUser.lastName}</h2>
-                    <p className="text-gray-600">{selectedUser.position}</p>
-                    <Badge className={getRoleColor(selectedUser.role.level)}>
-                      {selectedUser.role.nameAr}
+                    <h2 className="text-xl font-bold">{selectedUser.fullName}</h2>
+                    <p className="text-gray-600">{selectedUser.positionTitle}</p>
+                    <Badge className={getRoleColor(selectedUser.roles[0]?.level || 4)}>
+                      {selectedUser.roles[0]?.nameAr || 'غير محدد'}
                     </Badge>
                   </div>
                 </div>
@@ -660,11 +645,11 @@ export default function UserManagement() {
                   </div>
                   <div>
                     <Label className="text-sm font-medium text-gray-700">رقم الهاتف</Label>
-                    <p className="mt-1">{selectedUser.phone || 'غير محدد'}</p>
+                    <p className="mt-1">{selectedUser.phoneNumber || 'غير محدد'}</p>
                   </div>
                   <div>
                     <Label className="text-sm font-medium text-gray-700">القسم</Label>
-                    <p className="mt-1">{selectedUser.department}</p>
+                    <p className="mt-1">{selectedUser.departmentName}</p>
                   </div>
                   <div>
                     <Label className="text-sm font-medium text-gray-700">تاريخ الإنشاء</Label>
