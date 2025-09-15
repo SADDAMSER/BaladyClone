@@ -2754,9 +2754,24 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createOfflineOperation(operation: InsertOfflineOperation): Promise<OfflineOperation> {
+    // Whitelist only existing database columns to prevent schema mismatch
+    const payload = {
+      deviceId: operation.deviceId,
+      userId: operation.userId,
+      operationType: operation.operationType,
+      tableName: operation.tableName,
+      recordId: operation.recordId,
+      operationData: operation.operationData,
+      timestamp: operation.timestamp ?? new Date(),
+      syncStatus: operation.syncStatus ?? 'pending',
+      conflictResolution: operation.conflictResolution ?? null,
+      errorMessage: operation.errorMessage ?? null,
+      retryCount: operation.retryCount ?? 0,
+    };
+    
     const [newOperation] = await db
       .insert(offlineOperations)
-      .values(operation)
+      .values(payload)
       .returning();
     return newOperation;
   }
@@ -2764,7 +2779,7 @@ export class DatabaseStorage implements IStorage {
   async updateOfflineOperation(id: string, updates: Partial<InsertOfflineOperation>): Promise<OfflineOperation> {
     const [updated] = await db
       .update(offlineOperations)
-      .set({ ...updates, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .set({ ...updates })
       .where(eq(offlineOperations.id, id))
       .returning();
     return updated;
@@ -2774,9 +2789,8 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db
       .update(offlineOperations)
       .set({ 
-        syncStatus: 'synced',
-        // serverTimestamp field removed
-        updatedAt: sql`CURRENT_TIMESTAMP` 
+        syncStatus: 'synced'
+        // serverTimestamp and updatedAt fields removed 
       })
       .where(eq(offlineOperations.id, id))
       .returning();
@@ -3034,53 +3048,134 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  // Security-critical: Map sync table names to actual Drizzle table objects
+  private resolveSyncTable(tableName: string) {
+    const syncTableMap: Record<string, any> = {
+      'fieldVisits': fieldVisits,
+      'field_visits': fieldVisits,
+      'plots': plots,
+      'blocks': blocks,
+      'neighborhoods': neighborhoods,
+      'applications': applications,
+      'surveying_decisions': surveyingDecisions,
+      'survey_results': surveyResults
+    };
+    
+    return syncTableMap[tableName] || null;
+  }
+
   async applyBulkChanges(tableName: string, operations: OfflineOperation[]): Promise<{ success: number; conflicts: number; errors: number }> {
     let success = 0;
     let conflicts = 0;
     let errors = 0;
 
+    // Security: Resolve table to prevent SQL injection via dynamic table names
+    const resolvedTable = this.resolveSyncTable(tableName);
+    if (!resolvedTable) {
+      console.error(`[SECURITY] Rejected sync operation for unauthorized table: ${tableName}`);
+      return { success: 0, conflicts: 0, errors: operations.length };
+    }
+
     for (const operation of operations) {
       try {
-        // This is a simplified implementation
-        // In production, you'd need table-specific logic
-        
         if (operation.operationType === 'create') {
-          const insertQuery = sql`
-            INSERT INTO ${sql.identifier(tableName)} 
-            SELECT * FROM jsonb_populate_record(NULL::${sql.identifier(tableName)}, ${operation.operationData})
-          `;
-          await db.execute(insertQuery);
+          // Use only Drizzle ORM for security and type safety
+          let insertData = operation.operationData as any;
+          
+          // Sanitize and set server-side ID for all tables
+          delete insertData.id; // Remove any client-provided ID
+          insertData.id = operation.recordId || crypto.randomUUID();
+          
+          // METADATA-DRIVEN timestamp coercion using actual Drizzle schema
+          console.log(`[DEBUG] applyBulkChanges ENTRY for ${tableName} create operation`);
+          
+          // Strip ALL client-supplied timestamps unconditionally (security + consistency)
+          delete insertData.createdAt;
+          delete insertData.updatedAt;
+          delete insertData.created_at;
+          delete insertData.updated_at;
+          
+          // Get timestamp columns from actual schema metadata
+          const tableColumns = Object.entries(resolvedTable).filter(([key, col]) => 
+            col && typeof col === 'object' && (
+              col.columnType === 'PgTimestamp' || 
+              col.dataType === 'timestamp' ||
+              (col.constructor && col.constructor.name === 'PgTimestamp')
+            )
+          );
+          
+          console.log(`[DEBUG] Found timestamp columns for ${tableName}:`, tableColumns.map(([key, col]) => key));
+          
+          // Coerce each timestamp column to proper Date object
+          tableColumns.forEach(([columnKey, column]) => {
+            if (insertData[columnKey] !== undefined) {
+              const value = insertData[columnKey];
+              const originalType = typeof value;
+              
+              if (value instanceof Date) {
+                console.log(`[DEBUG] ${columnKey}: already Date object ✅`);
+                return;
+              }
+              
+              if (typeof value === 'string' || typeof value === 'number') {
+                // Handle YYYY-MM-DD format by adding time component  
+                const dateStr = typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+                  ? `${value}T00:00:00Z`
+                  : value;
+                
+                const date = new Date(dateStr);
+                if (isNaN(date.getTime())) {
+                  console.warn(`[WARNING] Invalid date for ${columnKey}:`, value, 'setting to null');
+                  insertData[columnKey] = null;
+                } else {
+                  insertData[columnKey] = date;
+                  console.log(`[DEBUG] ${columnKey}: ${originalType} → Date ✅`);
+                }
+              } else {
+                console.warn(`[WARNING] Invalid type for ${columnKey}:`, originalType, 'setting to null');
+                insertData[columnKey] = null;
+              }
+            }
+          });
+          
+          // Set server-side timestamps (always Date objects)
+          insertData.createdAt = new Date();
+          insertData.updatedAt = new Date();
+          
+          // Final verification log
+          const finalDateFields = Object.keys(insertData).filter(k => insertData[k] instanceof Date);
+          console.log(`[DEBUG] Final Date fields for ${tableName}:`, finalDateFields);
+          
+          console.log(`[DEBUG] Inserting into ${tableName} with server-side ID: ${insertData.id}`);
+          await db.insert(resolvedTable).values(insertData);
+          console.log(`[DEBUG] Successfully inserted record with ID: ${insertData.id}`);
           success++;
         } else if (operation.operationType === 'update') {
-          // Check if record exists and hasn't been modified
-          const checkQuery = sql`
-            SELECT updated_at FROM ${sql.identifier(tableName)} 
-            WHERE id = ${operation.recordId}
-          `;
-          const existing = await db.execute(checkQuery);
+          // Use Drizzle ORM for safe updates (no raw SQL with table names)
+          let updateData = operation.operationData as any;
+          updateData.updatedAt = sql`CURRENT_TIMESTAMP`;
           
-          if (existing.rows.length === 0) {
+          console.log(`[DEBUG] Updating ${tableName} record ID: ${operation.recordId}`);
+          const result = await db.update(resolvedTable)
+            .set(updateData)
+            .where(eq(resolvedTable.id, operation.recordId));
+          
+          if (result.rowCount === 0) {
             conflicts++;
-            continue;
+          } else {
+            success++;
           }
-          
-          // Apply update
-          const updateQuery = sql`
-            UPDATE ${sql.identifier(tableName)} 
-            SET ${sql.raw(Object.entries(operation.operationData as any || {})
-              .map(([key, value]) => `${key} = ${typeof value === 'string' ? `'${value}'` : value}`)
-              .join(', '))}
-            WHERE id = ${operation.recordId}
-          `;
-          await db.execute(updateQuery);
-          success++;
         } else if (operation.operationType === 'delete') {
-          const deleteQuery = sql`
-            DELETE FROM ${sql.identifier(tableName)} 
-            WHERE id = ${operation.recordId}
-          `;
-          await db.execute(deleteQuery);
-          success++;
+          // Use Drizzle ORM for safe deletes (no raw SQL with table names)
+          console.log(`[DEBUG] Deleting ${tableName} record ID: ${operation.recordId}`);
+          const result = await db.delete(resolvedTable)
+            .where(eq(resolvedTable.id, operation.recordId));
+          
+          if (result.rowCount === 0) {
+            conflicts++;
+          } else {
+            success++;
+          }
         }
       } catch (error) {
         console.error('Error applying bulk change:', error);

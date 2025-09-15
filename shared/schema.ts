@@ -2023,10 +2023,7 @@ export const offlineOperations = pgTable("offline_operations", {
   conflictResolution: text("conflict_resolution"), // معالجة التعارض
   errorMessage: text("error_message"), // رسالة الخطأ
   retryCount: integer("retry_count").default(0),
-  isDeleted: boolean("is_deleted").default(false),
-  metadata: jsonb("metadata"),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
 // Sync Conflicts table (تعارضات المزامنة) - لإدارة التعارضات بين البيانات المحلية والخادم

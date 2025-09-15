@@ -112,11 +112,11 @@ export const SYNC_REGISTRY: Record<string, SyncTableConfig> = {
         // Only assigned surveyors/engineers can modify decisions
         if (user.role === 'surveyor' || user.role === 'engineer') {
           // SECURITY: Check if user is assigned to the related application
-          if (recordData?.assignedToId && recordData.assignedToId === user.id) {
+          if (recordData?.assignedToId && String(recordData.assignedToId) === String(user.id)) {
             return true; // User is assigned to related application/task
           }
           // Additional check: if this is a surveying decision, check if user is the surveyor
-          if (user.role === 'surveyor' && recordData?.surveyorId === user.id) {
+          if (user.role === 'surveyor' && recordData?.surveyorId && String(recordData.surveyorId) === String(user.id)) {
             return true; // User is the assigned surveyor
           }
           return false; // Not assigned - deny access
@@ -144,12 +144,12 @@ export const SYNC_REGISTRY: Record<string, SyncTableConfig> = {
       if (operation === 'create' || operation === 'update') {
         // Field personnel can only modify their own visits or assigned ones
         if (user.role === 'surveyor' || user.role === 'engineer') {
-          // SECURITY: Check if user created this visit
-          if (recordData?.createdBy === user.id) {
+          // SECURITY: Check if user created this visit (normalize ID comparison)
+          if (recordData?.createdBy && String(recordData.createdBy) === String(user.id)) {
             return true; // User created this visit
           }
           // SECURITY: Check if user is assigned to related application/appointment
-          if (recordData?.assignedToId && recordData.assignedToId === user.id) {
+          if (recordData?.assignedToId && String(recordData.assignedToId) === String(user.id)) {
             return true; // User is assigned to this visit
           }
           return false; // Not owner or assignee - deny access
@@ -384,6 +384,19 @@ export function validateSyncPayload<T>(schema: z.ZodSchema<T>, data: any): { suc
   }
 }
 
+// Table name aliasing to handle camelCase/snake_case variations
+function normalizeTableName(tableName: string): string {
+  const aliases: Record<string, string> = {
+    'field_visits': 'fieldVisits',
+    'surveying_decisions': 'surveyingDecisions',
+    'survey_results': 'surveyResults',
+    'sync_sessions': 'syncSessions',
+    'offline_operations': 'offlineOperations',
+    'sync_conflicts': 'syncConflicts'
+  };
+  return aliases[tableName] || tableName;
+}
+
 export function validateSyncOperation(
   user: AuthUser,
   tableName: string,
@@ -391,19 +404,65 @@ export function validateSyncOperation(
   recordId?: string,
   recordData?: any
 ): SyncValidationResult {
+  // Normalize table name and enrich recordData for RBAC
+  const normalizedTableName = normalizeTableName(tableName);
+  
+  // Centralized enrichment: inject user context for create operations
+  let enrichedRecordData = recordData ? { ...recordData } : {};
+  if (operation === 'create') {
+    enrichedRecordData.createdBy = user.id; // Server-controlled injection
+    console.log(`[DEBUG] Enriched create operation for ${normalizedTableName}:`, {
+      user: { id: user.id, role: user.role },
+      recordData: { createdBy: enrichedRecordData.createdBy }
+    });
+  }
+  
   // Check if table is syncable
-  if (!isTableSyncable(tableName)) {
+  if (!isTableSyncable(normalizedTableName)) {
+    return {
+      isValid: false,
+      error: `الجدول ${normalizedTableName} غير مسموح للمزامنة`
+    };
+  }
+
+  // Check user permissions with record context
+  const config = SYNC_REGISTRY[normalizedTableName];
+  if (!config) {
     return {
       isValid: false,
       error: `الجدول ${tableName} غير مسموح للمزامنة`
     };
   }
 
-  // Check user permissions
-  if (!canUserSyncTable(user, tableName, operation)) {
+  // Check basic operation and role permissions
+  if (!config.allowedOperations.includes(operation as any)) {
     return {
       isValid: false,
-      error: `ليس لديك صلاحية ${operation} للجدول ${tableName}`
+      error: `العملية ${operation} غير مسموحة للجدول ${tableName}`
+    };
+  }
+
+  if (!config.requiredRoles.includes(user.role || '')) {
+    return {
+      isValid: false,
+      error: `دورك ${user.role} غير مسموح للجدول ${tableName}`
+    };
+  }
+
+  // Check record-level RBAC with enriched record data
+  if (config.rbacCheck && !config.rbacCheck(user, operation, recordId, enrichedRecordData)) {
+    console.log(`[DEBUG] RBAC check failed for ${normalizedTableName}:`, {
+      user: { id: user.id, role: user.role },
+      operation,
+      recordData: {
+        createdBy: enrichedRecordData.createdBy,
+        assignedToId: enrichedRecordData.assignedToId,
+        surveyorId: enrichedRecordData.surveyorId
+      }
+    });
+    return {
+      isValid: false,
+      error: `ليس لديك صلاحية ${operation} للجدول ${normalizedTableName}`
     };
   }
 

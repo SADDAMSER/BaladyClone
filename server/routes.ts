@@ -3559,8 +3559,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Import LBAC filtering for push operations security
           const { generateLBACFilter } = await import('./syncRegistry');
           
-          // Validate the sync operation with record data for RBAC
-          const validation = validateSyncOperation(req.user!, op.tableName, op.type, op.recordId, op.newData);
+          // Enrich recordData for RBAC validation (inject user context)
+          let enrichedData = { ...op.newData };
+          if (op.type === 'create') {
+            enrichedData.createdBy = req.user!.id; // Server-side injection for new records
+          }
+          
+          // Validate the sync operation with enriched record data for RBAC
+          const validation = validateSyncOperation(req.user!, op.tableName, op.type, op.recordId, enrichedData);
           
           if (!validation.isValid) {
             validationErrors.push(`${op.tableName}:${op.recordId} - ${validation.error}`);
