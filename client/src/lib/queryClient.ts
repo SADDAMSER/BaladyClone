@@ -18,7 +18,6 @@ export async function apiRequest(
     ...(token ? { "Authorization": `Bearer ${token}` } : {}),
   };
 
-  console.log('[DEBUG] Sending API request with headers:', JSON.stringify(headers, null, 2));
   const res = await fetch(url, {
     method,
     headers,
@@ -67,7 +66,6 @@ export const getQueryFn: <T>(options: {
       }
     }
 
-    console.log('[DEBUG] Sending GET query with headers:', JSON.stringify(headers, null, 2));
     const res = await fetch(url, {
       headers,
       credentials: "include",

@@ -1,5 +1,9 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { apiRequest } from "@/lib/queryClient";
 import Header from "@/components/Header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,15 +13,40 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
-import { ListTodo, Search, Plus, Clock, AlertCircle, CheckCircle, User } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Textarea } from "@/components/ui/textarea";
+import { ListTodo, Search, Plus, Clock, AlertCircle, CheckCircle, User, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+
+// Schema for adding new task
+const addTaskSchema = z.object({
+  title: z.string().min(1, "عنوان المهمة مطلوب"),
+  description: z.string().min(1, "وصف المهمة مطلوب"),
+  assignedToId: z.string().min(1, "يجب اختيار المُكلف"),
+  priority: z.enum(["low", "medium", "high"], {
+    required_error: "يجب تحديد أولوية المهمة"
+  }),
+  dueDate: z.string().min(1, "تاريخ الاستحقاق مطلوب"),
+});
+
+type AddTaskForm = z.infer<typeof addTaskSchema>;
 
 export default function TaskManagement() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: tasks, isLoading } = useQuery({
     queryKey: ["/api/tasks"],
+  });
+
+  const { data: users } = useQuery({
+    queryKey: ["/api/users"],
   });
 
   const statusColors = {
@@ -88,7 +117,42 @@ export default function TaskManagement() {
     }
   ];
 
-  const displayTasks = tasks || mockTasks;
+  const displayTasks = Array.isArray(tasks) ? tasks : mockTasks;
+  const availableUsers = Array.isArray(users) ? users : [];
+
+  // Form for adding new task
+  const addTaskForm = useForm<AddTaskForm>({
+    resolver: zodResolver(addTaskSchema),
+    defaultValues: {
+      title: "",
+      description: "",
+      assignedToId: "",
+      priority: undefined,
+      dueDate: "",
+    },
+  });
+
+  // Mutation for adding new task
+  const addTaskMutation = useMutation({
+    mutationFn: (data: AddTaskForm) =>
+      apiRequest("POST", "/api/tasks", data),
+    onSuccess: () => {
+      toast({
+        title: "تم بنجاح",
+        description: "تم إضافة المهمة بنجاح",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+      setShowAddDialog(false);
+      addTaskForm.reset();
+    },
+    onError: (error) => {
+      toast({
+        title: "خطأ",
+        description: `فشل في إضافة المهمة: ${error.message}`,
+        variant: "destructive",
+      });
+    },
+  });
 
   const getTaskStats = () => {
     return {
@@ -118,13 +182,161 @@ export default function TaskManagement() {
               <p className="text-muted-foreground">متابعة وإدارة سير العمل والمهام</p>
             </div>
           </div>
-          <Button 
-            className="flex items-center space-x-2 space-x-reverse"
-            data-testid="button-new-task"
-          >
-            <Plus size={16} />
-            <span>مهمة جديدة</span>
-          </Button>
+          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+            <DialogTrigger asChild>
+              <Button 
+                className="flex items-center space-x-2 space-x-reverse"
+                data-testid="button-new-task"
+              >
+                <Plus size={16} />
+                <span>مهمة جديدة</span>
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle className="text-right font-cairo">إضافة مهمة جديدة</DialogTitle>
+              </DialogHeader>
+
+              <Form {...addTaskForm}>
+                <form
+                  onSubmit={addTaskForm.handleSubmit((data) =>
+                    addTaskMutation.mutate(data)
+                  )}
+                  className="space-y-4"
+                >
+                  <FormField
+                    control={addTaskForm.control}
+                    name="title"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>عنوان المهمة*</FormLabel>
+                        <FormControl>
+                          <Input 
+                            placeholder="ادخل عنوان المهمة"
+                            {...field}
+                            data-testid="input-task-title"
+                            disabled={addTaskMutation.isPending}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={addTaskForm.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>وصف المهمة*</FormLabel>
+                        <FormControl>
+                          <Textarea 
+                            placeholder="وصف تفصيلي لما يجب إنجازه"
+                            {...field}
+                            data-testid="input-task-description"
+                            disabled={addTaskMutation.isPending}
+                            rows={3}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <FormField
+                      control={addTaskForm.control}
+                      name="assignedToId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>المُكلف*</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-task-assignee">
+                                <SelectValue placeholder="اختر الموظف المُكلف" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {availableUsers.map((user: any) => (
+                                <SelectItem key={user.id} value={user.id}>
+                                  {user.fullName || user.username}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={addTaskForm.control}
+                      name="priority"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>الأولوية*</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-task-priority">
+                                <SelectValue placeholder="حدد أولوية المهمة" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="high">عالية</SelectItem>
+                              <SelectItem value="medium">متوسطة</SelectItem>
+                              <SelectItem value="low">منخفضة</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={addTaskForm.control}
+                      name="dueDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>تاريخ الاستحقاق*</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="date"
+                              {...field}
+                              data-testid="input-task-due-date"
+                              disabled={addTaskMutation.isPending}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowAddDialog(false)}
+                      disabled={addTaskMutation.isPending}
+                      data-testid="button-cancel-task"
+                    >
+                      إلغاء
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={addTaskMutation.isPending}
+                      data-testid="button-save-task"
+                    >
+                      {addTaskMutation.isPending && (
+                        <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                      )}
+                      إنشاء المهمة
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
         </div>
 
         <Tabs defaultValue="overview" className="space-y-6">
