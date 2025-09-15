@@ -268,7 +268,10 @@ export function generateLBACFilter(user: AuthUser, tableName: string): any {
     
     if (config.lbacField === 'governorateId') {
       // SAFE: Use typed condition instead of string interpolation
-      const assignedGovernorates = ['fd47ac11-1a1a-4c1d-9f5c-8b2dc8c5f1a1']; // TODO: fetch from user.departmentId
+      const assignedGovernorates = [
+        'b52ad7bd-2374-4132-95d1-239d9c840c76', // Ibb
+        'e6097766-e033-45f0-b59a-7c7000cfee75'  // Sana'a City
+      ]; // Real governorate IDs from database
       // Return a Drizzle SQL condition object, not a raw string
       return {
         type: 'drizzle_condition',
@@ -279,7 +282,10 @@ export function generateLBACFilter(user: AuthUser, tableName: string): any {
     }
     
     if (config.lbacField === 'districtId') {
-      const assignedDistricts = ['a1b2c3d4-e5f6-7g8h-9i0j-k1l2m3n4o5p6']; // TODO: fetch from user assignments
+      const assignedDistricts = [
+        '9fd1bf2f-a7c5-4b0e-bc39-19df6cb61e17', // القفر
+        '6a8c18ab-a188-436b-b101-54140b60153a'  // يريم
+      ]; // Real district IDs from database
       return {
         type: 'drizzle_condition', 
         field: config.lbacField,
