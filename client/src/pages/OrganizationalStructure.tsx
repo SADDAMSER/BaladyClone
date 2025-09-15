@@ -1,5 +1,9 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { apiRequest } from "@/lib/queryClient";
 import Header from "@/components/Header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,10 +11,29 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Plus, Users, Building2, UserCog } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Search, Plus, Users, Building2, UserCog, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+
+// Schema for adding new department
+const addDepartmentSchema = z.object({
+  nameAr: z.string().min(1, "الاسم العربي مطلوب"),
+  nameEn: z.string().min(1, "الاسم الإنجليزي مطلوب"),
+  description: z.string().optional(),
+  parentId: z.string().optional(),
+});
+
+type AddDepartmentForm = z.infer<typeof addDepartmentSchema>;
 
 export default function OrganizationalStructure() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: departments, isLoading: depLoading } = useQuery({
     queryKey: ["/api/departments"],
@@ -113,9 +136,42 @@ export default function OrganizationalStructure() {
     }
   ];
 
-  const displayDepartments = departments || mockDepartments;
-  const displayPositions = positions || mockPositions;
-  const displayUsers = users || mockUsers;
+  const displayDepartments = Array.isArray(departments) ? departments : mockDepartments;
+  const displayPositions = Array.isArray(positions) ? positions : mockPositions;
+  const displayUsers = Array.isArray(users) ? users : mockUsers;
+
+  // Form for adding new department
+  const addDepartmentForm = useForm<AddDepartmentForm>({
+    resolver: zodResolver(addDepartmentSchema),
+    defaultValues: {
+      nameAr: "",
+      nameEn: "", 
+      description: "",
+      parentId: "",
+    },
+  });
+
+  // Mutation for adding new department
+  const addDepartmentMutation = useMutation({
+    mutationFn: (data: AddDepartmentForm) =>
+      apiRequest("POST", "/api/departments", data),
+    onSuccess: () => {
+      toast({
+        title: "تم بنجاح",
+        description: "تم إضافة القسم بنجاح",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/departments"] });
+      setShowAddDialog(false);
+      addDepartmentForm.reset();
+    },
+    onError: (error) => {
+      toast({
+        title: "خطأ",
+        description: `فشل في إضافة القسم: ${error.message}`,
+        variant: "destructive",
+      });
+    },
+  });
 
   return (
     <div className="min-h-screen bg-background" dir="rtl">
@@ -126,20 +182,143 @@ export default function OrganizationalStructure() {
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-4 space-x-reverse">
             <div className="w-12 h-12 bg-secondary/20 rounded-lg flex items-center justify-center">
-              <Table className="text-secondary" size={24} />
+              <Building2 className="text-secondary" size={24} />
             </div>
             <div>
               <h1 className="text-2xl font-bold text-foreground font-cairo">الهيكل التنظيمي</h1>
               <p className="text-muted-foreground">إدارة المناصب والصلاحيات والموظفين</p>
             </div>
           </div>
-          <Button 
-            className="flex items-center space-x-2 space-x-reverse"
-            data-testid="button-add-employee"
-          >
-            <Plus size={16} />
-            <span>إضافة موظف</span>
-          </Button>
+          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+            <DialogTrigger asChild>
+              <Button 
+                className="flex items-center space-x-2 space-x-reverse"
+                data-testid="button-add-department"
+              >
+                <Plus size={16} />
+                <span>إضافة قسم</span>
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle className="text-right font-cairo">إضافة قسم جديد</DialogTitle>
+              </DialogHeader>
+
+              <Form {...addDepartmentForm}>
+                <form
+                  onSubmit={addDepartmentForm.handleSubmit((data) =>
+                    addDepartmentMutation.mutate(data)
+                  )}
+                  className="space-y-4"
+                >
+                  <FormField
+                    control={addDepartmentForm.control}
+                    name="nameAr"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>الاسم العربي*</FormLabel>
+                        <FormControl>
+                          <Input 
+                            placeholder="ادخل الاسم العربي للقسم"
+                            {...field}
+                            data-testid="input-department-name-ar"
+                            disabled={addDepartmentMutation.isPending}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={addDepartmentForm.control}
+                    name="nameEn"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>الاسم الإنجليزي*</FormLabel>
+                        <FormControl>
+                          <Input 
+                            placeholder="Enter the English name"
+                            {...field}
+                            data-testid="input-department-name-en"
+                            disabled={addDepartmentMutation.isPending}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={addDepartmentForm.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>الوصف</FormLabel>
+                        <FormControl>
+                          <Textarea 
+                            placeholder="وصف مختصر للقسم ومهامه"
+                            {...field}
+                            data-testid="input-department-description"
+                            disabled={addDepartmentMutation.isPending}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={addDepartmentForm.control}
+                    name="parentId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>القسم الأصلي</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-parent-department">
+                              <SelectValue placeholder="اختر القسم الأصلي (اختياري)" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="">بدون قسم أصلي</SelectItem>
+                            {displayDepartments.map((dept: any) => (
+                              <SelectItem key={dept.id} value={dept.id}>
+                                {dept.name || dept.nameAr}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="flex justify-end gap-2 pt-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowAddDialog(false)}
+                      disabled={addDepartmentMutation.isPending}
+                      data-testid="button-cancel-department"
+                    >
+                      إلغاء
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={addDepartmentMutation.isPending}
+                      data-testid="button-save-department"
+                    >
+                      {addDepartmentMutation.isPending && (
+                        <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                      )}
+                      حفظ
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
         </div>
 
         <Tabs defaultValue="departments" className="space-y-6">
