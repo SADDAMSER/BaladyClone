@@ -1,6 +1,10 @@
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -38,6 +42,19 @@ import {
   adaptPermissionToFrontend
 } from '@/types/userManagement';
 
+// Form schema for Add User
+const addUserSchema = z.object({
+  fullName: z.string().min(1, 'الاسم مطلوب'),
+  username: z.string().min(3, 'اسم المستخدم يجب أن يكون 3 أحرف على الأقل'),
+  email: z.string().email('بريد إلكتروني غير صحيح'),
+  password: z.string().min(6, 'كلمة المرور يجب أن تكون 6 أحرف على الأقل'),
+  roleId: z.string().min(1, 'الدور مطلوب'),
+  departmentId: z.string().optional(),
+  positionId: z.string().optional()
+});
+
+type AddUserForm = z.infer<typeof addUserSchema>;
+
 export default function UserManagement() {
   const [selectedView, setSelectedView] = useState('users');
   const [searchTerm, setSearchTerm] = useState('');
@@ -50,6 +67,20 @@ export default function UserManagement() {
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Form for Add User
+  const addUserForm = useForm<AddUserForm>({
+    resolver: zodResolver(addUserSchema),
+    defaultValues: {
+      fullName: '',
+      username: '',
+      email: '',
+      password: '',
+      roleId: '',
+      departmentId: '',
+      positionId: ''
+    }
+  });
 
   // Query parameters for API filtering
   const userQueryParams: UserQueryParams = {
@@ -138,31 +169,98 @@ export default function UserManagement() {
   // Use the API data we already fetched
   const isLoading = usersApiLoading || rolesApiLoading || departmentsApiLoading;
 
+  // Add User mutation
+  const addUserMutation = useMutation({
+    mutationFn: async (data: AddUserForm) => {
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify(data)
+      });
+      if (!response.ok) throw new Error('Failed to create user');
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "تم إنشاء المستخدم",
+        description: "تم إنشاء المستخدم الجديد بنجاح",
+      });
+      // Reset form and close dialog
+      addUserForm.reset();
+      setShowAddUser(false);
+      // Invalidate users queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "خطأ",
+        description: error.message || "فشل في إنشاء المستخدم",
+        variant: "destructive"
+      });
+    },
+  });
+
   const toggleUserStatus = useMutation({
     mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
-      // API call would go here
-      return { id, isActive };
+      const response = await fetch(`/api/users/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ isActive })
+      });
+      if (!response.ok) throw new Error('Failed to update user status');
+      return response.json();
     },
     onSuccess: (data) => {
       toast({
         title: "تم التحديث",
         description: `تم ${data.isActive ? 'تفعيل' : 'إلغاء تفعيل'} المستخدم بنجاح`,
       });
+      // Invalidate users queries to refresh data
       queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+    },
+    onError: (error) => {
+      toast({
+        title: "خطأ",
+        description: "فشل في تحديث حالة المستخدم",
+        variant: "destructive"
+      });
     },
   });
 
   const deleteUser = useMutation({
     mutationFn: async (id: string) => {
-      // API call would go here
-      return id;
+      // Use soft delete by setting isActive to false
+      const response = await fetch(`/api/users/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ isActive: false })
+      });
+      if (!response.ok) throw new Error('Failed to delete user');
+      return response.json();
     },
     onSuccess: () => {
       toast({
         title: "تم الحذف",
         description: "تم حذف المستخدم بنجاح",
       });
+      // Invalidate users queries to refresh data
       queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+    },
+    onError: (error) => {
+      toast({
+        title: "خطأ",
+        description: "فشل في حذف المستخدم",
+        variant: "destructive"
+      });
     },
   });
 
@@ -171,7 +269,7 @@ export default function UserManagement() {
                          user.email.includes(searchTerm) ||
                          user.username.includes(searchTerm);
     const matchesRole = filterRole === 'all' || (user.roles.length > 0 && user.roles[0].id === filterRole);
-    const matchesDepartment = filterDepartment === 'all' || user.departmentName === filterDepartment;
+    const matchesDepartment = filterDepartment === 'all' || user.departmentId === filterDepartment;
     
     return matchesSearch && matchesRole && matchesDepartment;
   }) || [];
@@ -248,43 +346,99 @@ export default function UserManagement() {
                 <DialogHeader>
                   <DialogTitle>إضافة مستخدم جديد</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="firstName">الاسم الأول</Label>
-                    <Input id="firstName" placeholder="أدخل الاسم الأول" />
-                  </div>
-                  <div>
-                    <Label htmlFor="lastName">الاسم الأخير</Label>
-                    <Input id="lastName" placeholder="أدخل الاسم الأخير" />
-                  </div>
-                  <div>
-                    <Label htmlFor="email">البريد الإلكتروني</Label>
-                    <Input id="email" type="email" placeholder="user@example.com" />
-                  </div>
-                  <div>
-                    <Label htmlFor="role">الدور</Label>
-                    <Select>
-                      <SelectTrigger>
-                        <SelectValue placeholder="اختر الدور" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {roles?.map((role) => (
-                          <SelectItem key={role.id} value={role.id}>
-                            {role.nameAr}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex gap-2 pt-4">
-                    <Button className="flex-1" data-testid="save-user">
-                      حفظ
-                    </Button>
-                    <Button variant="outline" onClick={() => setShowAddUser(false)}>
-                      إلغاء
-                    </Button>
-                  </div>
-                </div>
+                <Form {...addUserForm}>
+                  <form onSubmit={addUserForm.handleSubmit((data) => addUserMutation.mutate(data))} className="space-y-4">
+                    <FormField
+                      control={addUserForm.control}
+                      name="fullName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>الاسم الكامل</FormLabel>
+                          <FormControl>
+                            <Input placeholder="أدخل الاسم الكامل" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={addUserForm.control}
+                      name="username"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>اسم المستخدم</FormLabel>
+                          <FormControl>
+                            <Input placeholder="أدخل اسم المستخدم" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={addUserForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>البريد الإلكتروني</FormLabel>
+                          <FormControl>
+                            <Input type="email" placeholder="user@example.com" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={addUserForm.control}
+                      name="password"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>كلمة المرور</FormLabel>
+                          <FormControl>
+                            <Input type="password" placeholder="أدخل كلمة المرور" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={addUserForm.control}
+                      name="roleId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>الدور</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="اختر الدور" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {roles?.map((role) => (
+                                <SelectItem key={role.id} value={role.id}>
+                                  {role.nameAr}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="flex gap-2 pt-4">
+                      <Button 
+                        type="submit" 
+                        className="flex-1" 
+                        disabled={addUserMutation.isPending}
+                        data-testid="save-user"
+                      >
+                        {addUserMutation.isPending ? 'جاري الحفظ...' : 'حفظ'}
+                      </Button>
+                      <Button variant="outline" onClick={() => setShowAddUser(false)}>
+                        إلغاء
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
               </DialogContent>
             </Dialog>
           </div>
@@ -389,11 +543,11 @@ export default function UserManagement() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">جميع الأقسام</SelectItem>
-                    {departments?.map((department: any) => (
+                    {Array.isArray(departments) ? departments.map((department: any) => (
                       <SelectItem key={department.id} value={department.id}>
                         {department.name}
                       </SelectItem>
-                    ))}
+                    )) : null}
                   </SelectContent>
                 </Select>
               </div>
