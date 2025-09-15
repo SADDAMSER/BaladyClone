@@ -36,6 +36,10 @@ interface AuthenticatedRequest extends Request {
     role: string;
     geographicAssignments?: any[];
   };
+  requiredOwnership?: {
+    field: string;
+    userId: string;
+  };
 }
 
 // Middleware to verify JWT token
@@ -56,7 +60,7 @@ const authenticateToken = (req: AuthenticatedRequest, res: Response, next: NextF
   });
 };
 
-// Enhanced Geographic ID Extraction Helper
+// Enhanced Geographic ID Extraction Helper - FIXED with application route support
 const extractGeographicIds = async (req: AuthenticatedRequest): Promise<{
   governorateId?: string;
   districtId?: string;
@@ -76,9 +80,19 @@ const extractGeographicIds = async (req: AuthenticatedRequest): Promise<{
     return directIds;
   }
 
-  // Try to derive geographic context from resource IDs
-  const applicationId = req.params.applicationId || req.body.applicationId;
-  const plotId = req.params.plotId || req.body.plotId;
+  // Try to derive geographic context from resource IDs - FIXED: Map params.id based on route
+  let applicationId = req.params.applicationId || req.body.applicationId;
+  let plotId = req.params.plotId || req.body.plotId;
+  
+  // CRITICAL FIX: Map req.params.id based on route path for proper LBAC extraction
+  if (req.params.id && !applicationId && !plotId) {
+    const routePath = req.route?.path || req.path;
+    if (routePath.includes('/applications/')) {
+      applicationId = req.params.id; // /api/applications/:id/* → use id as applicationId
+    } else if (routePath.includes('/plots/')) {
+      plotId = req.params.id; // /api/plots/:id/* → use id as plotId
+    }
+  }
 
   try {
     // From application: applicationData contains geographic info
@@ -196,6 +210,98 @@ const enforceLBACAccess = (requiredLevel: 'governorate' | 'district' | 'subDistr
   };
 };
 
+// RBAC (Role-Based Access Control) Middleware
+const requireRole = (allowedRoles: string | string[]) => {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
+    
+    if (!roles.includes(user.role)) {
+      return res.status(403).json({ 
+        message: 'Insufficient role permissions',
+        required: roles,
+        current: user.role
+      });
+    }
+
+    next();
+  };
+};
+
+// Resource Ownership Middleware (RBAC Record-Level) - FIXED WITH ACTUAL ENFORCEMENT
+const requireOwnership = (resourceField: string = 'createdBy') => {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    // Admins bypass ownership checks
+    if (user.role === 'admin') {
+      return next();
+    }
+
+    // Extract resource ownership from body (for updates) or set user as owner (for creates)
+    if (req.method === 'POST') {
+      // For CREATE operations: set server-side ownership
+      req.body[resourceField] = user.id;
+    } else if (req.method === 'PUT' || req.method === 'DELETE') {
+      // For UPDATE/DELETE: verify ownership (CRITICAL - MUST BE ENFORCED)
+      req.requiredOwnership = { field: resourceField, userId: user.id };
+    }
+
+    next();
+  };
+};
+
+// Helper function to enforce ownership in route handlers
+const enforceOwnership = async (req: AuthenticatedRequest, res: Response, recordId: string, getRecordFn: Function): Promise<boolean> => {
+  if (!req.requiredOwnership) return true; // No ownership required
+  if (req.user?.role === 'admin') return true; // Admin bypass
+
+  try {
+    const record = await getRecordFn(recordId);
+    if (!record) {
+      res.status(404).json({ message: 'Resource not found' });
+      return false;
+    }
+
+    const recordOwner = record[req.requiredOwnership.field];
+    if (recordOwner !== req.requiredOwnership.userId) {
+      res.status(403).json({ 
+        message: 'Access denied: You can only modify your own resources',
+        resourceOwner: recordOwner,
+        requestingUser: req.requiredOwnership.userId
+      });
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    res.status(500).json({ message: 'Error verifying ownership' });
+    return false;
+  }
+};
+
+// Validation Middleware using Zod
+const validateRequest = (schema: any) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    try {
+      schema.parse(req.body);
+      next();
+    } catch (error: any) {
+      return res.status(400).json({
+        message: 'Validation failed',
+        errors: error.errors
+      });
+    }
+  };
+};
+
 export async function registerRoutes(app: Express): Promise<Server> {
   
   // PUBLIC ROUTES - MUST BE FIRST (No authentication required)
@@ -239,18 +345,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Simple response without complex joins for now
       const applicationData = application.applicationData as any || {};
       
+      // CRITICAL: Remove PII from public response to prevent enumeration/brute-force
       const response = {
-        id: application.id,
         applicationNumber: application.applicationNumber,
         serviceType: application.serviceId === 'service-surveying-decision' ? 'قرار المساحة' : 'خدمة حكومية',
         status: application.status,
         currentStage: application.currentStage || 'submitted',
         submittedAt: application.createdAt,
         estimatedCompletion: null, // Field not in current schema
-        applicantName: applicationData.applicantName || 'غير محدد',
-        applicantId: applicationData.applicantId || 'غير محدد',
-        contactPhone: applicationData.contactPhone || 'غير محدد',
-        email: applicationData.email,
+        // PII REMOVED: applicantName, applicantId, contactPhone, email for security
         applicationData: {
           governorate: applicationData.governorate,
           district: applicationData.district,
@@ -258,8 +361,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           landNumber: applicationData.landNumber,
           plotNumber: applicationData.plotNumber,
           surveyType: applicationData.surveyType,
-          purpose: applicationData.purpose,
-          description: applicationData.description
+          purpose: applicationData.purpose
+          // REMOVED: description (may contain PII)
         }
       };
 
@@ -306,6 +409,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Simple login test endpoint (for debugging)
   app.post("/api/auth/simple-login", async (req, res) => {
+    // Restrict to development only for security
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(404).json({ message: 'Endpoint not available in production' });
+    }
     try {
       const { username, password } = req.body;
       console.log('Simple login attempt for user:', username);
@@ -440,7 +547,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // User management routes
-  app.get("/api/users", async (req, res) => {
+  app.get("/api/users", authenticateToken, requireRole('admin'), async (req, res) => {
     try {
       const { role, departmentId, isActive } = req.query;
       const users = await storage.getUsers({
@@ -454,8 +561,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/users/:id", authenticateToken, async (req, res) => {
+  app.get("/api/users/:id", authenticateToken, async (req: AuthenticatedRequest, res) => {
     try {
+      // CRITICAL: Only admin or self can view user details (PII protection)
+      if (req.user?.role !== 'admin' && req.user?.id !== req.params.id) {
+        return res.status(403).json({ 
+          message: 'Access denied: You can only view your own profile or admin access required' 
+        });
+      }
+
       const user = await storage.getUser(req.params.id);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
@@ -466,12 +580,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/users/:id", authenticateToken, async (req, res) => {
+  app.put("/api/users/:id", authenticateToken, async (req: AuthenticatedRequest, res) => {
     try {
-      const updates = req.body;
+      // CRITICAL: Only admin or self can update user profile
+      if (req.user?.role !== 'admin' && req.user?.id !== req.params.id) {
+        return res.status(403).json({ 
+          message: 'Access denied: You can only update your own profile or admin access required' 
+        });
+      }
+
+      let updates = req.body;
+      
+      // CRITICAL: Prevent privilege escalation - non-admins can only update safe fields
+      if (req.user?.role !== 'admin' && req.user?.id === req.params.id) {
+        // Self-update: only allow safe fields
+        const allowedSelfFields = ['fullName', 'email', 'password'];
+        const safeUpdates: any = {};
+        
+        allowedSelfFields.forEach(field => {
+          if (updates[field] !== undefined) {
+            safeUpdates[field] = updates[field];
+          }
+        });
+        
+        updates = safeUpdates;
+        console.log(`[SECURITY] Self-update by user ${req.user.id}, allowed fields only:`, Object.keys(updates));
+      }
+
+      // Validate safe updates
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ message: 'No valid fields to update' });
+      }
+
       if (updates.password) {
         updates.password = await bcrypt.hash(updates.password, 12);
       }
+      
       const user = await storage.updateUser(req.params.id, updates);
       res.json(user);
     } catch (error) {
@@ -489,7 +633,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/departments", authenticateToken, async (req, res) => {
+  app.post("/api/departments", authenticateToken, requireRole('admin'), validateRequest(insertDepartmentSchema), async (req, res) => {
     try {
       const departmentData = insertDepartmentSchema.parse(req.body);
       const department = await storage.createDepartment(departmentData);
@@ -514,7 +658,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/departments/:id", authenticateToken, async (req, res) => {
+  app.put("/api/departments/:id", authenticateToken, requireRole('admin'), validateRequest(insertDepartmentSchema.partial()), async (req, res) => {
     try {
       const department = await storage.updateDepartment(req.params.id, req.body);
       res.json(department);
@@ -523,7 +667,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/departments/:id", authenticateToken, async (req, res) => {
+  app.delete("/api/departments/:id", authenticateToken, requireRole('admin'), async (req, res) => {
     try {
       await storage.deleteDepartment(req.params.id);
       res.status(204).send();
@@ -566,7 +710,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/governorates", authenticateToken, enforceLBACAccess('governorate'), async (req, res) => {
+  app.post("/api/governorates", authenticateToken, requireRole('admin'), validateRequest(insertGovernorateSchema), async (req, res) => {
     try {
       const validatedData = insertGovernorateSchema.parse(req.body);
       const governorate = await storage.createGovernorate(validatedData);
@@ -579,7 +723,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/governorates/:id", authenticateToken, enforceLBACAccess('governorate'), async (req, res) => {
+  app.put("/api/governorates/:id", authenticateToken, requireRole('admin'), validateRequest(insertGovernorateSchema), async (req, res) => {
     try {
       const governorate = await storage.updateGovernorate(req.params.id, req.body);
       res.json(governorate);
@@ -588,7 +732,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/governorates/:id", authenticateToken, enforceLBACAccess('governorate'), async (req, res) => {
+  app.delete("/api/governorates/:id", authenticateToken, requireRole('admin'), async (req, res) => {
     try {
       await storage.deleteGovernorate(req.params.id);
       res.status(204).send();
@@ -641,7 +785,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/districts", authenticateToken, enforceLBACAccess('district'), async (req, res) => {
+  app.post("/api/districts", authenticateToken, requireRole(['manager', 'admin']), enforceLBACAccess('governorate'), validateRequest(insertDistrictSchema), async (req, res) => {
     try {
       const validatedData = insertDistrictSchema.parse(req.body);
       const district = await storage.createDistrict(validatedData);
@@ -654,7 +798,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/districts/:id", authenticateToken, enforceLBACAccess('district'), async (req, res) => {
+  app.put("/api/districts/:id", authenticateToken, requireRole(['manager', 'admin']), enforceLBACAccess('district'), validateRequest(insertDistrictSchema), async (req, res) => {
     try {
       const district = await storage.updateDistrict(req.params.id, req.body);
       res.json(district);
@@ -663,7 +807,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/districts/:id", authenticateToken, enforceLBACAccess('district'), async (req, res) => {
+  app.delete("/api/districts/:id", authenticateToken, requireRole(['manager', 'admin']), enforceLBACAccess('district'), async (req, res) => {
     try {
       await storage.deleteDistrict(req.params.id);
       res.status(204).send();
@@ -705,7 +849,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/sub-districts", authenticateToken, enforceLBACAccess('subDistrict'), async (req, res) => {
+  app.post("/api/sub-districts", authenticateToken, requireRole(['manager', 'admin']), enforceLBACAccess('district'), validateRequest(insertSubDistrictSchema), async (req, res) => {
     try {
       const validatedData = insertSubDistrictSchema.parse(req.body);
       const subDistrict = await storage.createSubDistrict(validatedData);
@@ -718,7 +862,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/sub-districts/:id", authenticateToken, enforceLBACAccess('subDistrict'), async (req, res) => {
+  app.put("/api/sub-districts/:id", authenticateToken, requireRole(['manager', 'admin']), enforceLBACAccess('subDistrict'), validateRequest(insertSubDistrictSchema), async (req, res) => {
     try {
       const subDistrict = await storage.updateSubDistrict(req.params.id, req.body);
       res.json(subDistrict);
@@ -727,7 +871,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/sub-districts/:id", authenticateToken, enforceLBACAccess('subDistrict'), async (req, res) => {
+  app.delete("/api/sub-districts/:id", authenticateToken, requireRole(['manager', 'admin']), enforceLBACAccess('subDistrict'), async (req, res) => {
     try {
       await storage.deleteSubDistrict(req.params.id);
       res.status(204).send();
@@ -769,7 +913,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/neighborhoods", authenticateToken, enforceLBACAccess('neighborhood'), async (req, res) => {
+  app.post("/api/neighborhoods", authenticateToken, requireRole(['manager', 'admin']), enforceLBACAccess('subDistrict'), validateRequest(insertNeighborhoodSchema), async (req, res) => {
     try {
       const validatedData = insertNeighborhoodSchema.parse(req.body);
       const neighborhood = await storage.createNeighborhood(validatedData);
@@ -782,7 +926,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/neighborhoods/:id", authenticateToken, enforceLBACAccess('neighborhood'), async (req, res) => {
+  app.put("/api/neighborhoods/:id", authenticateToken, requireRole(['manager', 'admin']), enforceLBACAccess('neighborhood'), validateRequest(insertNeighborhoodSchema), async (req, res) => {
     try {
       const neighborhood = await storage.updateNeighborhood(req.params.id, req.body);
       res.json(neighborhood);
@@ -791,7 +935,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/neighborhoods/:id", authenticateToken, enforceLBACAccess('neighborhood'), async (req, res) => {
+  app.delete("/api/neighborhoods/:id", authenticateToken, requireRole(['manager', 'admin']), enforceLBACAccess('neighborhood'), async (req, res) => {
     try {
       await storage.deleteNeighborhood(req.params.id);
       res.status(204).send();
@@ -832,7 +976,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/harat", authenticateToken, enforceLBACAccess('neighborhood'), async (req, res) => {
+  app.post("/api/harat", authenticateToken, requireRole(['manager', 'admin']), enforceLBACAccess('neighborhood'), validateRequest(insertHaratSchema), async (req, res) => {
     try {
       const validatedData = insertHaratSchema.parse(req.body);
       const harat = await storage.createHarat(validatedData);
@@ -845,7 +989,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/harat/:id", authenticateToken, enforceLBACAccess('neighborhood'), async (req, res) => {
+  app.put("/api/harat/:id", authenticateToken, requireRole(['manager', 'admin']), enforceLBACAccess('neighborhood'), validateRequest(insertHaratSchema), async (req, res) => {
     try {
       const harat = await storage.updateHarat(req.params.id, req.body);
       res.json(harat);
@@ -854,7 +998,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/harat/:id", authenticateToken, enforceLBACAccess('neighborhood'), async (req, res) => {
+  app.delete("/api/harat/:id", authenticateToken, requireRole(['manager', 'admin']), enforceLBACAccess('neighborhood'), async (req, res) => {
     try {
       await storage.deleteHarat(req.params.id);
       res.status(204).send();
@@ -895,7 +1039,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/sectors", authenticateToken, enforceLBACAccess('governorate'), async (req, res) => {
+  app.post("/api/sectors", authenticateToken, requireRole(['manager', 'admin']), enforceLBACAccess('governorate'), validateRequest(insertSectorSchema), async (req, res) => {
     try {
       const validatedData = insertSectorSchema.parse(req.body);
       const sector = await storage.createSector(validatedData);
@@ -908,7 +1052,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/sectors/:id", authenticateToken, enforceLBACAccess('governorate'), async (req, res) => {
+  app.put("/api/sectors/:id", authenticateToken, requireRole(['manager', 'admin']), enforceLBACAccess('governorate'), validateRequest(insertSectorSchema), async (req, res) => {
     try {
       const sector = await storage.updateSector(req.params.id, req.body);
       res.json(sector);
@@ -917,7 +1061,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/sectors/:id", authenticateToken, enforceLBACAccess('governorate'), async (req, res) => {
+  app.delete("/api/sectors/:id", authenticateToken, requireRole(['manager', 'admin']), enforceLBACAccess('governorate'), async (req, res) => {
     try {
       await storage.deleteSector(req.params.id);
       res.status(204).send();
@@ -968,7 +1112,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/neighborhood-units", authenticateToken, async (req, res) => {
+  app.post("/api/neighborhood-units", authenticateToken, requireRole(['manager', 'admin']), enforceLBACAccess('neighborhood'), validateRequest(insertNeighborhoodUnitSchema), async (req, res) => {
     try {
       const validatedData = insertNeighborhoodUnitSchema.parse(req.body);
       const neighborhoodUnit = await storage.createNeighborhoodUnit(validatedData);
@@ -981,7 +1125,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/neighborhood-units/:id", authenticateToken, async (req, res) => {
+  app.put("/api/neighborhood-units/:id", authenticateToken, requireRole(['manager', 'admin']), enforceLBACAccess('neighborhood'), validateRequest(insertNeighborhoodUnitSchema), async (req, res) => {
     try {
       const neighborhoodUnit = await storage.updateNeighborhoodUnit(req.params.id, req.body);
       res.json(neighborhoodUnit);
@@ -990,7 +1134,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/neighborhood-units/:id", authenticateToken, async (req, res) => {
+  app.delete("/api/neighborhood-units/:id", authenticateToken, requireRole(['manager', 'admin']), enforceLBACAccess('neighborhood'), async (req, res) => {
     try {
       await storage.deleteNeighborhoodUnit(req.params.id);
       res.status(204).send();
@@ -1031,7 +1175,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/blocks", authenticateToken, enforceLBACAccess('neighborhood'), async (req, res) => {
+  app.post("/api/blocks", authenticateToken, requireRole(['manager', 'admin']), enforceLBACAccess('neighborhood'), validateRequest(insertBlockSchema), async (req, res) => {
     try {
       const validatedData = insertBlockSchema.parse(req.body);
       const block = await storage.createBlock(validatedData);
@@ -1159,7 +1303,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/streets", authenticateToken, async (req, res) => {
+  app.post("/api/streets", authenticateToken, requireRole(['manager', 'admin']), enforceLBACAccess('neighborhood'), validateRequest(insertStreetSchema), async (req, res) => {
     try {
       const validatedData = insertStreetSchema.parse(req.body);
       const street = await storage.createStreet(validatedData);
@@ -1172,7 +1316,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/streets/:id", authenticateToken, async (req, res) => {
+  app.put("/api/streets/:id", authenticateToken, requireRole(['manager', 'admin']), enforceLBACAccess('neighborhood'), validateRequest(insertStreetSchema.partial()), async (req, res) => {
     try {
       const street = await storage.updateStreet(req.params.id, req.body);
       res.json(street);
@@ -1181,7 +1325,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/streets/:id", authenticateToken, async (req, res) => {
+  app.delete("/api/streets/:id", authenticateToken, requireRole(['manager', 'admin']), enforceLBACAccess('neighborhood'), async (req, res) => {
     try {
       await storage.deleteStreet(req.params.id);
       res.status(204).send();
@@ -1222,7 +1366,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/street-segments", authenticateToken, async (req, res) => {
+  app.post("/api/street-segments", authenticateToken, requireRole(['manager', 'admin']), enforceLBACAccess('neighborhood'), validateRequest(insertStreetSegmentSchema), async (req, res) => {
     try {
       const validatedData = insertStreetSegmentSchema.parse(req.body);
       const streetSegment = await storage.createStreetSegment(validatedData);
@@ -1235,7 +1379,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/street-segments/:id", authenticateToken, async (req, res) => {
+  app.put("/api/street-segments/:id", authenticateToken, requireRole(['manager', 'admin']), enforceLBACAccess('neighborhood'), validateRequest(insertStreetSegmentSchema), async (req, res) => {
     try {
       const streetSegment = await storage.updateStreetSegment(req.params.id, req.body);
       res.json(streetSegment);
@@ -1244,7 +1388,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/street-segments/:id", authenticateToken, async (req, res) => {
+  app.delete("/api/street-segments/:id", authenticateToken, requireRole(['manager', 'admin']), enforceLBACAccess('neighborhood'), async (req, res) => {
     try {
       await storage.deleteStreetSegment(req.params.id);
       res.status(204).send();
@@ -2026,7 +2170,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Auto-assignment endpoint (public - no authentication required for system auto-assignment)
-  app.post("/api/applications/:id/auto-assign", async (req, res) => {
+  app.post("/api/applications/:id/auto-assign", authenticateToken, requireRole(['manager', 'admin']), enforceLBACAccess('neighborhood'), async (req, res) => {
     try {
       const { id } = req.params;
       const application = await storage.getApplication(id);
@@ -2122,7 +2266,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Payment Processing
-  app.post("/api/applications/:id/payment", async (req, res) => {
+  app.post("/api/applications/:id/payment", authenticateToken, requireRole(['treasurer', 'admin']), async (req, res) => {
     try {
       const { paymentMethod, notes, paidBy } = req.body;
       const applicationId = req.params.id;
@@ -2182,7 +2326,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Document Review Processing
-  app.post("/api/applications/:id/document-review", async (req, res) => {
+  app.post("/api/applications/:id/document-review", authenticateToken, requireRole(['service_clerk', 'manager', 'admin']), async (req, res) => {
     try {
       const { action, notes, reviewerId } = req.body;
       const applicationId = req.params.id;
@@ -2355,7 +2499,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
   // Survey report submission endpoint
-  app.post("/api/applications/:id/survey-report", async (req, res) => {
+  app.post("/api/applications/:id/survey-report", authenticateToken, requireRole(['engineer', 'manager', 'admin']), enforceLBACAccess('neighborhood'), async (req, res) => {
     try {
       const {
         surveyorId,
