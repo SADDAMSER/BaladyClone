@@ -66,7 +66,7 @@ const addRoleSchema = z.object({
   nameAr: z.string().min(1, 'الاسم العربي مطلوب'),
   nameEn: z.string().min(1, 'الاسم الإنجليزي مطلوب'),
   description: z.string().optional(),
-  level: z.number().int().min(1).max(10).default(5),
+  level: z.coerce.number().int().min(1).max(10).default(5),
   isSystemRole: z.boolean().default(false),
   isActive: z.boolean().default(true)
 });
@@ -195,48 +195,6 @@ export default function UserManagement() {
     });
   };
 
-  const temporaryMockRoles: FrontendRole[] = [
-    {
-      id: '1',
-      code: 'admin',
-      nameAr: 'مدير عام',
-      nameEn: 'Administrator',
-      description: 'مدير عام مع صلاحيات كاملة',
-      level: 1,
-      isSystemRole: true,
-      isActive: true
-    },
-    {
-      id: '2',
-      code: 'manager',
-      nameAr: 'مدير قسم',
-      nameEn: 'Manager',
-      description: 'مدير قسم مع صلاحيات الإشراف',
-      level: 2,
-      isSystemRole: false,
-      isActive: true
-    },
-    {
-      id: '3',
-      code: 'engineer',
-      nameAr: 'مهندس',
-      nameEn: 'Engineer',
-      description: 'مهندس مع صلاحيات تقنية',
-      level: 3,
-      isSystemRole: false,
-      isActive: true
-    },
-    {
-      id: '4',
-      code: 'citizen',
-      nameAr: 'مواطن',
-      nameEn: 'Citizen',
-      description: 'مواطن عادي يستخدم الخدمات',
-      level: 4,
-      isSystemRole: false,
-      isActive: true
-    }
-  ];
 
   // Use the API data we already fetched
   const isLoading = usersApiLoading || rolesApiLoading || departmentsApiLoading;
