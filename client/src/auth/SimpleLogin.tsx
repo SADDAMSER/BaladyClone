@@ -96,8 +96,9 @@ export default function SimpleLogin({ onLogin }: LoginProps) {
       return { user: data.user, token: data.token };
     },
     onSuccess: (data) => {
-      // Store token in localStorage
-      localStorage.setItem('auth_token', data.token);
+      // Store token in localStorage (use 'token' key to match API calls)
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('auth_token', data.token); // Keep for compatibility
       localStorage.setItem('current_user', JSON.stringify(data.user));
       
       toast({
