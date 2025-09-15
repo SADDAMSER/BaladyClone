@@ -21,6 +21,7 @@ import {
   insertRoleSchema, insertPermissionSchema, insertRolePermissionSchema,
   insertUserRoleSchema
 } from "@shared/schema";
+import { DEFAULT_PERMISSIONS } from "@shared/defaults";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
@@ -779,6 +780,108 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       await storage.deleteRole(req.params.id);
       res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Permissions endpoints
+  app.get("/api/permissions", authenticateToken, async (req, res) => {
+    try {
+      const { category, resource, isActive } = req.query;
+      const filters: any = {};
+      if (category) filters.category = category as string;
+      if (resource) filters.resource = resource as string;
+      if (isActive !== undefined) filters.isActive = isActive === 'true';
+      
+      // Get permissions from database first
+      const dbPermissions = await storage.getPermissions(filters);
+      
+      // If no DB permissions found, return DEFAULT_PERMISSIONS (filtered if needed)
+      if (dbPermissions.length === 0) {
+        let permissions = DEFAULT_PERMISSIONS;
+        if (filters.category) {
+          permissions = permissions.filter(p => p.category === filters.category);
+        }
+        if (filters.resource) {
+          permissions = permissions.filter(p => p.resource === filters.resource);
+        }
+        if (filters.isActive !== undefined) {
+          permissions = permissions.filter(p => p.isActive === filters.isActive);
+        }
+        return res.json(permissions);
+      }
+      
+      res.json(dbPermissions);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/permissions/:id", authenticateToken, async (req, res) => {
+    try {
+      const permission = await storage.getPermission(req.params.id);
+      if (!permission) {
+        return res.status(404).json({ message: "Permission not found" });
+      }
+      res.json(permission);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Role permissions endpoints
+  app.get("/api/roles/:roleId/permissions", authenticateToken, async (req, res) => {
+    try {
+      const roleId = req.params.roleId;
+      
+      // Check if role exists
+      const role = await storage.getRole(roleId);
+      if (!role) {
+        return res.status(404).json({ message: "Role not found" });
+      }
+      
+      // Get role permissions
+      const rolePermissions = await storage.getRolePermissions(roleId);
+      res.json(rolePermissions);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/roles/:roleId/permissions", authenticateToken, requireRole('admin'), async (req, res) => {
+    try {
+      const roleId = req.params.roleId;
+      const { permissionIds } = req.body;
+      
+      if (!Array.isArray(permissionIds)) {
+        return res.status(400).json({ message: "permissionIds must be an array" });
+      }
+      
+      // Check if role exists
+      const role = await storage.getRole(roleId);
+      if (!role) {
+        return res.status(404).json({ message: "Role not found" });
+      }
+      
+      // Remove all existing permissions for this role
+      const existingRolePermissions = await storage.getRolePermissions(roleId);
+      for (const rp of existingRolePermissions) {
+        await storage.removePermissionFromRole(roleId, rp.permissionId);
+      }
+      
+      // Add new permissions
+      for (const permissionId of permissionIds) {
+        await storage.assignPermissionToRole({
+          roleId,
+          permissionId,
+          isActive: true
+        });
+      }
+      
+      // Return updated permissions
+      const updatedRolePermissions = await storage.getRolePermissions(roleId);
+      res.json(updatedRolePermissions);
     } catch (error) {
       res.status(500).json({ message: "Internal server error" });
     }
