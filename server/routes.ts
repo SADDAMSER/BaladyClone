@@ -17,7 +17,9 @@ import {
   insertServiceTemplateSchema, insertDynamicFormSchema,
   insertWorkflowDefinitionSchema, insertServiceBuilderSchema,
   insertNotificationSchema, insertApplicationStatusHistorySchema,
-  insertApplicationAssignmentSchema, insertApplicationReviewSchema
+  insertApplicationAssignmentSchema, insertApplicationReviewSchema,
+  insertRoleSchema, insertPermissionSchema, insertRolePermissionSchema,
+  insertUserRoleSchema
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
@@ -718,6 +720,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/departments/:id", authenticateToken, requireRole('admin'), async (req, res) => {
     try {
       await storage.deleteDepartment(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Roles endpoints (RBAC system)
+  app.get("/api/roles", authenticateToken, async (req, res) => {
+    try {
+      const { isActive, isSystemRole } = req.query;
+      const filters: any = {};
+      if (isActive !== undefined) filters.isActive = isActive === 'true';
+      if (isSystemRole !== undefined) filters.isSystemRole = isSystemRole === 'true';
+      
+      const roles = await storage.getRoles(filters);
+      res.json(roles);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/roles/:id", authenticateToken, async (req, res) => {
+    try {
+      const role = await storage.getRole(req.params.id);
+      if (!role) {
+        return res.status(404).json({ message: "Role not found" });
+      }
+      res.json(role);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/roles", authenticateToken, requireRole('admin'), validateRequest(insertRoleSchema), async (req, res) => {
+    try {
+      const roleData = insertRoleSchema.parse(req.body);
+      const role = await storage.createRole(roleData);
+      res.status(201).json(role);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/roles/:id", authenticateToken, requireRole('admin'), validateRequest(insertRoleSchema.partial()), async (req, res) => {
+    try {
+      const role = await storage.updateRole(req.params.id, req.body);
+      res.json(role);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/roles/:id", authenticateToken, requireRole('admin'), async (req, res) => {
+    try {
+      await storage.deleteRole(req.params.id);
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: "Internal server error" });
