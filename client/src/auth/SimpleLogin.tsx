@@ -18,6 +18,13 @@ export default function SimpleLogin({ onLogin }: LoginProps) {
   // Pre-configured test users
   const testUsers = [
     {
+      id: '550e8400-e29b-41d4-a716-446655440001',
+      username: 'admin_test',
+      fullName: 'مدير النظام',
+      role: 'admin',
+      description: 'مدير النظام - صلاحيات كاملة'
+    },
+    {
       id: '550e8400-e29b-41d4-a716-446655440000',
       username: 'citizen_test',
       fullName: 'احمد المواطن',
@@ -63,16 +70,30 @@ export default function SimpleLogin({ onLogin }: LoginProps) {
 
   const loginMutation = useMutation({
     mutationFn: async (username: string) => {
-      // Mock login - in real implementation, this would be a POST request to /api/auth/login
       const user = testUsers.find(u => u.username === username);
       if (!user) {
         throw new Error('User not found');
       }
 
-      // Mock JWT token
-      const mockToken = `mock_jwt_token_${user.id}_${Date.now()}`;
-      
-      return { user, token: mockToken };
+      // Use real login endpoint for proper JWT tokens  
+      const response = await fetch('/api/auth/simple-login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: user.username,
+          mockUser: true // Signal that this is a test user
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Login failed');
+      }
+
+      const data = await response.json();
+      return { user: data.user, token: data.token };
     },
     onSuccess: (data) => {
       // Store token in localStorage

@@ -418,9 +418,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(404).json({ message: 'Endpoint not available in production' });
     }
     try {
-      const { username, password } = req.body;
-      console.log('Simple login attempt for user:', username);
+      const { username, password, mockUser } = req.body;
+      console.log('Simple login attempt for user:', username, 'mockUser:', mockUser);
       
+      // Handle mock users for testing
+      if (mockUser) {
+        const mockUsers = [
+          { username: 'admin_test', role: 'admin', fullName: 'مدير النظام' },
+          { username: 'citizen_test', role: 'citizen', fullName: 'احمد المواطن' },
+          { username: 'cashier_01', role: 'employee', fullName: 'سعد أمين الصندوق' },
+          { username: 'public_service_01', role: 'employee', fullName: 'محمد موظف الخدمة العامة' },
+          { username: 'dept_manager_01', role: 'manager', fullName: 'محمد مدير قسم المساحة' },
+          { username: 'surveyor_01', role: 'employee', fullName: 'فهد المهندس المساح الأول' },
+          { username: 'surveyor_02', role: 'employee', fullName: 'سالم المهندس المساح الثاني' }
+        ];
+
+        const mockUser = mockUsers.find(u => u.username === username);
+        if (!mockUser) {
+          console.log('Mock user not found:', username);
+          return res.status(401).json({ message: "Invalid credentials" });
+        }
+
+        console.log('Mock user found, creating token for:', mockUser.username);
+        
+        // Create JWT token for mock user
+        const token = jwt.sign(
+          { 
+            id: `mock-${mockUser.username}`, 
+            username: mockUser.username, 
+            role: mockUser.role,
+            roleCodes: [mockUser.role]
+          },
+          jwtSecret,
+          { expiresIn: '24h' }
+        );
+        
+        return res.json({
+          token,
+          user: {
+            id: `mock-${mockUser.username}`,
+            username: mockUser.username,
+            fullName: mockUser.fullName,
+            role: mockUser.role,
+            roleCodes: [mockUser.role],
+            roles: [{ code: mockUser.role, nameAr: mockUser.fullName }]
+          }
+        });
+      }
+      
+      // Regular login for database users
       const user = await storage.getUserByUsername(username);
       if (!user) {
         console.log('User not found:', username);
@@ -756,7 +802,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/roles", authenticateToken, requireRole('admin'), validateRequest(insertRoleSchema), async (req, res) => {
     try {
-      console.log('POST /api/roles - Request body:', req.body);
       const roleData = insertRoleSchema.parse(req.body);
       const role = await storage.createRole(roleData);
       res.status(201).json(role);
