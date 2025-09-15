@@ -12,6 +12,8 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/ui/textarea';
 import { 
   Users, 
   Plus, 
@@ -28,7 +30,10 @@ import {
   Settings,
   Eye,
   Lock,
-  Unlock
+  Unlock,
+  FileText,
+  DollarSign,
+  MapPin
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Header from '@/components/Header';
@@ -55,15 +60,31 @@ const addUserSchema = z.object({
 
 type AddUserForm = z.infer<typeof addUserSchema>;
 
+// Form schema for Add Role
+const addRoleSchema = z.object({
+  code: z.string().min(2, 'رمز الدور يجب أن يكون حرفان على الأقل').max(50, 'رمز الدور طويل جداً'),
+  nameAr: z.string().min(1, 'الاسم العربي مطلوب'),
+  nameEn: z.string().min(1, 'الاسم الإنجليزي مطلوب'),
+  description: z.string().optional(),
+  level: z.number().int().min(1).max(10).default(5),
+  isSystemRole: z.boolean().default(false),
+  isActive: z.boolean().default(true)
+});
+
+type AddRoleForm = z.infer<typeof addRoleSchema>;
+
 export default function UserManagement() {
   const [selectedView, setSelectedView] = useState('users');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState<string>('all');
   const [filterDepartment, setFilterDepartment] = useState<string>('all');
   const [selectedUser, setSelectedUser] = useState<FrontendUser | null>(null);
+  const [selectedRole, setSelectedRole] = useState<FrontendRole | null>(null);
   const [showAddUser, setShowAddUser] = useState(false);
   const [showEditUser, setShowEditUser] = useState(false);
   const [showUserDetails, setShowUserDetails] = useState(false);
+  const [showAddRole, setShowAddRole] = useState(false);
+  const [showRolePermissions, setShowRolePermissions] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -79,6 +100,20 @@ export default function UserManagement() {
       roleId: '',
       departmentId: '',
       positionId: ''
+    }
+  });
+
+  // Form for Add Role
+  const addRoleForm = useForm<AddRoleForm>({
+    resolver: zodResolver(addRoleSchema),
+    defaultValues: {
+      code: '',
+      nameAr: '',
+      nameEn: '',
+      description: '',
+      level: 5,
+      isSystemRole: false,
+      isActive: true
     }
   });
 
@@ -118,10 +153,47 @@ export default function UserManagement() {
     enabled: true
   });
 
+  // Fetch permissions for role management
+  const { 
+    data: permissionsApiResponse, 
+    isLoading: permissionsApiLoading 
+  } = useQuery({
+    queryKey: ['/api/permissions'],
+    enabled: true
+  });
+
+  // Fetch role permissions (only when role is selected)
+  const { 
+    data: rolePermissionsApiResponse, 
+    isLoading: rolePermissionsApiLoading 
+  } = useQuery({
+    queryKey: ['/api/roles', selectedRole?.id, 'permissions'],
+    enabled: !!selectedRole?.id
+  });
+
   // Transform API responses to frontend format
   const users: FrontendUser[] = Array.isArray(usersApiResponse) ? usersApiResponse.map(adaptUserToFrontend) : [];
   const roles: FrontendRole[] = Array.isArray(rolesApiResponse) ? rolesApiResponse.map(adaptRoleToFrontend) : [];
   const departments = departmentsApiResponse || [];
+  const permissions = Array.isArray(permissionsApiResponse) ? permissionsApiResponse : [];
+  const rolePermissions = Array.isArray(rolePermissionsApiResponse) ? rolePermissionsApiResponse : [];
+  
+  // Get assigned permission IDs for selected role
+  const assignedPermissionIds = rolePermissions.map(rp => rp.permissionId);
+
+  // Handle permission checkbox changes
+  const handlePermissionChange = (permissionId: string, checked: boolean) => {
+    let newPermissionIds = [...assignedPermissionIds];
+    if (checked) {
+      newPermissionIds.push(permissionId);
+    } else {
+      newPermissionIds = newPermissionIds.filter(id => id !== permissionId);
+    }
+    updateRolePermissionsMutation.mutate({ 
+      roleId: selectedRole!.id, 
+      permissionIds: newPermissionIds 
+    });
+  };
 
   const temporaryMockRoles: FrontendRole[] = [
     {
@@ -264,6 +336,70 @@ export default function UserManagement() {
     },
   });
 
+  // Add Role mutation
+  const addRoleMutation = useMutation({
+    mutationFn: async (data: AddRoleForm) => {
+      const response = await fetch('/api/roles', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify(data)
+      });
+      if (!response.ok) throw new Error('Failed to create role');
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "تم إنشاء الدور",
+        description: "تم إنشاء الدور الجديد بنجاح",
+      });
+      addRoleForm.reset();
+      setShowAddRole(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/roles'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "خطأ",
+        description: error.message || "فشل في إنشاء الدور",
+        variant: "destructive"
+      });
+    },
+  });
+
+  // Update Role Permissions mutation
+  const updateRolePermissionsMutation = useMutation({
+    mutationFn: async ({ roleId, permissionIds }: { roleId: string; permissionIds: string[] }) => {
+      const response = await fetch(`/api/roles/${roleId}/permissions`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ permissionIds })
+      });
+      if (!response.ok) throw new Error('Failed to update role permissions');
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "تم التحديث",
+        description: "تم تحديث صلاحيات الدور بنجاح",
+      });
+      setShowRolePermissions(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/roles'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/roles', selectedRole?.id, 'permissions'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "خطأ",
+        description: error.message || "فشل في تحديث صلاحيات الدور",
+        variant: "destructive"
+      });
+    },
+  });
+
   const filteredUsers = users?.filter(user => {
     const matchesSearch = user.fullName.includes(searchTerm) || 
                          user.email.includes(searchTerm) ||
@@ -294,6 +430,63 @@ export default function UserManagement() {
     if (hours < 1) return 'متصل الآن';
     if (hours < 24) return `منذ ${hours} ساعة`;
     return `منذ ${days} يوم`;
+  };
+
+  // Helper functions for role permissions dialog
+  const getCategoryColor = (category: string) => {
+    const colors: Record<string, string> = {
+      user_management: '#3b82f6',
+      application_management: '#10b981',
+      financial: '#f59e0b',
+      field_operations: '#8b5cf6',
+      system: '#ef4444',
+      geographic: '#06b6d4'
+    };
+    return colors[category] || '#6b7280';
+  };
+
+  const getCategoryIcon = (category: string) => {
+    const icons: Record<string, any> = {
+      user_management: <Users className="w-4 h-4" />,
+      application_management: <FileText className="w-4 h-4" />,
+      financial: <DollarSign className="w-4 h-4" />,
+      field_operations: <MapPin className="w-4 h-4" />,
+      system: <Settings className="w-4 h-4" />,
+      geographic: <MapPin className="w-4 h-4" />
+    };
+    return icons[category] || <Shield className="w-4 h-4" />;
+  };
+
+  const getCategoryNameAr = (category: string) => {
+    const names: Record<string, string> = {
+      user_management: 'إدارة المستخدمين',
+      application_management: 'إدارة الطلبات',
+      financial: 'الشؤون المالية',
+      field_operations: 'العمليات الميدانية',
+      system: 'إدارة النظام',
+      geographic: 'البيانات الجغرافية'
+    };
+    return names[category] || 'تصنيف أخر';
+  };
+
+  const getScopeColor = (scope: string) => {
+    const colors: Record<string, string> = {
+      own: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
+      department: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
+      region: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
+      all: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
+    };
+    return colors[scope] || 'bg-gray-100 text-gray-800';
+  };
+
+  const getScopeNameAr = (scope: string) => {
+    const names: Record<string, string> = {
+      own: 'شخصي',
+      department: 'القسم',
+      region: 'المنطقة',
+      all: 'الكل'
+    };
+    return names[scope] || 'غير محدد';
   };
 
   if (isLoading) {
@@ -667,10 +860,116 @@ export default function UserManagement() {
           <TabsContent value="roles" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Shield className="w-5 h-5" />
-                  إدارة الأدوار
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Shield className="w-5 h-5" />
+                    إدارة الأدوار
+                  </CardTitle>
+                  <Dialog open={showAddRole} onOpenChange={setShowAddRole}>
+                    <DialogTrigger asChild>
+                      <Button data-testid="add-role">
+                        <Plus className="w-4 h-4 ml-1" />
+                        إضافة دور
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-md" dir="rtl">
+                      <DialogHeader>
+                        <DialogTitle>إضافة دور جديد</DialogTitle>
+                      </DialogHeader>
+                      <Form {...addRoleForm}>
+                        <form onSubmit={addRoleForm.handleSubmit((data) => addRoleMutation.mutate(data))} className="space-y-4">
+                          <FormField
+                            control={addRoleForm.control}
+                            name="code"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>رمز الدور</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="مثال: manager" {...field} data-testid="input-role-code" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={addRoleForm.control}
+                            name="nameAr"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>الاسم العربي</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="مثال: مدير القسم" {...field} data-testid="input-role-name-ar" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={addRoleForm.control}
+                            name="nameEn"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>الاسم الإنجليزي</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="مثال: Department Manager" {...field} data-testid="input-role-name-en" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={addRoleForm.control}
+                            name="description"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>الوصف</FormLabel>
+                                <FormControl>
+                                  <Textarea placeholder="وصف مهام ومسؤوليات الدور" {...field} data-testid="input-role-description" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={addRoleForm.control}
+                            name="level"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>مستوى الدور</FormLabel>
+                                <FormControl>
+                                  <Input type="number" min="1" max="10" {...field} onChange={(e) => field.onChange(parseInt(e.target.value) || 5)} data-testid="input-role-level" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={addRoleForm.control}
+                            name="isSystemRole"
+                            render={({ field }) => (
+                              <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                                <FormControl>
+                                  <Checkbox checked={field.value} onCheckedChange={field.onChange} data-testid="checkbox-role-system" />
+                                </FormControl>
+                                <div className="space-y-1 leading-none">
+                                  <FormLabel>دور نظام أساسي</FormLabel>
+                                </div>
+                              </FormItem>
+                            )}
+                          />
+                          <div className="flex justify-end gap-2">
+                            <Button type="button" variant="outline" onClick={() => setShowAddRole(false)}>
+                              إلغاء
+                            </Button>
+                            <Button type="submit" disabled={addRoleMutation.isPending} data-testid="button-submit-role">
+                              {addRoleMutation.isPending ? 'جاري الإنشاء...' : 'إنشاء الدور'}
+                            </Button>
+                          </div>
+                        </form>
+                      </Form>
+                    </DialogContent>
+                  </Dialog>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -698,7 +997,15 @@ export default function UserManagement() {
                           <span className="text-sm text-gray-500">
                             {users?.filter(u => u.roles[0]?.id === role.id).length || 0} مستخدم
                           </span>
-                          <Button variant="outline" size="sm">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => {
+                              setSelectedRole(role);
+                              setShowRolePermissions(true);
+                            }}
+                            data-testid={`manage-permissions-${role.id}`}
+                          >
                             <Key className="w-4 h-4 ml-1" />
                             الصلاحيات
                           </Button>
@@ -784,6 +1091,124 @@ export default function UserManagement() {
                       </Badge>
                     </p>
                   </div>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Role Permissions Dialog */}
+        <Dialog open={showRolePermissions} onOpenChange={setShowRolePermissions}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto" dir="rtl">
+            <DialogHeader>
+              <DialogTitle>إدارة صلاحيات الدور: {selectedRole?.nameAr}</DialogTitle>
+            </DialogHeader>
+            {selectedRole && (
+              <div className="space-y-6">
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <Label className="text-sm font-medium">اسم الدور</Label>
+                      <p className="font-bold">{selectedRole.nameAr}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">المستوى</Label>
+                      <p className="font-bold">{selectedRole.level}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">عدد المستخدمين</Label>
+                      <p className="font-bold">{users?.filter(u => u.roles[0]?.id === selectedRole.id).length || 0}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {permissionsApiLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold">الصلاحيات المتاحة</h3>
+                      <div className="text-sm text-muted-foreground">
+                        {assignedPermissionIds.length} من {permissions.length} صلاحية مختارة
+                      </div>
+                    </div>
+                    
+                    {/* Group permissions by category */}
+                    <div className="space-y-6">
+                      {Object.entries(
+                        permissions.reduce((acc: Record<string, any[]>, permission: any) => {
+                          const category = permission.category || 'other';
+                          if (!acc[category]) acc[category] = [];
+                          acc[category].push(permission);
+                          return acc;
+                        }, {})
+                      ).map(([category, categoryPermissions]) => (
+                        <Card key={category} className="border-l-4" style={{ borderLeftColor: getCategoryColor(category) }}>
+                          <CardHeader className="pb-3">
+                            <CardTitle className="flex items-center gap-2 text-base">
+                              {getCategoryIcon(category)}
+                              {getCategoryNameAr(category)}
+                              <Badge variant="secondary" className="mr-auto">
+                                {categoryPermissions.filter(p => assignedPermissionIds.includes(p.id)).length} / {categoryPermissions.length}
+                              </Badge>
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              {categoryPermissions.map((permission: any) => {
+                                const isChecked = assignedPermissionIds.includes(permission.id);
+                                return (
+                                  <div key={permission.id} className="flex items-start space-x-2 space-x-reverse">
+                                    <Checkbox
+                                      id={`permission-${permission.id}`}
+                                      checked={isChecked}
+                                      onCheckedChange={(checked: boolean) => 
+                                        handlePermissionChange(permission.id, checked)
+                                      }
+                                      disabled={updateRolePermissionsMutation.isPending}
+                                      data-testid={`permission-checkbox-${permission.id}`}
+                                    />
+                                    <div className="grid gap-1.5 leading-none flex-1">
+                                      <label
+                                        htmlFor={`permission-${permission.id}`}
+                                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                                      >
+                                        {permission.nameAr}
+                                      </label>
+                                      <p className="text-xs text-muted-foreground">
+                                        {permission.description}
+                                      </p>
+                                      <div className="flex gap-1">
+                                        <Badge variant="outline" className="text-xs">
+                                          {permission.resource}.{permission.action}
+                                        </Badge>
+                                        <Badge className={`text-xs ${getScopeColor(permission.scope)}`}>
+                                          {getScopeNameAr(permission.scope)}
+                                        </Badge>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2 pt-4 border-t">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => setShowRolePermissions(false)}
+                    data-testid="button-close-permissions"
+                  >
+                    إغلاق
+                  </Button>
                 </div>
               </div>
             )}
