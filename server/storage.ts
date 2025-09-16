@@ -4421,7 +4421,7 @@ export class DatabaseStorage implements IStorage {
     try {
       const [result] = await db.insert(performanceMetrics).values({
         ...metric,
-        timestamp: metric.timestamp || sql`CURRENT_TIMESTAMP`
+        // timestamp field omitted from insert schema - gets default value
       }).returning();
       return result;
     } catch (error) {
@@ -4563,7 +4563,7 @@ export class DatabaseStorage implements IStorage {
     try {
       const [result] = await db.insert(syncOperationsMetrics).values({
         ...metric,
-        startedAt: metric.startedAt || sql`CURRENT_TIMESTAMP`
+        // startedAt field omitted from insert schema - gets default value
       }).returning();
       return result;
     } catch (error) {
@@ -4657,7 +4657,7 @@ export class DatabaseStorage implements IStorage {
 
       const errorsByType: Record<string, number> = {};
       for (const row of errorResult.rows) {
-        errorsByType[row.error_type] = Number(row.error_count);
+        errorsByType[row.error_type as string] = Number(row.error_count);
       }
 
       return {
@@ -4817,12 +4817,12 @@ export class DatabaseStorage implements IStorage {
 
       const errorsByType: Record<string, number> = {};
       for (const row of typeResult.rows) {
-        errorsByType[row.error_type] = Number(row.error_count);
+        errorsByType[row.error_type as string] = Number(row.error_count);
       }
 
       const errorsBySeverity: Record<string, number> = {};
       for (const row of severityResult.rows) {
-        errorsBySeverity[row.severity] = Number(row.error_count);
+        errorsBySeverity[row.severity as string] = Number(row.error_count);
       }
 
       return {
@@ -4933,10 +4933,7 @@ export class DatabaseStorage implements IStorage {
   // SLO Measurements Operations
   async recordSloMeasurement(measurement: InsertSloMeasurement): Promise<SloMeasurement> {
     try {
-      const [result] = await db.insert(sloMeasurements).values({
-        ...measurement,
-        timestamp: measurement.timestamp || sql`CURRENT_TIMESTAMP`
-      }).returning();
+      const [result] = await db.insert(sloMeasurements).values(measurement).returning();
       return result;
     } catch (error) {
       console.error('Failed to record SLO measurement:', error);
@@ -4967,20 +4964,20 @@ export class DatabaseStorage implements IStorage {
         conditions.push(eq(sloMeasurements.isCompliant, filters.isCompliant));
       }
       if (filters?.timeRange) {
-        conditions.push(sql`${sloMeasurements.timestamp} >= ${filters.timeRange.from}`);
-        conditions.push(sql`${sloMeasurements.timestamp} <= ${filters.timeRange.to}`);
+        conditions.push(sql`${sloMeasurements.windowStart} >= ${filters.timeRange.from}`);
+        conditions.push(sql`${sloMeasurements.windowEnd} <= ${filters.timeRange.to}`);
       }
 
       if (conditions.length > 0) {
         return await db.select()
           .from(sloMeasurements)
           .where(and(...conditions))
-          .orderBy(desc(sloMeasurements.timestamp));
+          .orderBy(desc(sloMeasurements.windowStart));
       }
       
       return await db.select()
         .from(sloMeasurements)
-        .orderBy(desc(sloMeasurements.timestamp));
+        .orderBy(desc(sloMeasurements.windowStart));
     } catch (error) {
       console.error('Failed to get SLO measurements:', error);
       return [];
@@ -5003,8 +5000,8 @@ export class DatabaseStorage implements IStorage {
           AVG(error_budget_consumed) as avg_error_budget_consumed
         FROM ${sloMeasurements}
         WHERE service = ${service}
-          AND timestamp >= ${timeRange.from}
-          AND timestamp <= ${timeRange.to}
+          AND window_start >= ${timeRange.from}
+          AND window_end <= ${timeRange.to}
       `);
 
       const row = result.rows[0];
@@ -5093,21 +5090,21 @@ export class DatabaseStorage implements IStorage {
         .where(
           and(
             eq(sloMeasurements.isCompliant, false),
-            sql`${sloMeasurements.timestamp} >= ${oneHourAgo}`
+            sql`${sloMeasurements.windowStart} >= ${oneHourAgo}`
           )
         )
-        .orderBy(desc(sloMeasurements.timestamp))
+        .orderBy(desc(sloMeasurements.windowStart))
         .limit(10);
 
       // Get degraded services
       const degradedResult = await db.execute(sql`
         SELECT DISTINCT service
         FROM ${sloMeasurements}
-        WHERE timestamp >= ${oneHourAgo}
+        WHERE window_start >= ${oneHourAgo}
           AND is_compliant = false
       `);
 
-      const degradedServices = degradedResult.rows.map(row => row.service);
+      const degradedServices = degradedResult.rows.map(row => row.service as string);
 
       // Determine overall system health
       let overallHealth: 'healthy' | 'degraded' | 'critical' = 'healthy';
