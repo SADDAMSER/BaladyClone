@@ -40,6 +40,23 @@ interface SyncError {
   retryable: boolean;
 }
 
+interface DeadLetterEntry {
+  id: string;
+  operationId: string;
+  operation: SyncOperation;
+  failureReason: string;
+  maxRetriesExceeded: boolean;
+  lastAttempt: string;
+  attemptCount: number;
+}
+
+interface PriorityOperation {
+  operation: SyncOperation;
+  priority: 'critical' | 'high' | 'normal' | 'low';
+  queuedAt: string;
+  retryState?: RetryState;
+}
+
 export interface SyncSession {
   id: string;
   userId: string;
@@ -99,6 +116,23 @@ export function useMobileSync() {
   // Secure storage
   const [secureStore, setSecureStore] = useState<any>(null);
   const [migrationStatus, setMigrationStatus] = useState<'checking' | 'required' | 'migrating' | 'completed'>('checking');
+
+  // Advanced queue management
+  const [priorityQueues, setPriorityQueues] = useState<{
+    critical: PriorityOperation[];
+    high: PriorityOperation[];
+    normal: PriorityOperation[];
+    low: PriorityOperation[];
+  }>({
+    critical: [],
+    high: [],
+    normal: [],
+    low: []
+  });
+  const [deadLetterQueue, setDeadLetterQueue] = useState<DeadLetterEntry[]>([]);
+  
+  // Legacy operations for backward compatibility
+  const [offlineOperations, setOfflineOperations] = useState<SyncOperation[]>([]);
   
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({
     isOnline: navigator.onLine,
@@ -169,11 +203,12 @@ export function useMobileSync() {
     };
   }, []);
 
-  // Retry with exponential backoff
+  // Retry with exponential backoff (enhanced with operation context)
   const executeWithRetry = useCallback(async <T>(
     operation: () => Promise<T>,
     operationName: string,
-    customConfig?: Partial<RetryConfig>
+    customConfig?: Partial<RetryConfig>,
+    operationContext?: { operation: SyncOperation }
   ): Promise<T> => {
     const config = { ...retryConfig, ...customConfig };
     const currentAttempts = retryAttempts.get(operationName) || 0;
@@ -227,10 +262,26 @@ export function useMobileSync() {
       });
       
       if (!syncError.retryable || currentAttempts >= config.maxRetries) {
+        // Move to Dead Letter Queue for non-retryable or max-retries-exceeded
+        if (secureStore) {
+          const deadLetterEntry: DeadLetterEntry = {
+            id: `dlq_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            operationId: operationName,
+            operation: operationContext?.operation || {} as SyncOperation,
+            failureReason: syncError.message,
+            maxRetriesExceeded: currentAttempts >= config.maxRetries,
+            lastAttempt: new Date().toISOString(),
+            attemptCount: currentAttempts
+          };
+          
+          await secureStore.setItem('deadLetter', deadLetterEntry.id, deadLetterEntry);
+          setDeadLetterQueue(prev => [...prev, deadLetterEntry]);
+        }
+        
         // Show error toast for final failure
         toast({
           title: "فشل في المزامنة",
-          description: syncError.message,
+          description: `${syncError.message} - تم نقل العملية إلى قائمة الانتظار`,
           variant: "destructive",
         });
         
@@ -248,12 +299,26 @@ export function useMobileSync() {
         delay = Math.round(Math.random() * delay); // Full jitter: random(0, delay)
       }
 
-      // Update retry count
+      // Update retry count and persist retry state
+      const newAttemptCount = currentAttempts + 1;
       setRetryAttempts(prev => {
         const newMap = new Map(prev);
-        newMap.set(operationName, currentAttempts + 1);
+        newMap.set(operationName, newAttemptCount);
         return newMap;
       });
+
+      // Persist retry state to secure storage
+      if (secureStore) {
+        const retryState: RetryState = {
+          id: operationName,
+          attempts: newAttemptCount,
+          lastAttempt: Date.now(),
+          nextRetry: Date.now() + delay,
+          backoffMultiplier: config.backoffMultiplier,
+          deadLetter: false
+        };
+        await secureStore.setRetryState(operationName, retryState);
+      }
 
       // Show retry toast
       toast({
@@ -266,9 +331,131 @@ export function useMobileSync() {
       await new Promise(resolve => setTimeout(resolve, delay));
 
       // Recursive retry
-      return executeWithRetry(operation, operationName, customConfig);
+      return executeWithRetry(operation, operationName, customConfig, operationContext);
     }
-  }, [retryAttempts, retryConfig, classifyError, toast]);
+  }, [retryAttempts, retryConfig, classifyError, toast, secureStore, circuitBreaker]);
+
+  // Priority Classification Logic
+  const classifyPriority = useCallback((operation: SyncOperation): 'critical' | 'high' | 'normal' | 'low' => {
+    // Critical: payments, assignments (financial/work-critical)
+    if (['payments', 'assignments', 'building_licenses'].includes(operation.tableName)) {
+      return 'critical';
+    }
+    
+    // High: create operations (new data)
+    if (operation.operation === 'create') {
+      return 'high';
+    }
+    
+    // Normal: update operations  
+    if (operation.operation === 'update') {
+      return 'normal';
+    }
+    
+    // Low: delete operations
+    return 'low';
+  }, []);
+
+  // Add to Priority Queue
+  const addToPriorityQueue = useCallback(async (operation: SyncOperation, priority?: 'critical' | 'high' | 'normal' | 'low') => {
+    const operationPriority = priority || classifyPriority(operation);
+    
+    const priorityOp: PriorityOperation = {
+      operation,
+      priority: operationPriority,
+      queuedAt: new Date().toISOString(),
+      retryState: undefined
+    };
+
+    setPriorityQueues(prev => ({
+      ...prev,
+      [operationPriority]: [...prev[operationPriority], priorityOp]
+    }));
+
+    // Persist to secure storage
+    if (secureStore) {
+      await secureStore.setItem('operations', `${operationPriority}_${operation.id}`, priorityOp);
+    }
+  }, [classifyPriority, secureStore]);
+
+  // Process Next Priority Operation
+  const processNextPriorityOperation = useCallback(async (): Promise<boolean> => {
+    const priorities: Array<keyof typeof priorityQueues> = ['critical', 'high', 'normal', 'low'];
+    
+    for (const priority of priorities) {
+      const queue = priorityQueues[priority];
+      if (queue.length > 0) {
+        const priorityOp = queue[0];
+        const operation = priorityOp.operation;
+        
+        // Remove from queue first
+        setPriorityQueues(prev => ({
+          ...prev,
+          [priority]: prev[priority].slice(1)
+        }));
+
+        try {
+          // Process single operation using existing push logic
+          await executeWithRetry(
+            () => pushMutation.mutateAsync([operation]),
+            `priority_${priority}_${operation.id}`,
+            undefined,
+            { operation } // Pass operation context for accurate DLQ
+          );
+          
+          // Remove from secure storage on success
+          if (secureStore) {
+            await secureStore.removeItem('operations', `${priority}_${operation.id}`);
+          }
+          
+          return true;
+        } catch (error) {
+          console.error(`Priority ${priority} operation failed:`, error);
+          return false;
+        }
+      }
+    }
+    
+    return false; // No operations to process
+  }, [priorityQueues, executeWithRetry, pushMutation, secureStore]);
+
+  // Retry from Dead Letter Queue
+  const retryFromDeadLetter = useCallback(async (deadLetterEntry: DeadLetterEntry, elevate: boolean = true) => {
+    const operation = deadLetterEntry.operation;
+    const priority = elevate ? 'high' : classifyPriority(operation);
+    
+    // Reset retry state
+    if (secureStore) {
+      const resetRetryState: RetryState = {
+        id: operation.id || deadLetterEntry.operationId,
+        attempts: 0,
+        lastAttempt: Date.now(),
+        nextRetry: Date.now(),
+        backoffMultiplier: retryConfig.backoffMultiplier,
+        deadLetter: false
+      };
+      await secureStore.setRetryState(operation.id || deadLetterEntry.operationId, resetRetryState);
+    }
+    
+    // Re-enqueue with elevated priority
+    await addToPriorityQueue(operation, priority);
+    
+    // Remove from DLQ
+    setDeadLetterQueue(prev => prev.filter(item => item.id !== deadLetterEntry.id));
+    
+    if (secureStore) {
+      await secureStore.removeItem('deadLetter', deadLetterEntry.id);
+    }
+    
+    toast({
+      title: 'إعادة محاولة',
+      description: `تم إعادة العملية للمعالجة بأولوية ${priority}`,
+      variant: 'default'
+    });
+  }, [classifyPriority, addToPriorityQueue, secureStore, toast, retryConfig.backoffMultiplier]);
+
+  // Queue processing state
+  const [isQueueProcessing, setIsQueueProcessing] = useState(false);
 
   const [deviceId] = useState(() => {
     // Generate or retrieve device ID from localStorage
@@ -315,10 +502,39 @@ export function useMobileSync() {
         const store = await getSecureStore();
         setSecureStore(store);
 
-        // Load existing operations
+        // Load existing operations and organize into priority queues
         const operations = await store.getAllItems('operations');
         if (operations?.length > 0) {
-          setOfflineOperations(operations);
+          // Separate priority operations from legacy operations
+          const priorityOps: { [key: string]: PriorityOperation[] } = {
+            critical: [],
+            high: [],
+            normal: [],
+            low: []
+          };
+          const legacyOps: SyncOperation[] = [];
+
+          operations.forEach((item: any) => {
+            if (item.priority && item.operation) {
+              // This is a PriorityOperation
+              priorityOps[item.priority].push(item);
+            } else {
+              // Legacy SyncOperation
+              legacyOps.push(item);
+            }
+          });
+
+          // Set priority queues
+          setPriorityQueues(priorityOps);
+          
+          // Set legacy operations (for backward compatibility)
+          setOfflineOperations(legacyOps);
+        }
+
+        // Load Dead Letter Queue
+        const dlqItems = await store.getAllItems('deadLetter');
+        if (dlqItems?.length > 0) {
+          setDeadLetterQueue(dlqItems);
         }
 
       } catch (error) {
@@ -364,6 +580,54 @@ export function useMobileSync() {
       window.removeEventListener('offline', handleOffline);
     };
   }, [user, token, migrationStatus]);
+
+  // Background Priority Queue Processor
+  useEffect(() => {
+    if (!syncStatus.isOnline || 
+        syncStatus.isSyncing || 
+        isQueueProcessing || 
+        circuitBreaker.isOpen || 
+        migrationStatus !== 'completed' ||
+        !secureStore) {
+      return;
+    }
+
+    const processQueue = async () => {
+      setIsQueueProcessing(true);
+      
+      try {
+        // Process up to 2 operations concurrently to avoid overwhelming
+        const maxConcurrent = 2;
+        let processed = 0;
+        
+        while (processed < maxConcurrent) {
+          const hasMore = await processNextPriorityOperation();
+          if (!hasMore) break;
+          processed++;
+          
+          // Small delay between operations to prevent overwhelming
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      } catch (error) {
+        console.error('Background queue processing error:', error);
+      } finally {
+        setIsQueueProcessing(false);
+      }
+    };
+
+    // Process every 3 seconds when conditions are right
+    const interval = setInterval(processQueue, 3000);
+    
+    return () => clearInterval(interval);
+  }, [
+    syncStatus.isOnline, 
+    syncStatus.isSyncing, 
+    isQueueProcessing, 
+    circuitBreaker.isOpen, 
+    migrationStatus, 
+    secureStore,
+    processNextPriorityOperation
+  ]);
 
   // Get sync session info
   const { data: syncSession, refetch: refetchSession } = useQuery({
