@@ -89,6 +89,314 @@ export const userGeographicAssignments = pgTable("user_geographic_assignments", 
   )`
 }));
 
+// =============================================
+// ENHANCED LBAC HARDENING TABLES - Phase 6
+// =============================================
+
+// Geographic Assignment History - Audit Trail for LBAC Changes
+export const userGeographicAssignmentHistory = pgTable("user_geographic_assignment_history", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  originalAssignmentId: uuid("original_assignment_id")
+    .references(() => userGeographicAssignments.id, { onDelete: "set null" }),
+  userId: uuid("user_id")
+    .references(() => users.id, { onDelete: "restrict" })
+    .notNull(),
+  // Geographic scope snapshot
+  governorateId: uuid("governorate_id")
+    .references(() => governorates.id, { onDelete: "set null" }),
+  districtId: uuid("district_id")
+    .references(() => districts.id, { onDelete: "set null" }),
+  subDistrictId: uuid("sub_district_id")
+    .references(() => subDistricts.id, { onDelete: "set null" }),
+  neighborhoodId: uuid("neighborhood_id")
+    .references(() => neighborhoods.id, { onDelete: "set null" }),
+  // Change tracking metadata
+  changeType: text("change_type").notNull(), // created, updated, deleted, suspended, reactivated
+  changeReason: text("change_reason"), // administrative, emergency, promotion, transfer
+  previousValues: jsonb("previous_values"), // snapshot of previous state
+  newValues: jsonb("new_values"), // snapshot of new state
+  changedById: uuid("changed_by_id")
+    .references(() => users.id)
+    .notNull(),
+  changeDate: timestamp("change_date").default(sql`CURRENT_TIMESTAMP`),
+  effectiveDate: timestamp("effective_date"),
+  approvalRequired: boolean("approval_required").default(false),
+  approvedById: uuid("approved_by_id")
+    .references(() => users.id),
+  approvalDate: timestamp("approval_date"),
+  notes: text("notes"),
+  systemGenerated: boolean("system_generated").default(false),
+});
+
+// Permission-Geographic Constraints - Link specific permissions to geographic scopes
+export const permissionGeographicConstraints = pgTable("permission_geographic_constraints", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  permissionId: uuid("permission_id")
+    .references(() => permissions.id, { onDelete: "cascade" })
+    .notNull(),
+  // Geographic constraint level
+  constraintLevel: text("constraint_level").notNull(), // governorate, district, subDistrict, neighborhood, block, plot
+  // Specific geographic areas where this permission applies
+  governorateId: uuid("governorate_id")
+    .references(() => governorates.id, { onDelete: "cascade" }),
+  districtId: uuid("district_id")
+    .references(() => districts.id, { onDelete: "cascade" }),
+  subDistrictId: uuid("sub_district_id")
+    .references(() => subDistricts.id, { onDelete: "cascade" }),
+  neighborhoodId: uuid("neighborhood_id")
+    .references(() => neighborhoods.id, { onDelete: "cascade" }),
+  blockId: uuid("block_id")
+    .references(() => blocks.id, { onDelete: "cascade" }),
+  plotId: uuid("plot_id")
+    .references(() => plots.id, { onDelete: "cascade" }),
+  // Constraint metadata
+  constraintType: text("constraint_type").notNull().default("inclusive"), // inclusive, exclusive
+  priority: integer("priority").default(100), // Lower numbers = higher priority
+  conditions: jsonb("conditions"), // Additional conditions for permission activation
+  isActive: boolean("is_active").default(true),
+  createdById: uuid("created_by_id")
+    .references(() => users.id),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  // Ensure only one geographic level per constraint
+  oneGeographicConstraintLevel: sql`CONSTRAINT one_geographic_constraint_level CHECK (
+    (CASE WHEN governorate_id IS NOT NULL THEN 1 ELSE 0 END +
+     CASE WHEN district_id IS NOT NULL THEN 1 ELSE 0 END +
+     CASE WHEN sub_district_id IS NOT NULL THEN 1 ELSE 0 END +
+     CASE WHEN neighborhood_id IS NOT NULL THEN 1 ELSE 0 END +
+     CASE WHEN block_id IS NOT NULL THEN 1 ELSE 0 END +
+     CASE WHEN plot_id IS NOT NULL THEN 1 ELSE 0 END) = 1
+  )`,
+  // CRITICAL: Ensure constraintLevel matches the actual non-null geographic column
+  constraintLevelMatches: sql`CONSTRAINT constraint_level_matches CHECK (
+    (constraint_level = 'governorate' AND governorate_id IS NOT NULL) OR
+    (constraint_level = 'district' AND district_id IS NOT NULL) OR
+    (constraint_level = 'subDistrict' AND sub_district_id IS NOT NULL) OR
+    (constraint_level = 'neighborhood' AND neighborhood_id IS NOT NULL) OR
+    (constraint_level = 'block' AND block_id IS NOT NULL) OR
+    (constraint_level = 'plot' AND plot_id IS NOT NULL)
+  )`
+}));
+
+// Temporary Permission Delegation - For emergency/temporary access
+export const temporaryPermissionDelegations = pgTable("temporary_permission_delegations", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  fromUserId: uuid("from_user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  toUserId: uuid("to_user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  // Geographic scope of delegation
+  governorateId: uuid("governorate_id")
+    .references(() => governorates.id, { onDelete: "cascade" }),
+  districtId: uuid("district_id")
+    .references(() => districts.id, { onDelete: "cascade" }),
+  subDistrictId: uuid("sub_district_id")
+    .references(() => subDistricts.id, { onDelete: "cascade" }),
+  neighborhoodId: uuid("neighborhood_id")
+    .references(() => neighborhoods.id, { onDelete: "cascade" }),
+  // Delegation metadata
+  delegationType: text("delegation_type").notNull(), // emergency, vacation, temporary_assignment, training
+  // Specific permissions moved to junction table: temporaryPermissionDelegationPermissions
+  delegateAllPermissions: boolean("delegate_all_permissions").default(false),
+  // Time constraints
+  startDate: timestamp("start_date").default(sql`CURRENT_TIMESTAMP`),
+  endDate: timestamp("end_date").notNull(),
+  maxUsageCount: integer("max_usage_count"), // Optional usage limit
+  currentUsageCount: integer("current_usage_count").default(0),
+  // Authorization
+  reason: text("reason").notNull(),
+  authorizedById: uuid("authorized_by_id")
+    .references(() => users.id),
+  approvalRequired: boolean("approval_required").default(true),
+  approvedById: uuid("approved_by_id")
+    .references(() => users.id),
+  approvalDate: timestamp("approval_date"),
+  // Status tracking
+  status: text("status").default("pending"), // pending, active, expired, revoked, used_up
+  isActive: boolean("is_active").default(false),
+  revokedById: uuid("revoked_by_id")
+    .references(() => users.id),
+  revokedDate: timestamp("revoked_date"),
+  revokeReason: text("revoke_reason"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  // Ensure only one geographic level per delegation
+  oneGeographicDelegationLevel: sql`CONSTRAINT one_geographic_delegation_level CHECK (
+    (CASE WHEN governorate_id IS NOT NULL THEN 1 ELSE 0 END +
+     CASE WHEN district_id IS NOT NULL THEN 1 ELSE 0 END +
+     CASE WHEN sub_district_id IS NOT NULL THEN 1 ELSE 0 END +
+     CASE WHEN neighborhood_id IS NOT NULL THEN 1 ELSE 0 END) = 1
+  )`,
+  // End date must be after start date
+  validDelegationPeriod: sql`CONSTRAINT valid_delegation_period CHECK (
+    start_date < end_date
+  )`,
+  // Can't delegate to yourself
+  noDelegationToSelf: sql`CONSTRAINT no_delegation_to_self CHECK (
+    from_user_id != to_user_id
+  )`,
+  // CRITICAL: Status and isActive consistency validation
+  statusActiveConsistency: sql`CONSTRAINT status_active_consistency CHECK (
+    (status = 'active' AND is_active = true) OR
+    (status IN ('pending', 'expired', 'revoked', 'used_up') AND is_active = false)
+  )`,
+  // Approval logic validation
+  approvalLogicConsistency: sql`CONSTRAINT approval_logic_consistency CHECK (
+    (approval_required = true AND (approved_by_id IS NOT NULL OR status != 'active')) OR
+    (approval_required = false)
+  )`,
+  // Usage count validation
+  usageCountValidation: sql`CONSTRAINT usage_count_validation CHECK (
+    current_usage_count >= 0 AND
+    (max_usage_count IS NULL OR current_usage_count <= max_usage_count) AND
+    (status != 'used_up' OR (max_usage_count IS NOT NULL AND current_usage_count >= max_usage_count))
+  )`
+}));
+
+// Geographic-Based Role Templates - Location-specific role assignments
+export const geographicRoleTemplates = pgTable("geographic_role_templates", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  templateName: text("template_name").notNull(),
+  templateNameEn: text("template_name_en"),
+  description: text("description"),
+  // Geographic scope for this template
+  geographicLevel: text("geographic_level").notNull(), // governorate, district, subDistrict, neighborhood
+  governorateId: uuid("governorate_id")
+    .references(() => governorates.id, { onDelete: "cascade" }),
+  districtId: uuid("district_id")
+    .references(() => districts.id, { onDelete: "cascade" }),
+  subDistrictId: uuid("sub_district_id")
+    .references(() => subDistricts.id, { onDelete: "cascade" }),
+  neighborhoodId: uuid("neighborhood_id")
+    .references(() => neighborhoods.id, { onDelete: "cascade" }),
+  // Role and permission configuration moved to junction tables:
+  // - geographicRoleTemplateRoles for role assignments
+  // - geographicRoleTemplatePermissions for additional/excluded permissions
+  // Template metadata
+  templateType: text("template_type").notNull(), // standard, emergency, temporary, training
+  autoAssign: boolean("auto_assign").default(false), // Auto-assign to users in this geographic area
+  requiresApproval: boolean("requires_approval").default(true),
+  maxActiveUsers: integer("max_active_users"), // Optional limit on concurrent users
+  currentActiveUsers: integer("current_active_users").default(0),
+  // Validity constraints
+  validFrom: timestamp("valid_from").default(sql`CURRENT_TIMESTAMP`),
+  validUntil: timestamp("valid_until"),
+  isActive: boolean("is_active").default(true),
+  createdById: uuid("created_by_id")
+    .references(() => users.id),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  // Ensure only one geographic level per template
+  oneGeographicTemplateLevel: sql`CONSTRAINT one_geographic_template_level CHECK (
+    (CASE WHEN governorate_id IS NOT NULL THEN 1 ELSE 0 END +
+     CASE WHEN district_id IS NOT NULL THEN 1 ELSE 0 END +
+     CASE WHEN sub_district_id IS NOT NULL THEN 1 ELSE 0 END +
+     CASE WHEN neighborhood_id IS NOT NULL THEN 1 ELSE 0 END) = 1
+  )`,
+  // Valid until must be after valid from if specified
+  validTemplateActivityPeriod: sql`CONSTRAINT valid_template_activity_period CHECK (
+    valid_until IS NULL OR valid_from < valid_until
+  )`
+}));
+
+// =============================================
+// LBAC JUNCTION TABLES - Proper Foreign Key Relationships
+// =============================================
+
+// Junction table for geographic role templates and roles
+export const geographicRoleTemplateRoles = pgTable("geographic_role_template_roles", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  templateId: uuid("template_id")
+    .references(() => geographicRoleTemplates.id, { onDelete: "cascade" })
+    .notNull(),
+  roleId: uuid("role_id")
+    .references(() => roles.id, { onDelete: "cascade" })
+    .notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  // Prevent duplicate role assignments
+  uniqueTemplateRole: sql`CONSTRAINT unique_template_role UNIQUE (template_id, role_id)`
+}));
+
+// Junction table for geographic role templates and additional permissions
+export const geographicRoleTemplatePermissions = pgTable("geographic_role_template_permissions", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  templateId: uuid("template_id")
+    .references(() => geographicRoleTemplates.id, { onDelete: "cascade" })
+    .notNull(),
+  permissionId: uuid("permission_id")
+    .references(() => permissions.id, { onDelete: "cascade" })
+    .notNull(),
+  permissionType: text("permission_type").notNull().default("additional"), // additional, excluded
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  // Prevent duplicate permission assignments
+  uniqueTemplatePermission: sql`CONSTRAINT unique_template_permission UNIQUE (template_id, permission_id, permission_type)`,
+  // Valid permission types
+  validPermissionType: sql`CONSTRAINT valid_permission_type CHECK (
+    permission_type IN ('additional', 'excluded')
+  )`
+}));
+
+// Junction table for temporary permission delegations
+export const temporaryPermissionDelegationPermissions = pgTable("temporary_permission_delegation_permissions", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  delegationId: uuid("delegation_id")
+    .references(() => temporaryPermissionDelegations.id, { onDelete: "cascade" })
+    .notNull(),
+  permissionId: uuid("permission_id")
+    .references(() => permissions.id, { onDelete: "cascade" })
+    .notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  // Prevent duplicate permission delegations
+  uniqueDelegationPermission: sql`CONSTRAINT unique_delegation_permission UNIQUE (delegation_id, permission_id)`
+}));
+
+// LBAC Access Audit Log - Track all location-based access attempts
+export const lbacAccessAuditLog = pgTable("lbac_access_audit_log", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id")
+    .references(() => users.id, { onDelete: "restrict" })
+    .notNull(),
+  // Access attempt details
+  accessType: text("access_type").notNull(), // read, write, delete, admin
+  resourceType: text("resource_type").notNull(), // application, plot, block, neighborhood, etc.
+  resourceId: uuid("resource_id"), // ID of the accessed resource
+  // Geographic context
+  targetGovernorateId: uuid("target_governorate_id")
+    .references(() => governorates.id, { onDelete: "set null" }),
+  targetDistrictId: uuid("target_district_id")
+    .references(() => districts.id, { onDelete: "set null" }),
+  targetSubDistrictId: uuid("target_sub_district_id")
+    .references(() => subDistricts.id, { onDelete: "set null" }),
+  targetNeighborhoodId: uuid("target_neighborhood_id")
+    .references(() => neighborhoods.id, { onDelete: "set null" }),
+  // Access outcome
+  accessGranted: boolean("access_granted").notNull(),
+  denialReason: text("denial_reason"), // insufficient_permissions, geographic_constraint, temporal_constraint, etc.
+  // Request details
+  requestMethod: text("request_method"), // GET, POST, PUT, DELETE
+  requestPath: text("request_path"),
+  userAgent: text("user_agent"),
+  ipAddress: text("ip_address"),
+  sessionId: text("session_id"),
+  // Processing details
+  processingTimeMs: integer("processing_time_ms"),
+  cacheHit: boolean("cache_hit"),
+  // Additional context
+  delegationUsed: boolean("delegation_used").default(false),
+  delegationId: uuid("delegation_id")
+    .references(() => temporaryPermissionDelegations.id),
+  additionalContext: jsonb("additional_context"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
 // Legal Framework
 export const lawsRegulations = pgTable("laws_regulations", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -665,6 +973,169 @@ export const userGeographicAssignmentsRelations = relations(userGeographicAssign
   assignedBy: one(users, {
     fields: [userGeographicAssignments.assignedById],
     references: [users.id],
+  }),
+}));
+
+// ========================================
+// ENHANCED LBAC HARDENING RELATIONS - Phase 6
+// ========================================
+
+export const userGeographicAssignmentHistoryRelations = relations(userGeographicAssignmentHistory, ({ one }) => ({
+  originalAssignment: one(userGeographicAssignments, {
+    fields: [userGeographicAssignmentHistory.originalAssignmentId],
+    references: [userGeographicAssignments.id],
+  }),
+  user: one(users, {
+    fields: [userGeographicAssignmentHistory.userId],
+    references: [users.id],
+  }),
+  governorate: one(governorates, {
+    fields: [userGeographicAssignmentHistory.governorateId],
+    references: [governorates.id],
+  }),
+  district: one(districts, {
+    fields: [userGeographicAssignmentHistory.districtId],
+    references: [districts.id],
+  }),
+  subDistrict: one(subDistricts, {
+    fields: [userGeographicAssignmentHistory.subDistrictId],
+    references: [subDistricts.id],
+  }),
+  neighborhood: one(neighborhoods, {
+    fields: [userGeographicAssignmentHistory.neighborhoodId],
+    references: [neighborhoods.id],
+  }),
+  changedBy: one(users, {
+    fields: [userGeographicAssignmentHistory.changedById],
+    references: [users.id],
+  }),
+  approvedBy: one(users, {
+    fields: [userGeographicAssignmentHistory.approvedById],
+    references: [users.id],
+  }),
+}));
+
+export const permissionGeographicConstraintsRelations = relations(permissionGeographicConstraints, ({ one }) => ({
+  permission: one(permissions, {
+    fields: [permissionGeographicConstraints.permissionId],
+    references: [permissions.id],
+  }),
+  governorate: one(governorates, {
+    fields: [permissionGeographicConstraints.governorateId],
+    references: [governorates.id],
+  }),
+  district: one(districts, {
+    fields: [permissionGeographicConstraints.districtId],
+    references: [districts.id],
+  }),
+  subDistrict: one(subDistricts, {
+    fields: [permissionGeographicConstraints.subDistrictId],
+    references: [subDistricts.id],
+  }),
+  neighborhood: one(neighborhoods, {
+    fields: [permissionGeographicConstraints.neighborhoodId],
+    references: [neighborhoods.id],
+  }),
+  block: one(blocks, {
+    fields: [permissionGeographicConstraints.blockId],
+    references: [blocks.id],
+  }),
+  plot: one(plots, {
+    fields: [permissionGeographicConstraints.plotId],
+    references: [plots.id],
+  }),
+  createdBy: one(users, {
+    fields: [permissionGeographicConstraints.createdById],
+    references: [users.id],
+  }),
+}));
+
+export const temporaryPermissionDelegationsRelations = relations(temporaryPermissionDelegations, ({ one }) => ({
+  fromUser: one(users, {
+    fields: [temporaryPermissionDelegations.fromUserId],
+    references: [users.id],
+  }),
+  toUser: one(users, {
+    fields: [temporaryPermissionDelegations.toUserId],
+    references: [users.id],
+  }),
+  governorate: one(governorates, {
+    fields: [temporaryPermissionDelegations.governorateId],
+    references: [governorates.id],
+  }),
+  district: one(districts, {
+    fields: [temporaryPermissionDelegations.districtId],
+    references: [districts.id],
+  }),
+  subDistrict: one(subDistricts, {
+    fields: [temporaryPermissionDelegations.subDistrictId],
+    references: [subDistricts.id],
+  }),
+  neighborhood: one(neighborhoods, {
+    fields: [temporaryPermissionDelegations.neighborhoodId],
+    references: [neighborhoods.id],
+  }),
+  authorizedBy: one(users, {
+    fields: [temporaryPermissionDelegations.authorizedById],
+    references: [users.id],
+  }),
+  approvedBy: one(users, {
+    fields: [temporaryPermissionDelegations.approvedById],
+    references: [users.id],
+  }),
+  revokedBy: one(users, {
+    fields: [temporaryPermissionDelegations.revokedById],
+    references: [users.id],
+  }),
+}));
+
+export const geographicRoleTemplatesRelations = relations(geographicRoleTemplates, ({ one }) => ({
+  governorate: one(governorates, {
+    fields: [geographicRoleTemplates.governorateId],
+    references: [governorates.id],
+  }),
+  district: one(districts, {
+    fields: [geographicRoleTemplates.districtId],
+    references: [districts.id],
+  }),
+  subDistrict: one(subDistricts, {
+    fields: [geographicRoleTemplates.subDistrictId],
+    references: [subDistricts.id],
+  }),
+  neighborhood: one(neighborhoods, {
+    fields: [geographicRoleTemplates.neighborhoodId],
+    references: [neighborhoods.id],
+  }),
+  createdBy: one(users, {
+    fields: [geographicRoleTemplates.createdById],
+    references: [users.id],
+  }),
+}));
+
+export const lbacAccessAuditLogRelations = relations(lbacAccessAuditLog, ({ one }) => ({
+  user: one(users, {
+    fields: [lbacAccessAuditLog.userId],
+    references: [users.id],
+  }),
+  targetGovernorate: one(governorates, {
+    fields: [lbacAccessAuditLog.targetGovernorateId],
+    references: [governorates.id],
+  }),
+  targetDistrict: one(districts, {
+    fields: [lbacAccessAuditLog.targetDistrictId],
+    references: [districts.id],
+  }),
+  targetSubDistrict: one(subDistricts, {
+    fields: [lbacAccessAuditLog.targetSubDistrictId],
+    references: [subDistricts.id],
+  }),
+  targetNeighborhood: one(neighborhoods, {
+    fields: [lbacAccessAuditLog.targetNeighborhoodId],
+    references: [neighborhoods.id],
+  }),
+  delegation: one(temporaryPermissionDelegations, {
+    fields: [lbacAccessAuditLog.delegationId],
+    references: [temporaryPermissionDelegations.id],
   }),
 }));
 
@@ -2707,4 +3178,58 @@ export const insertSloMeasurementSchema = createInsertSchema(sloMeasurements).om
 
 export type SloMeasurement = typeof sloMeasurements.$inferSelect;
 export type InsertSloMeasurement = z.infer<typeof insertSloMeasurementSchema>;
+
+// ===========================================
+// ENHANCED LBAC HARDENING SCHEMAS - Phase 6
+// ===========================================
+
+// User Geographic Assignment History schemas
+export const insertUserGeographicAssignmentHistorySchema = createInsertSchema(userGeographicAssignmentHistory).omit({
+  id: true,
+  changeDate: true,
+});
+
+export type UserGeographicAssignmentHistory = typeof userGeographicAssignmentHistory.$inferSelect;
+export type InsertUserGeographicAssignmentHistory = z.infer<typeof insertUserGeographicAssignmentHistorySchema>;
+
+// Permission Geographic Constraints schemas
+export const insertPermissionGeographicConstraintsSchema = createInsertSchema(permissionGeographicConstraints).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type PermissionGeographicConstraints = typeof permissionGeographicConstraints.$inferSelect;
+export type InsertPermissionGeographicConstraints = z.infer<typeof insertPermissionGeographicConstraintsSchema>;
+
+// Temporary Permission Delegations schemas
+export const insertTemporaryPermissionDelegationsSchema = createInsertSchema(temporaryPermissionDelegations).omit({
+  id: true,
+  startDate: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type TemporaryPermissionDelegations = typeof temporaryPermissionDelegations.$inferSelect;
+export type InsertTemporaryPermissionDelegations = z.infer<typeof insertTemporaryPermissionDelegationsSchema>;
+
+// Geographic Role Templates schemas
+export const insertGeographicRoleTemplatesSchema = createInsertSchema(geographicRoleTemplates).omit({
+  id: true,
+  validFrom: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type GeographicRoleTemplates = typeof geographicRoleTemplates.$inferSelect;
+export type InsertGeographicRoleTemplates = z.infer<typeof insertGeographicRoleTemplatesSchema>;
+
+// LBAC Access Audit Log schemas
+export const insertLbacAccessAuditLogSchema = createInsertSchema(lbacAccessAuditLog).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type LbacAccessAuditLog = typeof lbacAccessAuditLog.$inferSelect;
+export type InsertLbacAccessAuditLog = z.infer<typeof insertLbacAccessAuditLogSchema>;
 
