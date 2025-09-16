@@ -47,6 +47,7 @@ import {
 import { db } from "./db";
 import { eq, like, ilike, and, or, desc, asc, sql, count, inArray } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import { PaginationParams, PaginatedResponse, executePaginatedQuery } from "./pagination";
 
 export interface IStorage {
   // User management
@@ -56,6 +57,7 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<InsertUser>): Promise<User>;
   getUsers(filters?: { role?: string; departmentId?: string; isActive?: boolean }): Promise<User[]>;
+  getUsersPaginated(params: PaginationParams): Promise<PaginatedResponse<User>>;
 
   // User Geographic Assignments - LBAC
   getUserGeographicAssignments(filters?: {
@@ -260,6 +262,7 @@ export interface IStorage {
 
   // Applications
   getApplications(filters?: { status?: string; applicantId?: string; assignedToId?: string }): Promise<Application[]>;
+  getApplicationsPaginated(params: PaginationParams): Promise<PaginatedResponse<Application>>;
   getApplication(id: string): Promise<Application | undefined>;
   getApplicationByNumber(applicationNumber: string): Promise<Application | undefined>;
   createApplication(application: InsertApplication): Promise<Application>;
@@ -276,6 +279,7 @@ export interface IStorage {
 
   // Tasks
   getTasks(filters?: { assignedToId?: string; status?: string; applicationId?: string }): Promise<Task[]>;
+  getTasksPaginated(params: PaginationParams): Promise<PaginatedResponse<Task>>;
   getTask(id: string): Promise<Task | undefined>;
   createTask(task: InsertTask): Promise<Task>;
   updateTask(id: string, updates: Partial<InsertTask>): Promise<Task>;
@@ -498,6 +502,27 @@ export class DatabaseStorage implements IStorage {
     }
     
     return await db.select().from(users);
+  }
+
+  async getUsersPaginated(params: PaginationParams): Promise<PaginatedResponse<User>> {
+    return await executePaginatedQuery<User>(db, users, params, {
+      searchableFields: [users.fullName, users.username, users.email],
+      sortableFields: {
+        fullName: users.fullName,
+        username: users.username,
+        email: users.email,
+        role: users.role,
+        createdAt: users.createdAt,
+        lastLoginAt: users.lastLoginAt,
+        isActive: users.isActive
+      },
+      filterableFields: {
+        role: users.role,
+        departmentId: users.departmentId,
+        positionId: users.positionId,
+        isActive: users.isActive
+      }
+    });
   }
 
   // User Geographic Assignments - LBAC Implementation
@@ -1554,6 +1579,27 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(applications.createdAt));
   }
 
+  async getApplicationsPaginated(params: PaginationParams): Promise<PaginatedResponse<Application>> {
+    return await executePaginatedQuery<Application>(db, applications, params, {
+      searchableFields: [applications.applicationNumber, applications.notes],
+      sortableFields: {
+        applicationNumber: applications.applicationNumber,
+        status: applications.status,
+        currentStage: applications.currentStage,
+        createdAt: applications.createdAt,
+        updatedAt: applications.updatedAt,
+        fees: applications.fees
+      },
+      filterableFields: {
+        status: applications.status,
+        currentStage: applications.currentStage,
+        serviceId: applications.serviceId,
+        assignedToId: applications.assignedToId,
+        applicantId: applications.applicantId
+      }
+    });
+  }
+
   async getApplication(id: string): Promise<Application | undefined> {
     const [application] = await db.select().from(applications).where(eq(applications.id, id));
     return application || undefined;
@@ -1653,6 +1699,27 @@ export class DatabaseStorage implements IStorage {
     
     return await db.select().from(tasks)
       .orderBy(desc(tasks.createdAt));
+  }
+
+  async getTasksPaginated(params: PaginationParams): Promise<PaginatedResponse<Task>> {
+    return await executePaginatedQuery<Task>(db, tasks, params, {
+      searchableFields: [tasks.title, tasks.description, tasks.notes],
+      sortableFields: {
+        title: tasks.title,
+        status: tasks.status,
+        priority: tasks.priority,
+        createdAt: tasks.createdAt,
+        updatedAt: tasks.updatedAt,
+        dueDate: tasks.dueDate
+      },
+      filterableFields: {
+        status: tasks.status,
+        priority: tasks.priority,
+        assignedToId: tasks.assignedToId,
+        assignedById: tasks.assignedById,
+        applicationId: tasks.applicationId
+      }
+    });
   }
 
   async getTask(id: string): Promise<Task | undefined> {

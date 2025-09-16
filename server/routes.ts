@@ -22,6 +22,7 @@ import {
   insertUserRoleSchema
 } from "@shared/schema";
 import { DEFAULT_PERMISSIONS } from "@shared/defaults";
+import { PaginationParams, validatePaginationParams } from "./pagination";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
@@ -654,6 +655,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       res.json(users);
     } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Enhanced Users API with pagination, search, and filtering
+  app.get("/api/users/paginated", authenticateToken, requireRole('admin'), async (req, res) => {
+    try {
+      const params = validatePaginationParams(req.query);
+      const result = await storage.getUsersPaginated(params);
+      res.json(result);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Invalid pagination parameters", 
+          errors: error.errors 
+        });
+      }
       res.status(500).json({ message: "Internal server error" });
     }
   });
@@ -1906,6 +1924,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Enhanced Applications API with pagination, search, and filtering (Staff only)
+  app.get("/api/applications/paginated", authenticateToken, requireRole(['employee', 'manager', 'admin']), async (req: AuthenticatedRequest, res) => {
+    try {
+      const params = validatePaginationParams(req.query);
+      
+      // Basic LBAC enforcement - restrict based on user role
+      let constrainedParams = { ...params };
+      if (req.user?.role === 'employee') {
+        // Employees can only see applications assigned to them
+        constrainedParams = {
+          ...params,
+          filters: {
+            ...params.filters,
+            assignedToId: req.user.id
+          }
+        };
+      } else if (req.user?.role === 'manager') {
+        // Temporary manager restriction - limit to department scope until full LBAC
+        // For now, restrict to applications assigned to their department users
+        constrainedParams = {
+          ...params,
+          filters: {
+            ...params.filters,
+            // TODO: Replace with proper LBAC geographic scope
+            assignedToId: req.user.id // Temporary: restrict to own assignments
+          }
+        };
+      }
+      // Admins can see broader scope (full LBAC pending)
+      
+      const result = await storage.getApplicationsPaginated(constrainedParams);
+      res.json(result);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Invalid pagination parameters", 
+          errors: error.errors 
+        });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Citizen Applications API with pagination (Own applications only)
+  app.get("/api/citizen-applications/paginated", authenticateToken, requireRole(['citizen']), async (req: AuthenticatedRequest, res) => {
+    try {
+      const params = validatePaginationParams(req.query);
+      // Force applicantId filter for citizens to only see their own applications
+      const citizenParams = {
+        ...params,
+        filters: {
+          ...params.filters,
+          applicantId: req.user?.id
+        }
+      };
+      const result = await storage.getApplicationsPaginated(citizenParams);
+      res.json(result);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Invalid pagination parameters", 
+          errors: error.errors 
+        });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // Public endpoint for citizens to submit applications (no authentication required)
   app.post("/api/applications", async (req, res) => {
     try {
@@ -2004,6 +2090,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       res.json(tasks);
     } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Enhanced Tasks API with pagination, search, and filtering
+  app.get("/api/tasks/paginated", authenticateToken, requireRole(['employee', 'manager', 'admin']), async (req: AuthenticatedRequest, res) => {
+    try {
+      const params = validatePaginationParams(req.query);
+      
+      // Basic LBAC enforcement - restrict based on user role
+      let constrainedParams = { ...params };
+      if (req.user?.role === 'employee') {
+        // Employees can only see tasks assigned to them
+        constrainedParams = {
+          ...params,
+          filters: {
+            ...params.filters,
+            assignedToId: req.user.id
+          }
+        };
+      } else if (req.user?.role === 'manager') {
+        // Temporary manager restriction - limit to department scope until full LBAC
+        constrainedParams = {
+          ...params,
+          filters: {
+            ...params.filters,
+            // TODO: Replace with proper LBAC geographic scope
+            assignedToId: req.user.id // Temporary: restrict to own assignments
+          }
+        };
+      }
+      // Admins can see broader scope (full LBAC pending)
+      
+      const result = await storage.getTasksPaginated(constrainedParams);
+      res.json(result);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Invalid pagination parameters", 
+          errors: error.errors 
+        });
+      }
       res.status(500).json({ message: "Internal server error" });
     }
   });
