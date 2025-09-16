@@ -5154,8 +5154,8 @@ export class DatabaseStorage implements IStorage {
       const errorResult = await db.execute(sql`
         SELECT COUNT(*) as error_count
         FROM ${errorTracking}
-        WHERE timestamp >= ${timeRange.from}
-          AND timestamp <= ${timeRange.to}
+        WHERE "createdAt" >= ${timeRange.from}
+          AND "createdAt" <= ${timeRange.to}
       `);
 
       const performanceResult = await db.execute(sql`
@@ -5164,8 +5164,8 @@ export class DatabaseStorage implements IStorage {
           COUNT(*) as total_requests
         FROM ${performanceMetrics}
         WHERE metric_name = 'response_time'
-          AND timestamp >= ${timeRange.from}
-          AND timestamp <= ${timeRange.to}
+          AND "createdAt" >= ${timeRange.from}
+          AND "createdAt" <= ${timeRange.to}
       `);
 
       const sloResult = await db.execute(sql`
@@ -5173,8 +5173,8 @@ export class DatabaseStorage implements IStorage {
           AVG(CASE WHEN is_compliant THEN 1.0 ELSE 0.0 END) as availability
         FROM ${sloMeasurements}
         WHERE slo_type = 'availability'
-          AND timestamp >= ${timeRange.from}
-          AND timestamp <= ${timeRange.to}
+          AND "windowStart" >= ${timeRange.from}
+          AND "windowEnd" <= ${timeRange.to}
       `);
 
       // Get sync performance
