@@ -2344,3 +2344,367 @@ export const insertChangeTrackingSchema = createInsertSchema(changeTracking).omi
 export type ChangeTracking = typeof changeTracking.$inferSelect;
 export type InsertChangeTracking = z.infer<typeof insertChangeTrackingSchema>;
 
+// ===========================================
+// ADVANCED MONITORING & INSTRUMENTATION
+// ===========================================
+
+// Performance Metrics - قياس الأداء الشامل
+export const performanceMetrics = pgTable("performance_metrics", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  // Metric identification
+  metricName: text("metric_name").notNull(), // 'api_response_time', 'db_query_duration', 'sync_operation_time'
+  metricType: text("metric_type").notNull(), // 'timer', 'counter', 'gauge', 'histogram'
+  metricCategory: text("metric_category").notNull(), // 'frontend', 'backend', 'database', 'sync', 'user_action'
+  
+  // Measurement data
+  value: decimal("value", { precision: 15, scale: 6 }).notNull(), // القيمة المقيسة (milliseconds, count, etc.)
+  unit: text("unit").notNull(), // 'ms', 'seconds', 'count', 'bytes', 'percentage'
+  tags: jsonb("tags"), // إضافة tags للتصنيف والفلترة
+  
+  // Context information
+  userId: uuid("user_id")
+    .references(() => users.id, { onDelete: "set null" }),
+  sessionId: text("session_id"), // جلسة المستخدم
+  deviceId: text("device_id"), // الجهاز المستخدم
+  userAgent: text("user_agent"), // معلومات المتصفح
+  
+  // Request context
+  requestId: text("request_id"), // معرف الطلب
+  endpoint: text("endpoint"), // API endpoint إذا كان applicable
+  method: text("method"), // HTTP method
+  statusCode: integer("status_code"), // HTTP status code
+  
+  // Geographic context (for LBAC analytics)
+  governorateId: uuid("governorate_id")
+    .references(() => governorates.id, { onDelete: "set null" }),
+  districtId: uuid("district_id")
+    .references(() => districts.id, { onDelete: "set null" }),
+  
+  // Timing information
+  timestamp: timestamp("timestamp").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  processingStarted: timestamp("processing_started"), // بداية المعالجة
+  processingCompleted: timestamp("processing_completed"), // انتهاء المعالجة
+  
+  // Additional metadata
+  metadata: jsonb("metadata"), // بيانات إضافية خاصة بالقياس
+  errorDetails: jsonb("error_details"), // تفاصيل الأخطاء إن وجدت
+  
+  // Aggregation helpers
+  aggregationPeriod: text("aggregation_period"), // 'minute', 'hour', 'day' for pre-aggregated metrics
+  aggregationTimestamp: timestamp("aggregation_timestamp"), // الوقت الفعلي للتجميع
+  
+  // Data retention
+  expiresAt: timestamp("expires_at"), // تاريخ انتهاء البيانات للتنظيف التلقائي
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  // Performance indexes for fast queries
+  perfMetricNameTimeIndex: sql`CREATE INDEX IF NOT EXISTS idx_perf_metric_name_time ON performance_metrics (metric_name, timestamp DESC)`,
+  perfMetricCategoryTimeIndex: sql`CREATE INDEX IF NOT EXISTS idx_perf_metric_category_time ON performance_metrics (metric_category, timestamp DESC)`,
+  perfMetricUserIndex: sql`CREATE INDEX IF NOT EXISTS idx_perf_metric_user ON performance_metrics (user_id, timestamp DESC)`,
+  perfMetricSessionIndex: sql`CREATE INDEX IF NOT EXISTS idx_perf_metric_session ON performance_metrics (session_id, device_id)`,
+  perfMetricEndpointIndex: sql`CREATE INDEX IF NOT EXISTS idx_perf_metric_endpoint ON performance_metrics (endpoint, method, timestamp DESC)`,
+  perfMetricGeoIndex: sql`CREATE INDEX IF NOT EXISTS idx_perf_metric_geo ON performance_metrics (governorate_id, district_id, timestamp DESC)`,
+  perfMetricAggregationIndex: sql`CREATE INDEX IF NOT EXISTS idx_perf_metric_aggregation ON performance_metrics (aggregation_period, aggregation_timestamp DESC)`,
+  perfMetricExpiryIndex: sql`CREATE INDEX IF NOT EXISTS idx_perf_metric_expiry ON performance_metrics (expires_at)`,
+}));
+
+// Sync Operations Monitoring - مراقبة عمليات المزامنة
+export const syncOperationsMetrics = pgTable("sync_operations_metrics", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Operation identification
+  operationType: text("operation_type").notNull(), // 'push', 'pull', 'conflict_resolution', 'retry', 'dlq_recovery'
+  operationId: text("operation_id").notNull(), // معرف العملية الفريد
+  batchId: text("batch_id"), // معرف المجموعة للعمليات المتعددة
+  
+  // Operation details
+  tableName: text("table_name"), // الجدول المتعلق بالعملية
+  recordCount: integer("record_count").default(0), // عدد السجلات المتعاملة
+  dataSize: integer("data_size"), // حجم البيانات بالبايت
+  
+  // Performance metrics
+  duration: integer("duration"), // مدة العملية بالميلي ثانية
+  retryCount: integer("retry_count").default(0), // عدد المحاولات
+  priority: text("priority"), // 'critical', 'high', 'normal', 'low'
+  
+  // Status tracking
+  status: text("status").notNull(), // 'started', 'completed', 'failed', 'retrying', 'dlq'
+  errorCode: text("error_code"), // رمز الخطأ إن وجد
+  errorMessage: text("error_message"), // رسالة الخطأ
+  
+  // Context information
+  userId: uuid("user_id")
+    .references(() => users.id, { onDelete: "set null" }),
+  deviceId: text("device_id").notNull(),
+  sessionId: uuid("session_id")
+    .references(() => syncSessions.id, { onDelete: "set null" }),
+  
+  // Network conditions
+  connectionType: text("connection_type"), // 'wifi', 'cellular', 'offline'
+  networkLatency: integer("network_latency"), // زمن الاستجابة للشبكة
+  bandwidth: decimal("bandwidth", { precision: 10, scale: 2 }), // سرعة الاتصال
+  
+  // Sync strategy details
+  syncStrategy: text("sync_strategy"), // 'full', 'incremental', 'differential'
+  conflictResolutionStrategy: text("conflict_resolution_strategy"), // 'server_wins', 'client_wins', 'manual'
+  conflictsDetected: integer("conflicts_detected").default(0),
+  conflictsResolved: integer("conflicts_resolved").default(0),
+  
+  // Geographic context
+  governorateId: uuid("governorate_id")
+    .references(() => governorates.id, { onDelete: "set null" }),
+  districtId: uuid("district_id")
+    .references(() => districts.id, { onDelete: "set null" }),
+  
+  // Timing information
+  startedAt: timestamp("started_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  completedAt: timestamp("completed_at"),
+  queuedAt: timestamp("queued_at"), // وقت الإضافة للطابور
+  processingStartedAt: timestamp("processing_started_at"), // بداية المعالجة الفعلية
+  
+  // Performance benchmarks
+  expectedDuration: integer("expected_duration"), // المدة المتوقعة
+  performanceRating: text("performance_rating"), // 'excellent', 'good', 'acceptable', 'poor'
+  
+  // Additional context
+  operationMetadata: jsonb("operation_metadata"), // بيانات إضافية
+  clientVersion: text("client_version"), // إصدار التطبيق
+  serverVersion: text("server_version"), // إصدار الخادم
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  // Sync monitoring indexes
+  syncOpTypeStatusIndex: sql`CREATE INDEX IF NOT EXISTS idx_sync_op_type_status ON sync_operations_metrics (operation_type, status, started_at DESC)`,
+  syncOpTableTimeIndex: sql`CREATE INDEX IF NOT EXISTS idx_sync_op_table_time ON sync_operations_metrics (table_name, started_at DESC)`,
+  syncOpUserDeviceIndex: sql`CREATE INDEX IF NOT EXISTS idx_sync_op_user_device ON sync_operations_metrics (user_id, device_id, started_at DESC)`,
+  syncOpSessionIndex: sql`CREATE INDEX IF NOT EXISTS idx_sync_op_session ON sync_operations_metrics (session_id, operation_id)`,
+  syncOpPerformanceIndex: sql`CREATE INDEX IF NOT EXISTS idx_sync_op_performance ON sync_operations_metrics (performance_rating, duration, started_at DESC)`,
+  syncOpRetryIndex: sql`CREATE INDEX IF NOT EXISTS idx_sync_op_retry ON sync_operations_metrics (retry_count, status, started_at DESC)`,
+  syncOpGeoIndex: sql`CREATE INDEX IF NOT EXISTS idx_sync_op_geo ON sync_operations_metrics (governorate_id, district_id, started_at DESC)`,
+}));
+
+// Error Tracking & Analysis - تتبع وتحليل الأخطاء المتقدم
+export const errorTracking = pgTable("error_tracking", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Error identification
+  errorId: text("error_id").notNull(), // معرف فريد للخطأ
+  errorHash: text("error_hash").notNull(), // hash للأخطاء المتشابهة
+  errorType: text("error_type").notNull(), // 'frontend', 'backend', 'database', 'network', 'sync', 'validation'
+  severity: text("severity").notNull(), // 'critical', 'high', 'medium', 'low', 'info'
+  
+  // Error details
+  message: text("message").notNull(), // رسالة الخطأ
+  stackTrace: text("stack_trace"), // تفاصيل الخطأ التقنية
+  errorCode: text("error_code"), // رمز الخطأ المحدد
+  component: text("component"), // المكون الذي حدث فيه الخطأ
+  
+  // Context information
+  userId: uuid("user_id")
+    .references(() => users.id, { onDelete: "set null" }),
+  sessionId: text("session_id"), // جلسة المستخدم
+  deviceId: text("device_id"), // الجهاز
+  userAgent: text("user_agent"), // معلومات المتصفح
+  
+  // Request context
+  requestId: text("request_id"), // معرف الطلب
+  endpoint: text("endpoint"), // API endpoint المتعلق
+  method: text("method"), // HTTP method
+  requestPayload: jsonb("request_payload"), // بيانات الطلب (مُعَمَّاة للحساسة)
+  responseStatus: integer("response_status"), // HTTP status code
+  
+  // Environment context
+  environment: text("environment").notNull().default("production"), // 'development', 'staging', 'production'
+  version: text("version"), // إصدار التطبيق
+  buildNumber: text("build_number"), // رقم البناء
+  
+  // System context
+  browserName: text("browser_name"), // اسم المتصفح
+  browserVersion: text("browser_version"), // إصدار المتصفح
+  osName: text("os_name"), // نظام التشغيل
+  osVersion: text("os_version"), // إصدار نظام التشغيل
+  deviceType: text("device_type"), // 'mobile', 'tablet', 'desktop'
+  
+  // Performance context
+  memoryUsage: decimal("memory_usage", { precision: 10, scale: 2 }), // استهلاك الذاكرة
+  cpuUsage: decimal("cpu_usage", { precision: 5, scale: 2 }), // استهلاك المعالج
+  networkLatency: integer("network_latency"), // زمن الاستجابة
+  loadTime: integer("load_time"), // وقت التحميل
+  
+  // Geographic context
+  governorateId: uuid("governorate_id")
+    .references(() => governorates.id, { onDelete: "set null" }),
+  districtId: uuid("district_id")
+    .references(() => districts.id, { onDelete: "set null" }),
+  ipLocation: jsonb("ip_location"), // الموقع الجغرافي التقديري
+  
+  // Resolution tracking
+  status: text("status").notNull().default("open"), // 'open', 'investigating', 'resolved', 'ignored'
+  assignedToId: uuid("assigned_to_id")
+    .references(() => users.id, { onDelete: "set null" }),
+  resolutionNotes: text("resolution_notes"), // ملاحظات الحل
+  resolvedAt: timestamp("resolved_at"), // تاريخ الحل
+  
+  // Frequency tracking
+  occurrenceCount: integer("occurrence_count").default(1), // عدد التكرار
+  firstOccurrence: timestamp("first_occurrence").default(sql`CURRENT_TIMESTAMP`), // أول ظهور
+  lastOccurrence: timestamp("last_occurrence").default(sql`CURRENT_TIMESTAMP`), // آخر ظهور
+  
+  // Impact analysis
+  affectedUsers: integer("affected_users").default(1), // عدد المستخدمين المتأثرين
+  businessImpact: text("business_impact"), // 'critical', 'high', 'medium', 'low', 'none'
+  
+  // Additional metadata
+  tags: text("tags").array(), // tags للتصنيف
+  customAttributes: jsonb("custom_attributes"), // خصائص مخصصة
+  relatedErrorIds: text("related_error_ids").array(), // أخطاء مرتبطة
+  
+  // Data retention
+  expiresAt: timestamp("expires_at"), // تاريخ انتهاء الصلاحية
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  // Error tracking indexes
+  errorHashIndex: sql`CREATE INDEX IF NOT EXISTS idx_error_hash ON error_tracking (error_hash, last_occurrence DESC)`,
+  errorTypeTimeIndex: sql`CREATE INDEX IF NOT EXISTS idx_error_type_time ON error_tracking (error_type, severity, created_at DESC)`,
+  errorUserIndex: sql`CREATE INDEX IF NOT EXISTS idx_error_user ON error_tracking (user_id, created_at DESC)`,
+  errorSessionIndex: sql`CREATE INDEX IF NOT EXISTS idx_error_session ON error_tracking (session_id, device_id)`,
+  errorEndpointIndex: sql`CREATE INDEX IF NOT EXISTS idx_error_endpoint ON error_tracking (endpoint, method, created_at DESC)`,
+  errorStatusIndex: sql`CREATE INDEX IF NOT EXISTS idx_error_status ON error_tracking (status, severity, last_occurrence DESC)`,
+  errorFrequencyIndex: sql`CREATE INDEX IF NOT EXISTS idx_error_frequency ON error_tracking (occurrence_count DESC, last_occurrence DESC)`,
+  errorGeoIndex: sql`CREATE INDEX IF NOT EXISTS idx_error_geo ON error_tracking (governorate_id, district_id, created_at DESC)`,
+  errorExpiryIndex: sql`CREATE INDEX IF NOT EXISTS idx_error_expiry ON error_tracking (expires_at)`,
+}));
+
+// SLO (Service Level Objectives) Tracking - تتبع مستويات الخدمة
+export const sloMeasurements = pgTable("slo_measurements", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // SLO identification
+  sloName: text("slo_name").notNull(), // 'api_availability', 'sync_success_rate', 'response_time_p95'
+  sloType: text("slo_type").notNull(), // 'availability', 'latency', 'throughput', 'error_rate', 'custom'
+  service: text("service").notNull(), // 'api', 'sync', 'frontend', 'database', 'authentication'
+  
+  // Measurement window
+  measurementPeriod: text("measurement_period").notNull(), // 'minute', 'hour', 'day', 'week', 'month'
+  windowStart: timestamp("window_start").notNull(), // بداية النافزة الزمنية
+  windowEnd: timestamp("window_end").notNull(), // نهاية النافزة الزمنية
+  
+  // SLO targets and actual values
+  targetValue: decimal("target_value", { precision: 10, scale: 4 }).notNull(), // القيمة المستهدفة
+  actualValue: decimal("actual_value", { precision: 10, scale: 4 }).notNull(), // القيمة الفعلية
+  targetUnit: text("target_unit").notNull(), // 'percentage', 'milliseconds', 'count', 'ratio'
+  
+  // Compliance tracking
+  isCompliant: boolean("is_compliant").notNull(), // هل تم تحقيق SLO
+  compliancePercentage: decimal("compliance_percentage", { precision: 5, scale: 2 }), // نسبة الامتثال
+  violationCount: integer("violation_count").default(0), // عدد الانتهاكات
+  violationDuration: integer("violation_duration"), // مدة الانتهاك بالدقائق
+  
+  // Error budget tracking
+  errorBudget: decimal("error_budget", { precision: 10, scale: 4 }), // الميزانية المسموحة للأخطاء
+  errorBudgetConsumed: decimal("error_budget_consumed", { precision: 10, scale: 4 }), // الميزانية المستهلكة
+  errorBudgetRemaining: decimal("error_budget_remaining", { precision: 10, scale: 4 }), // الميزانية المتبقية
+  
+  // Performance categories
+  performanceTier: text("performance_tier"), // 'excellent', 'good', 'acceptable', 'poor', 'critical'
+  trendDirection: text("trend_direction"), // 'improving', 'stable', 'degrading'
+  
+  // Sample data
+  totalRequests: integer("total_requests"), // إجمالي الطلبات
+  successfulRequests: integer("successful_requests"), // الطلبات الناجحة
+  failedRequests: integer("failed_requests"), // الطلبات الفاشلة
+  
+  // Timing measurements
+  averageResponseTime: decimal("average_response_time", { precision: 10, scale: 3 }), // متوسط وقت الاستجابة
+  p50ResponseTime: decimal("p50_response_time", { precision: 10, scale: 3 }), // النسبة المئوية الـ50
+  p95ResponseTime: decimal("p95_response_time", { precision: 10, scale: 3 }), // النسبة المئوية الـ95
+  p99ResponseTime: decimal("p99_response_time", { precision: 10, scale: 3 }), // النسبة المئوية الـ99
+  
+  // Geographic context (for regional SLOs)
+  governorateId: uuid("governorate_id")
+    .references(() => governorates.id, { onDelete: "set null" }),
+  districtId: uuid("district_id")
+    .references(() => districts.id, { onDelete: "set null" }),
+  
+  // Alert configurations
+  alertThreshold: decimal("alert_threshold", { precision: 10, scale: 4 }), // عتبة التنبيه
+  criticalThreshold: decimal("critical_threshold", { precision: 10, scale: 4 }), // العتبة الحرجة
+  alertsTriggered: integer("alerts_triggered").default(0), // عدد التنبيهات المرسلة
+  
+  // Reporting period
+  reportingPeriod: text("reporting_period"), // 'daily', 'weekly', 'monthly', 'quarterly'
+  nextMeasurement: timestamp("next_measurement"), // الموعد القادم للقياس
+  
+  // Context metadata
+  tags: text("tags").array(), // tags للتجميع والفلترة
+  metadata: jsonb("metadata"), // بيانات إضافية
+  
+  // Data lifecycle
+  archivedAt: timestamp("archived_at"), // تاريخ الأرشفة
+  expiresAt: timestamp("expires_at"), // تاريخ انتهاء الصلاحية
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  // SLO tracking indexes
+  sloNameTimeIndex: sql`CREATE INDEX IF NOT EXISTS idx_slo_name_time ON slo_measurements (slo_name, window_start DESC)`,
+  sloServiceTypeIndex: sql`CREATE INDEX IF NOT EXISTS idx_slo_service_type ON slo_measurements (service, slo_type, window_start DESC)`,
+  sloComplianceIndex: sql`CREATE INDEX IF NOT EXISTS idx_slo_compliance ON slo_measurements (is_compliant, performance_tier, window_start DESC)`,
+  sloPeriodIndex: sql`CREATE INDEX IF NOT EXISTS idx_slo_period ON slo_measurements (measurement_period, reporting_period, window_start DESC)`,
+  sloViolationIndex: sql`CREATE INDEX IF NOT EXISTS idx_slo_violation ON slo_measurements (violation_count, violation_duration, window_start DESC)`,
+  sloGeoIndex: sql`CREATE INDEX IF NOT EXISTS idx_slo_geo ON slo_measurements (governorate_id, district_id, window_start DESC)`,
+  sloAlertIndex: sql`CREATE INDEX IF NOT EXISTS idx_slo_alert ON slo_measurements (alerts_triggered, actual_value, window_start DESC)`,
+  sloExpiryIndex: sql`CREATE INDEX IF NOT EXISTS idx_slo_expiry ON slo_measurements (expires_at)`,
+}));
+
+// ===========================================
+// MONITORING SYSTEM SCHEMAS & TYPES
+// ===========================================
+
+// Performance Metrics schemas
+export const insertPerformanceMetricSchema = createInsertSchema(performanceMetrics).omit({
+  id: true,
+  timestamp: true,
+  createdAt: true,
+});
+
+export type PerformanceMetric = typeof performanceMetrics.$inferSelect;
+export type InsertPerformanceMetric = z.infer<typeof insertPerformanceMetricSchema>;
+
+// Sync Operations Metrics schemas
+export const insertSyncOperationsMetricSchema = createInsertSchema(syncOperationsMetrics).omit({
+  id: true,
+  startedAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type SyncOperationsMetric = typeof syncOperationsMetrics.$inferSelect;
+export type InsertSyncOperationsMetric = z.infer<typeof insertSyncOperationsMetricSchema>;
+
+// Error Tracking schemas
+export const insertErrorTrackingSchema = createInsertSchema(errorTracking).omit({
+  id: true,
+  firstOccurrence: true,
+  lastOccurrence: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type ErrorTracking = typeof errorTracking.$inferSelect;
+export type InsertErrorTracking = z.infer<typeof insertErrorTrackingSchema>;
+
+// SLO Measurements schemas
+export const insertSloMeasurementSchema = createInsertSchema(sloMeasurements).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type SloMeasurement = typeof sloMeasurements.$inferSelect;
+export type InsertSloMeasurement = z.infer<typeof insertSloMeasurementSchema>;
+

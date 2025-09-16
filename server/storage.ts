@@ -5,6 +5,7 @@ import {
   subDistricts, neighborhoods, harat, sectors, neighborhoodUnits, blocks, plots, streets, streetSegments,
   deviceRegistrations, syncSessions, offlineOperations, syncConflicts,
   deletionTombstones, changeTracking,
+  performanceMetrics, syncOperationsMetrics, errorTracking, sloMeasurements,
   serviceTemplates, dynamicForms, workflowDefinitions, serviceBuilder,
   applicationAssignments, applicationStatusHistory, applicationReviews, notifications,
   appointments, contactAttempts, surveyAssignmentForms, userGeographicAssignments,
@@ -45,7 +46,11 @@ import {
   type Role, type InsertRole, type Permission, type InsertPermission,
   type RolePermission, type InsertRolePermission, type UserRole, type InsertUserRole,
   type DeletionTombstone, type InsertDeletionTombstone,
-  type ChangeTracking, type InsertChangeTracking
+  type ChangeTracking, type InsertChangeTracking,
+  type PerformanceMetric, type InsertPerformanceMetric,
+  type SyncOperationsMetric, type InsertSyncOperationsMetric,
+  type ErrorTracking, type InsertErrorTracking,
+  type SloMeasurement, type InsertSloMeasurement
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, like, ilike, and, or, desc, asc, sql, count, inArray } from "drizzle-orm";
@@ -562,6 +567,118 @@ export interface IStorage {
   isChangeProcessed(deviceId: string, clientChangeId: string): Promise<boolean>;
   getProcessedChange(deviceId: string, clientChangeId: string): Promise<ChangeTracking | undefined>;
   retryFailedChanges(maxRetries?: number): Promise<{ success: number; failed: number }>;
+
+  // ===========================================
+  // ADVANCED MONITORING & INSTRUMENTATION
+  // ===========================================
+
+  // Performance Metrics Operations
+  recordPerformanceMetric(metric: InsertPerformanceMetric): Promise<PerformanceMetric>;
+  getPerformanceMetrics(filters?: {
+    metricName?: string;
+    metricType?: string;
+    metricCategory?: string;
+    userId?: string;
+    endpoint?: string;
+    timeRange?: { from: Date; to: Date };
+    tags?: Record<string, any>;
+  }): Promise<PerformanceMetric[]>;
+  getAggregatedMetrics(params: {
+    metricName: string;
+    aggregationPeriod: 'minute' | 'hour' | 'day';
+    timeRange: { from: Date; to: Date };
+    groupBy?: string[];
+  }): Promise<any[]>;
+  getMetricSummary(metricCategory: string, timeRange: { from: Date; to: Date }): Promise<{
+    totalCount: number;
+    averageValue: number;
+    minValue: number;
+    maxValue: number;
+    p95Value: number;
+  }>;
+
+  // Sync Operations Metrics
+  recordSyncOperationMetric(metric: InsertSyncOperationsMetric): Promise<SyncOperationsMetric>;
+  getSyncOperationMetrics(filters?: {
+    operationType?: string;
+    status?: string;
+    userId?: string;
+    deviceId?: string;
+    tableName?: string;
+    timeRange?: { from: Date; to: Date };
+  }): Promise<SyncOperationsMetric[]>;
+  getSyncPerformanceSummary(timeRange: { from: Date; to: Date }): Promise<{
+    totalOperations: number;
+    successRate: number;
+    averageDuration: number;
+    errorsByType: Record<string, number>;
+    retryStatistics: { totalRetries: number; avgRetriesPerOperation: number };
+  }>;
+  updateSyncOperationStatus(id: string, status: string, completedAt?: Date, errorDetails?: any): Promise<SyncOperationsMetric>;
+
+  // Error Tracking Operations
+  recordError(error: InsertErrorTracking): Promise<ErrorTracking>;
+  getErrors(filters?: {
+    errorType?: string;
+    severity?: string;
+    status?: string;
+    userId?: string;
+    endpoint?: string;
+    environment?: string;
+    timeRange?: { from: Date; to: Date };
+  }): Promise<ErrorTracking[]>;
+  getErrorSummary(timeRange: { from: Date; to: Date }): Promise<{
+    totalErrors: number;
+    errorsByType: Record<string, number>;
+    errorsBySeverity: Record<string, number>;
+    affectedUsers: number;
+    resolvedErrors: number;
+  }>;
+  updateErrorStatus(id: string, status: string, resolutionNotes?: string, assignedToId?: string): Promise<ErrorTracking>;
+  incrementErrorOccurrence(errorHash: string, metadata?: any): Promise<ErrorTracking>;
+  getTopErrors(limit?: number, timeRange?: { from: Date; to: Date }): Promise<ErrorTracking[]>;
+
+  // SLO Measurements Operations
+  recordSloMeasurement(measurement: InsertSloMeasurement): Promise<SloMeasurement>;
+  getSloMeasurements(filters?: {
+    sloName?: string;
+    sloType?: string;
+    service?: string;
+    isCompliant?: boolean;
+    timeRange?: { from: Date; to: Date };
+  }): Promise<SloMeasurement[]>;
+  getSloComplianceReport(service: string, timeRange: { from: Date; to: Date }): Promise<{
+    overallCompliance: number;
+    sloBreaches: number;
+    errorBudgetStatus: { consumed: number; remaining: number };
+    trendAnalysis: { direction: string; confidence: number };
+  }>;
+  updateSloAlerts(id: string, alertsTriggered: number): Promise<SloMeasurement>;
+  getSloHealth(): Promise<{
+    criticalSlos: SloMeasurement[];
+    degradedServices: string[];
+    overallSystemHealth: 'healthy' | 'degraded' | 'critical';
+  }>;
+
+  // Monitoring Dashboard Data
+  getMonitoringDashboardData(timeRange: { from: Date; to: Date }): Promise<{
+    systemHealth: {
+      overallStatus: 'healthy' | 'degraded' | 'critical';
+      errorRate: number;
+      responseTime: number;
+      availabilityPercentage: number;
+    };
+    performanceMetrics: {
+      apiResponseTime: { current: number; trend: string };
+      syncPerformance: { successRate: number; avgDuration: number };
+      userActivity: { activeUsers: number; operationsCount: number };
+    };
+    alertSummary: {
+      criticalAlerts: number;
+      warningAlerts: number;
+      recentErrors: ErrorTracking[];
+    };
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -4295,6 +4412,877 @@ export class DatabaseStorage implements IStorage {
     return { success, failed };
   }
 
+  // ===========================================
+  // ADVANCED MONITORING & INSTRUMENTATION
+  // ===========================================
+
+  // Performance Metrics Operations
+  async recordPerformanceMetric(metric: InsertPerformanceMetric): Promise<PerformanceMetric> {
+    try {
+      const [result] = await db.insert(performanceMetrics).values({
+        ...metric,
+        timestamp: metric.timestamp || sql`CURRENT_TIMESTAMP`
+      }).returning();
+      return result;
+    } catch (error) {
+      console.error('Failed to record performance metric:', error);
+      throw error;
+    }
+  }
+
+  async getPerformanceMetrics(filters?: {
+    metricName?: string;
+    metricType?: string;
+    metricCategory?: string;
+    userId?: string;
+    endpoint?: string;
+    timeRange?: { from: Date; to: Date };
+    tags?: Record<string, any>;
+  }): Promise<PerformanceMetric[]> {
+    try {
+      const conditions = [];
+      
+      if (filters?.metricName) {
+        conditions.push(eq(performanceMetrics.metricName, filters.metricName));
+      }
+      if (filters?.metricType) {
+        conditions.push(eq(performanceMetrics.metricType, filters.metricType));
+      }
+      if (filters?.metricCategory) {
+        conditions.push(eq(performanceMetrics.metricCategory, filters.metricCategory));
+      }
+      if (filters?.userId) {
+        conditions.push(eq(performanceMetrics.userId, filters.userId));
+      }
+      if (filters?.endpoint) {
+        conditions.push(eq(performanceMetrics.endpoint, filters.endpoint));
+      }
+      if (filters?.timeRange) {
+        conditions.push(sql`${performanceMetrics.timestamp} >= ${filters.timeRange.from}`);
+        conditions.push(sql`${performanceMetrics.timestamp} <= ${filters.timeRange.to}`);
+      }
+      if (filters?.tags) {
+        for (const [key, value] of Object.entries(filters.tags)) {
+          conditions.push(sql`${performanceMetrics.tags}->>${key} = ${value}`);
+        }
+      }
+
+      if (conditions.length > 0) {
+        return await db.select()
+          .from(performanceMetrics)
+          .where(and(...conditions))
+          .orderBy(desc(performanceMetrics.timestamp));
+      }
+      
+      return await db.select()
+        .from(performanceMetrics)
+        .orderBy(desc(performanceMetrics.timestamp));
+    } catch (error) {
+      console.error('Failed to get performance metrics:', error);
+      return [];
+    }
+  }
+
+  async getAggregatedMetrics(params: {
+    metricName: string;
+    aggregationPeriod: 'minute' | 'hour' | 'day';
+    timeRange: { from: Date; to: Date };
+    groupBy?: string[];
+  }): Promise<any[]> {
+    try {
+      const timeFormat = params.aggregationPeriod === 'minute' ? 'YYYY-MM-DD HH24:MI' :
+                        params.aggregationPeriod === 'hour' ? 'YYYY-MM-DD HH24' :
+                        'YYYY-MM-DD';
+
+      const result = await db.execute(sql`
+        SELECT 
+          TO_CHAR(timestamp, ${timeFormat}) as period,
+          COUNT(*) as count,
+          AVG(metric_value) as avg_value,
+          MIN(metric_value) as min_value,
+          MAX(metric_value) as max_value,
+          PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY metric_value) as p95_value
+        FROM ${performanceMetrics}
+        WHERE metric_name = ${params.metricName}
+          AND timestamp >= ${params.timeRange.from}
+          AND timestamp <= ${params.timeRange.to}
+        GROUP BY TO_CHAR(timestamp, ${timeFormat})
+        ORDER BY period
+      `);
+      
+      return result.rows || [];
+    } catch (error) {
+      console.error('Failed to get aggregated metrics:', error);
+      return [];
+    }
+  }
+
+  async getMetricSummary(metricCategory: string, timeRange: { from: Date; to: Date }): Promise<{
+    totalCount: number;
+    averageValue: number;
+    minValue: number;
+    maxValue: number;
+    p95Value: number;
+  }> {
+    try {
+      const result = await db.execute(sql`
+        SELECT 
+          COUNT(*) as total_count,
+          AVG(metric_value) as average_value,
+          MIN(metric_value) as min_value,
+          MAX(metric_value) as max_value,
+          PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY metric_value) as p95_value
+        FROM ${performanceMetrics}
+        WHERE metric_category = ${metricCategory}
+          AND timestamp >= ${timeRange.from}
+          AND timestamp <= ${timeRange.to}
+      `);
+      
+      const row = result.rows[0];
+      return {
+        totalCount: Number(row?.total_count || 0),
+        averageValue: Number(row?.average_value || 0),
+        minValue: Number(row?.min_value || 0),
+        maxValue: Number(row?.max_value || 0),
+        p95Value: Number(row?.p95_value || 0)
+      };
+    } catch (error) {
+      console.error('Failed to get metric summary:', error);
+      return {
+        totalCount: 0,
+        averageValue: 0,
+        minValue: 0,
+        maxValue: 0,
+        p95Value: 0
+      };
+    }
+  }
+
+  // Sync Operations Metrics
+  async recordSyncOperationMetric(metric: InsertSyncOperationsMetric): Promise<SyncOperationsMetric> {
+    try {
+      const [result] = await db.insert(syncOperationsMetrics).values({
+        ...metric,
+        startedAt: metric.startedAt || sql`CURRENT_TIMESTAMP`
+      }).returning();
+      return result;
+    } catch (error) {
+      console.error('Failed to record sync operation metric:', error);
+      throw error;
+    }
+  }
+
+  async getSyncOperationMetrics(filters?: {
+    operationType?: string;
+    status?: string;
+    userId?: string;
+    deviceId?: string;
+    tableName?: string;
+    timeRange?: { from: Date; to: Date };
+  }): Promise<SyncOperationsMetric[]> {
+    try {
+      const conditions = [];
+      
+      if (filters?.operationType) {
+        conditions.push(eq(syncOperationsMetrics.operationType, filters.operationType));
+      }
+      if (filters?.status) {
+        conditions.push(eq(syncOperationsMetrics.status, filters.status));
+      }
+      if (filters?.userId) {
+        conditions.push(eq(syncOperationsMetrics.userId, filters.userId));
+      }
+      if (filters?.deviceId) {
+        conditions.push(eq(syncOperationsMetrics.deviceId, filters.deviceId));
+      }
+      if (filters?.tableName) {
+        conditions.push(eq(syncOperationsMetrics.tableName, filters.tableName));
+      }
+      if (filters?.timeRange) {
+        conditions.push(sql`${syncOperationsMetrics.startedAt} >= ${filters.timeRange.from}`);
+        conditions.push(sql`${syncOperationsMetrics.startedAt} <= ${filters.timeRange.to}`);
+      }
+
+      if (conditions.length > 0) {
+        return await db.select()
+          .from(syncOperationsMetrics)
+          .where(and(...conditions))
+          .orderBy(desc(syncOperationsMetrics.startedAt));
+      }
+      
+      return await db.select()
+        .from(syncOperationsMetrics)
+        .orderBy(desc(syncOperationsMetrics.startedAt));
+    } catch (error) {
+      console.error('Failed to get sync operation metrics:', error);
+      return [];
+    }
+  }
+
+  async getSyncPerformanceSummary(timeRange: { from: Date; to: Date }): Promise<{
+    totalOperations: number;
+    successRate: number;
+    averageDuration: number;
+    errorsByType: Record<string, number>;
+    retryStatistics: { totalRetries: number; avgRetriesPerOperation: number };
+  }> {
+    try {
+      const totalResult = await db.execute(sql`
+        SELECT 
+          COUNT(*) as total_operations,
+          COUNT(CASE WHEN status = 'completed' THEN 1 END) as successful_operations,
+          AVG(duration_ms) as avg_duration,
+          SUM(retry_count) as total_retries
+        FROM ${syncOperationsMetrics}
+        WHERE start_time >= ${timeRange.from}
+          AND start_time <= ${timeRange.to}
+      `);
+
+      const errorResult = await db.execute(sql`
+        SELECT 
+          error_type,
+          COUNT(*) as error_count
+        FROM ${syncOperationsMetrics}
+        WHERE start_time >= ${timeRange.from}
+          AND start_time <= ${timeRange.to}
+          AND status = 'failed'
+          AND error_type IS NOT NULL
+        GROUP BY error_type
+      `);
+
+      const totalRow = totalResult.rows[0];
+      const totalOps = Number(totalRow?.total_operations || 0);
+      const successfulOps = Number(totalRow?.successful_operations || 0);
+      const totalRetries = Number(totalRow?.total_retries || 0);
+
+      const errorsByType: Record<string, number> = {};
+      for (const row of errorResult.rows) {
+        errorsByType[row.error_type] = Number(row.error_count);
+      }
+
+      return {
+        totalOperations: totalOps,
+        successRate: totalOps > 0 ? (successfulOps / totalOps) * 100 : 0,
+        averageDuration: Number(totalRow?.avg_duration || 0),
+        errorsByType,
+        retryStatistics: {
+          totalRetries,
+          avgRetriesPerOperation: totalOps > 0 ? totalRetries / totalOps : 0
+        }
+      };
+    } catch (error) {
+      console.error('Failed to get sync performance summary:', error);
+      return {
+        totalOperations: 0,
+        successRate: 0,
+        averageDuration: 0,
+        errorsByType: {},
+        retryStatistics: { totalRetries: 0, avgRetriesPerOperation: 0 }
+      };
+    }
+  }
+
+  async updateSyncOperationStatus(id: string, status: string, completedAt?: Date, errorDetails?: any): Promise<SyncOperationsMetric> {
+    try {
+      const updates: any = {
+        status,
+        updatedAt: sql`CURRENT_TIMESTAMP`
+      };
+      
+      if (completedAt) {
+        updates.completedAt = completedAt;
+      }
+      if (errorDetails) {
+        updates.errorDetails = errorDetails;
+        updates.errorType = errorDetails.type || 'unknown';
+        updates.errorMessage = errorDetails.message || 'Unknown error';
+      }
+
+      const [result] = await db
+        .update(syncOperationsMetrics)
+        .set(updates)
+        .where(eq(syncOperationsMetrics.id, id))
+        .returning();
+      
+      return result;
+    } catch (error) {
+      console.error('Failed to update sync operation status:', error);
+      throw error;
+    }
+  }
+
+  // Error Tracking Operations
+  async recordError(error: InsertErrorTracking): Promise<ErrorTracking> {
+    try {
+      const [result] = await db.insert(errorTracking).values({
+        ...error
+      }).returning();
+      return result;
+    } catch (error) {
+      console.error('Failed to record error:', error);
+      throw error;
+    }
+  }
+
+  async getErrors(filters?: {
+    errorType?: string;
+    severity?: string;
+    status?: string;
+    userId?: string;
+    endpoint?: string;
+    environment?: string;
+    timeRange?: { from: Date; to: Date };
+  }): Promise<ErrorTracking[]> {
+    try {
+      const conditions = [];
+      
+      if (filters?.errorType) {
+        conditions.push(eq(errorTracking.errorType, filters.errorType));
+      }
+      if (filters?.severity) {
+        conditions.push(eq(errorTracking.severity, filters.severity));
+      }
+      if (filters?.status) {
+        conditions.push(eq(errorTracking.status, filters.status));
+      }
+      if (filters?.userId) {
+        conditions.push(eq(errorTracking.userId, filters.userId));
+      }
+      if (filters?.endpoint) {
+        conditions.push(eq(errorTracking.endpoint, filters.endpoint));
+      }
+      if (filters?.environment) {
+        conditions.push(eq(errorTracking.environment, filters.environment));
+      }
+      if (filters?.timeRange) {
+        conditions.push(sql`${errorTracking.createdAt} >= ${filters.timeRange.from}`);
+        conditions.push(sql`${errorTracking.createdAt} <= ${filters.timeRange.to}`);
+      }
+
+      if (conditions.length > 0) {
+        return await db.select()
+          .from(errorTracking)
+          .where(and(...conditions))
+          .orderBy(desc(errorTracking.createdAt));
+      }
+      
+      return await db.select()
+        .from(errorTracking)
+        .orderBy(desc(errorTracking.createdAt));
+    } catch (error) {
+      console.error('Failed to get errors:', error);
+      return [];
+    }
+  }
+
+  async getErrorSummary(timeRange: { from: Date; to: Date }): Promise<{
+    totalErrors: number;
+    errorsByType: Record<string, number>;
+    errorsBySeverity: Record<string, number>;
+    affectedUsers: number;
+    resolvedErrors: number;
+  }> {
+    try {
+      const totalResult = await db.execute(sql`
+        SELECT 
+          COUNT(*) as total_errors,
+          COUNT(DISTINCT user_id) as affected_users,
+          COUNT(CASE WHEN status = 'resolved' THEN 1 END) as resolved_errors
+        FROM ${errorTracking}
+        WHERE created_at >= ${timeRange.from}
+          AND created_at <= ${timeRange.to}
+      `);
+
+      const typeResult = await db.execute(sql`
+        SELECT 
+          error_type,
+          COUNT(*) as error_count
+        FROM ${errorTracking}
+        WHERE created_at >= ${timeRange.from}
+          AND created_at <= ${timeRange.to}
+        GROUP BY error_type
+      `);
+
+      const severityResult = await db.execute(sql`
+        SELECT 
+          severity,
+          COUNT(*) as error_count
+        FROM ${errorTracking}
+        WHERE created_at >= ${timeRange.from}
+          AND created_at <= ${timeRange.to}
+        GROUP BY severity
+      `);
+
+      const totalRow = totalResult.rows[0];
+
+      const errorsByType: Record<string, number> = {};
+      for (const row of typeResult.rows) {
+        errorsByType[row.error_type] = Number(row.error_count);
+      }
+
+      const errorsBySeverity: Record<string, number> = {};
+      for (const row of severityResult.rows) {
+        errorsBySeverity[row.severity] = Number(row.error_count);
+      }
+
+      return {
+        totalErrors: Number(totalRow?.total_errors || 0),
+        errorsByType,
+        errorsBySeverity,
+        affectedUsers: Number(totalRow?.affected_users || 0),
+        resolvedErrors: Number(totalRow?.resolved_errors || 0)
+      };
+    } catch (error) {
+      console.error('Failed to get error summary:', error);
+      return {
+        totalErrors: 0,
+        errorsByType: {},
+        errorsBySeverity: {},
+        affectedUsers: 0,
+        resolvedErrors: 0
+      };
+    }
+  }
+
+  async updateErrorStatus(id: string, status: string, resolutionNotes?: string, assignedToId?: string): Promise<ErrorTracking> {
+    try {
+      const updates: any = {
+        status,
+        updatedAt: sql`CURRENT_TIMESTAMP`
+      };
+      
+      if (resolutionNotes) {
+        updates.resolutionNotes = resolutionNotes;
+      }
+      if (assignedToId) {
+        updates.assignedToId = assignedToId;
+      }
+      if (status === 'resolved') {
+        updates.resolvedAt = sql`CURRENT_TIMESTAMP`;
+      }
+
+      const [result] = await db
+        .update(errorTracking)
+        .set(updates)
+        .where(eq(errorTracking.id, id))
+        .returning();
+      
+      return result;
+    } catch (error) {
+      console.error('Failed to update error status:', error);
+      throw error;
+    }
+  }
+
+  async incrementErrorOccurrence(errorHash: string, metadata?: any): Promise<ErrorTracking> {
+    try {
+      // Try to find existing error with same hash
+      const [existing] = await db.select()
+        .from(errorTracking)
+        .where(eq(errorTracking.errorHash, errorHash))
+        .limit(1);
+
+      if (existing) {
+        // Increment occurrence count
+        const [updated] = await db
+          .update(errorTracking)
+          .set({
+            occurrenceCount: sql`${errorTracking.occurrenceCount} + 1`,
+            lastOccurrence: sql`CURRENT_TIMESTAMP`,
+            updatedAt: sql`CURRENT_TIMESTAMP`
+          })
+          .where(eq(errorTracking.id, existing.id))
+          .returning();
+        
+        return updated;
+      } else {
+        // Create new error entry - This should use proper InsertErrorTracking fields
+        throw new Error('Cannot create new error entry without required fields like errorId, errorType, severity, and message');
+      }
+    } catch (error) {
+      console.error('Failed to increment error occurrence:', error);
+      throw error;
+    }
+  }
+
+  async getTopErrors(limit: number = 10, timeRange?: { from: Date; to: Date }): Promise<ErrorTracking[]> {
+    try {
+      const conditions = [];
+      
+      if (timeRange) {
+        conditions.push(sql`${errorTracking.createdAt} >= ${timeRange.from}`);
+        conditions.push(sql`${errorTracking.createdAt} <= ${timeRange.to}`);
+      }
+
+      const query = db.select()
+        .from(errorTracking)
+        .orderBy(desc(errorTracking.occurrenceCount), desc(errorTracking.createdAt))
+        .limit(limit);
+
+      if (conditions.length > 0) {
+        return await query.where(and(...conditions));
+      }
+      
+      return await query;
+    } catch (error) {
+      console.error('Failed to get top errors:', error);
+      return [];
+    }
+  }
+
+  // SLO Measurements Operations
+  async recordSloMeasurement(measurement: InsertSloMeasurement): Promise<SloMeasurement> {
+    try {
+      const [result] = await db.insert(sloMeasurements).values({
+        ...measurement,
+        timestamp: measurement.timestamp || sql`CURRENT_TIMESTAMP`
+      }).returning();
+      return result;
+    } catch (error) {
+      console.error('Failed to record SLO measurement:', error);
+      throw error;
+    }
+  }
+
+  async getSloMeasurements(filters?: {
+    sloName?: string;
+    sloType?: string;
+    service?: string;
+    isCompliant?: boolean;
+    timeRange?: { from: Date; to: Date };
+  }): Promise<SloMeasurement[]> {
+    try {
+      const conditions = [];
+      
+      if (filters?.sloName) {
+        conditions.push(eq(sloMeasurements.sloName, filters.sloName));
+      }
+      if (filters?.sloType) {
+        conditions.push(eq(sloMeasurements.sloType, filters.sloType));
+      }
+      if (filters?.service) {
+        conditions.push(eq(sloMeasurements.service, filters.service));
+      }
+      if (filters?.isCompliant !== undefined) {
+        conditions.push(eq(sloMeasurements.isCompliant, filters.isCompliant));
+      }
+      if (filters?.timeRange) {
+        conditions.push(sql`${sloMeasurements.timestamp} >= ${filters.timeRange.from}`);
+        conditions.push(sql`${sloMeasurements.timestamp} <= ${filters.timeRange.to}`);
+      }
+
+      if (conditions.length > 0) {
+        return await db.select()
+          .from(sloMeasurements)
+          .where(and(...conditions))
+          .orderBy(desc(sloMeasurements.timestamp));
+      }
+      
+      return await db.select()
+        .from(sloMeasurements)
+        .orderBy(desc(sloMeasurements.timestamp));
+    } catch (error) {
+      console.error('Failed to get SLO measurements:', error);
+      return [];
+    }
+  }
+
+  async getSloComplianceReport(service: string, timeRange: { from: Date; to: Date }): Promise<{
+    overallCompliance: number;
+    sloBreaches: number;
+    errorBudgetStatus: { consumed: number; remaining: number };
+    trendAnalysis: { direction: string; confidence: number };
+  }> {
+    try {
+      const result = await db.execute(sql`
+        SELECT 
+          COUNT(*) as total_measurements,
+          COUNT(CASE WHEN is_compliant THEN 1 END) as compliant_measurements,
+          COUNT(CASE WHEN NOT is_compliant THEN 1 END) as breach_count,
+          AVG(CASE WHEN is_compliant THEN 1.0 ELSE 0.0 END) as compliance_rate,
+          AVG(error_budget_consumed) as avg_error_budget_consumed
+        FROM ${sloMeasurements}
+        WHERE service = ${service}
+          AND timestamp >= ${timeRange.from}
+          AND timestamp <= ${timeRange.to}
+      `);
+
+      const row = result.rows[0];
+      const totalMeasurements = Number(row?.total_measurements || 0);
+      const complianceRate = Number(row?.compliance_rate || 0);
+      const errorBudgetConsumed = Number(row?.avg_error_budget_consumed || 0);
+
+      // Simple trend analysis based on recent vs older compliance
+      const midpoint = new Date((timeRange.from.getTime() + timeRange.to.getTime()) / 2);
+      
+      const recentResult = await db.execute(sql`
+        SELECT AVG(CASE WHEN is_compliant THEN 1.0 ELSE 0.0 END) as recent_compliance
+        FROM ${sloMeasurements}
+        WHERE service = ${service}
+          AND timestamp >= ${midpoint}
+          AND timestamp <= ${timeRange.to}
+      `);
+
+      const olderResult = await db.execute(sql`
+        SELECT AVG(CASE WHEN is_compliant THEN 1.0 ELSE 0.0 END) as older_compliance
+        FROM ${sloMeasurements}
+        WHERE service = ${service}
+          AND timestamp >= ${timeRange.from}
+          AND timestamp < ${midpoint}
+      `);
+
+      const recentCompliance = Number(recentResult.rows[0]?.recent_compliance || 0);
+      const olderCompliance = Number(olderResult.rows[0]?.older_compliance || 0);
+      
+      const trendDirection = recentCompliance > olderCompliance ? 'improving' : 
+                           recentCompliance < olderCompliance ? 'degrading' : 'stable';
+      const trendConfidence = Math.abs(recentCompliance - olderCompliance) * 100;
+
+      return {
+        overallCompliance: complianceRate * 100,
+        sloBreaches: Number(row?.breach_count || 0),
+        errorBudgetStatus: {
+          consumed: errorBudgetConsumed,
+          remaining: Math.max(0, 100 - errorBudgetConsumed)
+        },
+        trendAnalysis: {
+          direction: trendDirection,
+          confidence: trendConfidence
+        }
+      };
+    } catch (error) {
+      console.error('Failed to get SLO compliance report:', error);
+      return {
+        overallCompliance: 0,
+        sloBreaches: 0,
+        errorBudgetStatus: { consumed: 0, remaining: 100 },
+        trendAnalysis: { direction: 'unknown', confidence: 0 }
+      };
+    }
+  }
+
+  async updateSloAlerts(id: string, alertsTriggered: number): Promise<SloMeasurement> {
+    try {
+      const [result] = await db
+        .update(sloMeasurements)
+        .set({
+          alertsTriggered,
+          updatedAt: sql`CURRENT_TIMESTAMP`
+        })
+        .where(eq(sloMeasurements.id, id))
+        .returning();
+      
+      return result;
+    } catch (error) {
+      console.error('Failed to update SLO alerts:', error);
+      throw error;
+    }
+  }
+
+  async getSloHealth(): Promise<{
+    criticalSlos: SloMeasurement[];
+    degradedServices: string[];
+    overallSystemHealth: 'healthy' | 'degraded' | 'critical';
+  }> {
+    try {
+      // Get critical SLOs (non-compliant in last hour)
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      
+      const criticalSlos = await db.select()
+        .from(sloMeasurements)
+        .where(
+          and(
+            eq(sloMeasurements.isCompliant, false),
+            sql`${sloMeasurements.timestamp} >= ${oneHourAgo}`
+          )
+        )
+        .orderBy(desc(sloMeasurements.timestamp))
+        .limit(10);
+
+      // Get degraded services
+      const degradedResult = await db.execute(sql`
+        SELECT DISTINCT service
+        FROM ${sloMeasurements}
+        WHERE timestamp >= ${oneHourAgo}
+          AND is_compliant = false
+      `);
+
+      const degradedServices = degradedResult.rows.map(row => row.service);
+
+      // Determine overall system health
+      let overallHealth: 'healthy' | 'degraded' | 'critical' = 'healthy';
+      
+      if (criticalSlos.length > 5) {
+        overallHealth = 'critical';
+      } else if (criticalSlos.length > 0 || degradedServices.length > 0) {
+        overallHealth = 'degraded';
+      }
+
+      return {
+        criticalSlos,
+        degradedServices,
+        overallSystemHealth: overallHealth
+      };
+    } catch (error) {
+      console.error('Failed to get SLO health:', error);
+      return {
+        criticalSlos: [],
+        degradedServices: [],
+        overallSystemHealth: 'healthy'
+      };
+    }
+  }
+
+  // Monitoring Dashboard Data
+  async getMonitoringDashboardData(timeRange: { from: Date; to: Date }): Promise<{
+    systemHealth: {
+      overallStatus: 'healthy' | 'degraded' | 'critical';
+      errorRate: number;
+      responseTime: number;
+      availabilityPercentage: number;
+    };
+    performanceMetrics: {
+      apiResponseTime: { current: number; trend: string };
+      syncPerformance: { successRate: number; avgDuration: number };
+      userActivity: { activeUsers: number; operationsCount: number };
+    };
+    alertSummary: {
+      criticalAlerts: number;
+      warningAlerts: number;
+      recentErrors: ErrorTracking[];
+    };
+  }> {
+    try {
+      // Get system health metrics
+      const errorResult = await db.execute(sql`
+        SELECT COUNT(*) as error_count
+        FROM ${errorTracking}
+        WHERE timestamp >= ${timeRange.from}
+          AND timestamp <= ${timeRange.to}
+      `);
+
+      const performanceResult = await db.execute(sql`
+        SELECT 
+          AVG(metric_value) as avg_response_time,
+          COUNT(*) as total_requests
+        FROM ${performanceMetrics}
+        WHERE metric_name = 'response_time'
+          AND timestamp >= ${timeRange.from}
+          AND timestamp <= ${timeRange.to}
+      `);
+
+      const sloResult = await db.execute(sql`
+        SELECT 
+          AVG(CASE WHEN is_compliant THEN 1.0 ELSE 0.0 END) as availability
+        FROM ${sloMeasurements}
+        WHERE slo_type = 'availability'
+          AND timestamp >= ${timeRange.from}
+          AND timestamp <= ${timeRange.to}
+      `);
+
+      // Get sync performance
+      const syncResult = await db.execute(sql`
+        SELECT 
+          COUNT(*) as total_operations,
+          COUNT(CASE WHEN status = 'completed' THEN 1 END) as successful_operations,
+          AVG(duration_ms) as avg_duration
+        FROM ${syncOperationsMetrics}
+        WHERE start_time >= ${timeRange.from}
+          AND start_time <= ${timeRange.to}
+      `);
+
+      // Get recent errors
+      const recentErrors = await this.getErrors({
+        timeRange,
+        severity: 'high'
+      });
+
+      // Calculate metrics
+      const errorCount = Number(errorResult.rows[0]?.error_count || 0);
+      const totalRequests = Number(performanceResult.rows[0]?.total_requests || 1);
+      const errorRate = (errorCount / totalRequests) * 100;
+      
+      const avgResponseTime = Number(performanceResult.rows[0]?.avg_response_time || 0);
+      const availability = Number(sloResult.rows[0]?.availability || 1) * 100;
+      
+      const totalSyncOps = Number(syncResult.rows[0]?.total_operations || 1);
+      const successfulSyncOps = Number(syncResult.rows[0]?.successful_operations || 0);
+      const syncSuccessRate = (successfulSyncOps / totalSyncOps) * 100;
+      const avgSyncDuration = Number(syncResult.rows[0]?.avg_duration || 0);
+
+      // Determine overall status
+      let overallStatus: 'healthy' | 'degraded' | 'critical' = 'healthy';
+      if (errorRate > 5 || availability < 95) {
+        overallStatus = 'critical';
+      } else if (errorRate > 1 || availability < 99) {
+        overallStatus = 'degraded';
+      }
+
+      // Count alerts
+      const criticalAlerts = recentErrors.filter(e => e.severity === 'critical').length;
+      const warningAlerts = recentErrors.filter(e => e.severity === 'medium').length;
+
+      // Get user activity
+      const userActivityResult = await db.execute(sql`
+        SELECT 
+          COUNT(DISTINCT user_id) as active_users,
+          COUNT(*) as operations_count
+        FROM ${performanceMetrics}
+        WHERE timestamp >= ${timeRange.from}
+          AND timestamp <= ${timeRange.to}
+          AND user_id IS NOT NULL
+      `);
+
+      const activeUsers = Number(userActivityResult.rows[0]?.active_users || 0);
+      const operationsCount = Number(userActivityResult.rows[0]?.operations_count || 0);
+
+      return {
+        systemHealth: {
+          overallStatus,
+          errorRate,
+          responseTime: avgResponseTime,
+          availabilityPercentage: availability
+        },
+        performanceMetrics: {
+          apiResponseTime: { 
+            current: avgResponseTime, 
+            trend: avgResponseTime > 1000 ? 'degrading' : 'stable' 
+          },
+          syncPerformance: { 
+            successRate: syncSuccessRate, 
+            avgDuration: avgSyncDuration 
+          },
+          userActivity: { activeUsers, operationsCount }
+        },
+        alertSummary: {
+          criticalAlerts,
+          warningAlerts,
+          recentErrors: recentErrors.slice(0, 5)
+        }
+      };
+    } catch (error) {
+      console.error('Failed to get monitoring dashboard data:', error);
+      return {
+        systemHealth: {
+          overallStatus: 'healthy',
+          errorRate: 0,
+          responseTime: 0,
+          availabilityPercentage: 100
+        },
+        performanceMetrics: {
+          apiResponseTime: { current: 0, trend: 'stable' },
+          syncPerformance: { successRate: 100, avgDuration: 0 },
+          userActivity: { activeUsers: 0, operationsCount: 0 }
+        },
+        alertSummary: {
+          criticalAlerts: 0,
+          warningAlerts: 0,
+          recentErrors: []
+        }
+      };
+    }
+  }
+
   // Helper method to get table map (for dynamic table access)
   private getTableMap(): Record<string, any> {
     return {
@@ -4348,6 +5336,10 @@ export class DatabaseStorage implements IStorage {
       permissions,
       rolePermissions,
       userRoles,
+      performanceMetrics,
+      syncOperationsMetrics,
+      errorTracking,
+      sloMeasurements,
     };
   }
 }
