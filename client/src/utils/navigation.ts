@@ -17,7 +17,8 @@ import {
   Brain,
   Archive,
   Search,
-  UserCheck
+  UserCheck,
+  Activity
 } from "lucide-react";
 
 export interface NavigationItem {
@@ -102,6 +103,12 @@ export const navigationConfig: NavigationItem[] = [
       { id: 'smart-search', label: 'البحث الذكي', icon: Search, path: '/smart-search' },
       { id: 'document-archive', label: 'الأرشفة الإلكترونية', icon: Archive, path: '/document-archive' }
     ]
+  },
+  {
+    id: 'monitoring',
+    label: 'مراقبة النظام',
+    icon: Activity,
+    path: '/monitoring'
   },
   {
     id: 'settings',

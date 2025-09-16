@@ -21,6 +21,7 @@ import DocumentArchive from "@/pages/DocumentArchive";
 import SmartSearch from "@/pages/SmartSearch";
 import TaskManagement from "@/pages/TaskManagement";
 import ServiceBuilder from "@/pages/ServiceBuilder";
+import MonitoringDashboard from "@/components/monitoring/MonitoringDashboard";
 import ServiceCatalog from "@/services/pages/ServiceCatalog";
 import ServiceDetails from "@/services/pages/ServiceDetails";
 import ServiceApplication from "@/services/pages/ServiceApplication";
@@ -71,6 +72,7 @@ function AuthenticatedRouter() {
         <Route path="/smart-search" component={SmartSearch} />
         <Route path="/task-management" component={TaskManagement} />
         <Route path="/service-builder" component={ServiceBuilder} />
+        <Route path="/monitoring" component={MonitoringDashboard} />
         <Route path="/applications/track" component={ApplicationTrackingAdmin} />
         <Route path="/applications/pending" component={PendingApplications} />
         <Route path="/employee/dashboard" component={EmployeeDashboard} />
@@ -173,6 +175,11 @@ function MainRouter() {
         </AuthProvider>
       </Route>
       <Route path="/task-management">
+        <AuthProvider>
+          <AuthenticatedRouter />
+        </AuthProvider>
+      </Route>
+      <Route path="/monitoring">
         <AuthProvider>
           <AuthenticatedRouter />
         </AuthProvider>

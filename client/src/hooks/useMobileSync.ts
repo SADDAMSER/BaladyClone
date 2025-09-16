@@ -378,47 +378,6 @@ export function useMobileSync() {
     }
   }, [classifyPriority, secureStore]);
 
-  // Process Next Priority Operation
-  const processNextPriorityOperation = useCallback(async (): Promise<boolean> => {
-    const priorities: Array<keyof typeof priorityQueues> = ['critical', 'high', 'normal', 'low'];
-    
-    for (const priority of priorities) {
-      const queue = priorityQueues[priority];
-      if (queue.length > 0) {
-        const priorityOp = queue[0];
-        const operation = priorityOp.operation;
-        
-        // Remove from queue first
-        setPriorityQueues(prev => ({
-          ...prev,
-          [priority]: prev[priority].slice(1)
-        }));
-
-        try {
-          // Process single operation using existing push logic
-          await executeWithRetry(
-            () => pushMutation.mutateAsync([operation]),
-            `priority_${priority}_${operation.id}`,
-            undefined,
-            { operation } // Pass operation context for accurate DLQ
-          );
-          
-          // Remove from secure storage on success
-          if (secureStore) {
-            await secureStore.removeItem('operations', `${priority}_${operation.id}`);
-          }
-          
-          return true;
-        } catch (error) {
-          console.error(`Priority ${priority} operation failed:`, error);
-          return false;
-        }
-      }
-    }
-    
-    return false; // No operations to process
-  }, [priorityQueues, executeWithRetry, pushMutation, secureStore]);
-
   // Retry from Dead Letter Queue
   const retryFromDeadLetter = useCallback(async (deadLetterEntry: DeadLetterEntry, elevate: boolean = true) => {
     const operation = deadLetterEntry.operation;
@@ -467,6 +426,134 @@ export function useMobileSync() {
     return device;
   });
 
+  // Get pending local operations
+  const getPendingOperations = useCallback((): SyncOperation[] => {
+    const pending = localStorage.getItem('pending_sync_operations');
+    return pending ? JSON.parse(pending) : [];
+  }, []);
+
+  // Clear processed operations from local storage
+  const clearLocalOperations = useCallback((operationIds: string[]) => {
+    const pending = getPendingOperations();
+    const filtered = pending.filter(op => !operationIds.includes(op.id!));
+    localStorage.setItem('pending_sync_operations', JSON.stringify(filtered));
+
+    setSyncStatus(prev => ({
+      ...prev,
+      pendingOperations: filtered.length
+    }));
+  }, [getPendingOperations]);
+
+  // Push data to server (upload local changes) - MOVED EARLIER TO FIX DEPENDENCY ISSUE
+  const pushMutation = useMutation({
+    mutationFn: async (operations: SyncOperation[]) => {
+      setSyncStatus(prev => ({ ...prev, isSyncing: true, syncProgress: 20 }));
+
+      const response = await apiRequest('/api/sync/push', 'POST', {
+        deviceId,
+        operations,
+        conflictResolution: 'use_remote' // Default to server precedence, will be handled per-table by backend
+      });
+
+      const data = await response.json();
+      setSyncStatus(prev => ({ ...prev, syncProgress: 80 }));
+      return data;
+    },
+    onSuccess: (data) => {
+      // Clear successfully synced operations from local storage
+      if (data.processedOperations) {
+        // Use the local operation IDs for proper clearing
+        const processedLocalIds = data.processedOperations.map((op: any) => op.localId || op.id);
+        clearLocalOperations(processedLocalIds);
+      }
+
+      setSyncStatus(prev => ({
+        ...prev,
+        isSyncing: false,
+        lastSyncTime: new Date().toISOString(),
+        syncProgress: 100,
+        totalOperations: prev.totalOperations + (data.processedOperations?.length || 0)
+      }));
+
+      // Invalidate affected queries
+      if (data.affectedTables) {
+        data.affectedTables.forEach((tableName: string) => {
+          queryClient.invalidateQueries({ queryKey: [`/api/${tableName}`] });
+        });
+      }
+
+      // Success toast for push
+      if (data.processedOperations?.length > 0) {
+        toast({
+          title: "تم رفع البيانات بنجاح",
+          description: `تم رفع ${data.processedOperations.length} عملية`,
+          variant: "default",
+        });
+      }
+    },
+    onError: (error) => {
+      console.error('Push sync failed:', error);
+      const syncError = classifyError(error);
+      
+      setSyncStatus(prev => ({
+        ...prev,
+        isSyncing: false,
+        syncProgress: 0,
+        failedOperations: prev.failedOperations + 1
+      }));
+
+      // Handle push errors gracefully
+      if (!syncError.retryable) {
+        toast({
+          title: "فشل في رفع البيانات",
+          description: `${syncError.message}. البيانات محفوظة محلياً وسيتم المحاولة لاحقاً`,
+          variant: "destructive",
+        });
+      }
+    }
+  });
+
+  // Process Next Priority Operation - PROPERLY DEFINED AFTER PUSH MUTATION
+  const processNextPriorityOperation = useCallback(async (): Promise<boolean> => {
+    const priorities: Array<keyof typeof priorityQueues> = ['critical', 'high', 'normal', 'low'];
+    
+    for (const priority of priorities) {
+      const queue = priorityQueues[priority];
+      if (queue.length > 0) {
+        const priorityOp = queue[0];
+        const operation = priorityOp.operation;
+        
+        // Remove from queue first
+        setPriorityQueues(prev => ({
+          ...prev,
+          [priority]: prev[priority].slice(1)
+        }));
+
+        try {
+          // Process single operation using existing push logic
+          await executeWithRetry(
+            () => pushMutation.mutateAsync([operation]),
+            `priority_${priority}_${operation.id}`,
+            undefined,
+            { operation } // Pass operation context for accurate DLQ
+          );
+          
+          // Remove from secure storage on success
+          if (secureStore) {
+            await secureStore.removeItem('operations', `${priority}_${operation.id}`);
+          }
+          
+          return true;
+        } catch (error) {
+          console.error(`Priority ${priority} operation failed:`, error);
+          return false;
+        }
+      }
+    }
+    
+    return false; // No operations to process
+  }, [priorityQueues, executeWithRetry, pushMutation, secureStore]);
+
   // Initialize secure storage and migration
   useEffect(() => {
     const initializeSecureStorage = async () => {
@@ -475,9 +562,13 @@ export function useMobileSync() {
       try {
         // Check migration status
         const status = StoreMigration.getMigrationStatus();
-        setMigrationStatus(status);
+        // Handle migration status mapping to expected states
+        const normalizedStatus = status === 'not_needed' ? 'completed' : 
+                                status === 'in_progress' ? 'migrating' : 
+                                status;
+        setMigrationStatus(normalizedStatus);
 
-        if (status === 'required') {
+        if (normalizedStatus === 'required') {
           setMigrationStatus('migrating');
           console.log('🔄 Migrating to encrypted storage...');
           
@@ -494,7 +585,7 @@ export function useMobileSync() {
             });
             return;
           }
-        } else if (status === 'completed') {
+        } else if (normalizedStatus === 'completed') {
           setMigrationStatus('completed');
         }
 
@@ -505,8 +596,13 @@ export function useMobileSync() {
         // Load existing operations and organize into priority queues
         const operations = await store.getAllItems('operations');
         if (operations?.length > 0) {
-          // Separate priority operations from legacy operations
-          const priorityOps: { [key: string]: PriorityOperation[] } = {
+          // Separate priority operations from legacy operations with proper typing
+          const priorityOps: {
+            critical: PriorityOperation[];
+            high: PriorityOperation[];
+            normal: PriorityOperation[];
+            low: PriorityOperation[];
+          } = {
             critical: [],
             high: [],
             normal: [],
@@ -516,8 +612,11 @@ export function useMobileSync() {
 
           operations.forEach((item: any) => {
             if (item.priority && item.operation) {
-              // This is a PriorityOperation
-              priorityOps[item.priority].push(item);
+              // This is a PriorityOperation - ensure priority is valid
+              const priority = item.priority as keyof typeof priorityOps;
+              if (priority in priorityOps) {
+                priorityOps[priority].push(item);
+              }
             } else {
               // Legacy SyncOperation
               legacyOps.push(item);
@@ -724,82 +823,6 @@ export function useMobileSync() {
     }
   });
 
-  // Push data to server (upload local changes)
-  const pushMutation = useMutation({
-    mutationFn: async (operations: SyncOperation[]) => {
-      setSyncStatus(prev => ({ ...prev, isSyncing: true, syncProgress: 20 }));
-
-      const response = await apiRequest('/api/sync/push', 'POST', {
-        deviceId,
-        operations,
-        conflictResolution: 'use_remote' // Default to server precedence, will be handled per-table by backend
-      });
-
-      const data = await response.json();
-      setSyncStatus(prev => ({ ...prev, syncProgress: 80 }));
-      return data;
-    },
-    onSuccess: (data) => {
-      // Clear successfully synced operations from local storage
-      if (data.processedOperations) {
-        // Use the local operation IDs for proper clearing
-        const processedLocalIds = data.processedOperations.map((op: any) => op.localId || op.id);
-        clearLocalOperations(processedLocalIds);
-      }
-
-      setSyncStatus(prev => ({
-        ...prev,
-        isSyncing: false,
-        lastSyncTime: new Date().toISOString(),
-        syncProgress: 100,
-        totalOperations: prev.totalOperations + (data.processedOperations?.length || 0)
-      }));
-
-      // Invalidate affected queries
-      if (data.affectedTables) {
-        data.affectedTables.forEach((tableName: string) => {
-          queryClient.invalidateQueries({ queryKey: [`/api/${tableName}`] });
-        });
-      }
-
-      refetchSession();
-
-      // Success toast for push
-      if (data.processedOperations?.length > 0) {
-        toast({
-          title: "تم رفع البيانات بنجاح",
-          description: `تم رفع ${data.processedOperations.length} عملية`,
-          variant: "default",
-        });
-      }
-    },
-    onError: (error) => {
-      console.error('Push sync failed:', error);
-      const syncError = classifyError(error);
-      
-      setSyncStatus(prev => ({
-        ...prev,
-        isSyncing: false,
-        syncProgress: 0,
-        failedOperations: prev.failedOperations + 1
-      }));
-
-      // Handle push errors gracefully
-      if (!syncError.retryable) {
-        toast({
-          title: "فشل في رفع البيانات",
-          description: `${syncError.message}. البيانات محفوظة محلياً وسيتم المحاولة لاحقاً`,
-          variant: "destructive",
-        });
-      }
-    }
-  });
-
-  // Get pending local operations
-  const getPendingOperations = useCallback((): SyncOperation[] => {
-    const pending = localStorage.getItem('pending_sync_operations');
-    return pending ? JSON.parse(pending) : [];
-  }, []);
 
   // Store operation locally for later sync
   const storeLocalOperation = useCallback((operation: Omit<SyncOperation, 'id' | 'timestamp' | 'userId'>) => {
@@ -823,17 +846,7 @@ export function useMobileSync() {
     }));
   }, [user, deviceId, getPendingOperations]);
 
-  // Clear processed operations from local storage
-  const clearLocalOperations = useCallback((operationIds: string[]) => {
-    const pending = getPendingOperations();
-    const filtered = pending.filter(op => !operationIds.includes(op.id!));
-    localStorage.setItem('pending_sync_operations', JSON.stringify(filtered));
 
-    setSyncStatus(prev => ({
-      ...prev,
-      pendingOperations: filtered.length
-    }));
-  }, [getPendingOperations]);
 
   // Trigger full sync (pull then push)
   const triggerSync = useCallback(async () => {

@@ -4282,6 +4282,247 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ======= MONITORING & METRICS ENDPOINTS =======
+  
+  // Batch metrics collection endpoint
+  app.post("/api/monitoring/metrics/batch", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { metrics, timestamp } = req.body;
+      
+      if (!Array.isArray(metrics)) {
+        return res.status(400).json({ message: "Invalid metrics format" });
+      }
+
+      const results = [];
+      for (const metric of metrics) {
+        try {
+          const enrichedMetric = {
+            ...metric,
+            userId: req.user?.id,
+            timestamp: new Date(timestamp || Date.now())
+          };
+          
+          const result = await storage.recordPerformanceMetric(enrichedMetric);
+          results.push(result);
+        } catch (error) {
+          console.error('Failed to record metric:', error);
+          // Continue processing other metrics
+        }
+      }
+
+      res.json({ 
+        recorded: results.length, 
+        total: metrics.length,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Batch metrics error:', error);
+      res.status(500).json({ message: "فشل في حفظ المؤشرات" });
+    }
+  });
+
+  // Beacon endpoint for page unload metrics
+  app.post("/api/monitoring/metrics/beacon", async (req, res) => {
+    try {
+      const { metrics, timestamp } = req.body;
+      
+      if (Array.isArray(metrics)) {
+        for (const metric of metrics.slice(0, 20)) { // Limit beacon metrics
+          try {
+            await storage.recordPerformanceMetric({
+              ...metric,
+              timestamp: new Date(timestamp || Date.now())
+            });
+          } catch (error) {
+            console.error('Beacon metric error:', error);
+          }
+        }
+      }
+
+      res.status(200).send('OK');
+    } catch (error) {
+      console.error('Beacon error:', error);
+      res.status(200).send('OK'); // Always return OK for beacon
+    }
+  });
+
+  // Real-time monitoring dashboard data
+  app.get("/api/monitoring/dashboard", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const timeRange = {
+        from: new Date(Date.now() - 24 * 60 * 60 * 1000), // Last 24 hours
+        to: new Date()
+      };
+
+      const dashboardData = await storage.getMonitoringDashboardData(timeRange);
+      res.json(dashboardData);
+    } catch (error) {
+      console.error('Dashboard data error:', error);
+      res.status(500).json({ message: "فشل في جلب بيانات المراقبة" });
+    }
+  });
+
+  // Performance metrics summary
+  app.get("/api/monitoring/performance", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { timeframe = '24h' } = req.query;
+      
+      let hours = 24;
+      if (timeframe === '1h') hours = 1;
+      else if (timeframe === '6h') hours = 6;
+      else if (timeframe === '7d') hours = 24 * 7;
+
+      const timeRange = {
+        from: new Date(Date.now() - hours * 60 * 60 * 1000),
+        to: new Date()
+      };
+
+      const metrics = await storage.getPerformanceMetrics({
+        metricCategory: 'performance',
+        timeRange
+      });
+
+      // Aggregate performance data
+      const aggregated = {
+        pageLoadTime: { avg: 0, p95: 0, count: 0 },
+        apiResponseTime: { avg: 0, p95: 0, count: 0 },
+        errorRate: 0,
+        uniqueUsers: new Set()
+      };
+
+      metrics.forEach(metric => {
+        if (metric.userId) aggregated.uniqueUsers.add(metric.userId);
+        
+        if (metric.metricName === 'page_load_time') {
+          const value = parseFloat(metric.value);
+          aggregated.pageLoadTime.avg += value;
+          aggregated.pageLoadTime.count++;
+        } else if (metric.metricName === 'api_call_duration') {
+          const value = parseFloat(metric.value);
+          aggregated.apiResponseTime.avg += value;
+          aggregated.apiResponseTime.count++;
+        }
+      });
+
+      if (aggregated.pageLoadTime.count > 0) {
+        aggregated.pageLoadTime.avg /= aggregated.pageLoadTime.count;
+      }
+      if (aggregated.apiResponseTime.count > 0) {
+        aggregated.apiResponseTime.avg /= aggregated.apiResponseTime.count;
+      }
+
+      res.json({
+        ...aggregated,
+        uniqueUsers: aggregated.uniqueUsers.size,
+        timeRange,
+        metricsCount: metrics.length
+      });
+    } catch (error) {
+      console.error('Performance metrics error:', error);
+      res.status(500).json({ message: "فشل في جلب مؤشرات الأداء" });
+    }
+  });
+
+  // System health endpoint
+  app.get("/api/monitoring/health", async (req, res) => {
+    try {
+      const health = await storage.getSloHealth();
+      
+      // Add system checks
+      const systemChecks = {
+        database: { status: 'healthy', latency: 0 },
+        server: { status: 'healthy', uptime: process.uptime() },
+        memory: {
+          status: process.memoryUsage().heapUsed < 500 * 1024 * 1024 ? 'healthy' : 'warning',
+          usage: process.memoryUsage()
+        }
+      };
+
+      // Test database connectivity
+      const dbStart = Date.now();
+      try {
+        await db.execute(sql`SELECT 1`);
+        systemChecks.database.latency = Date.now() - dbStart;
+        systemChecks.database.status = systemChecks.database.latency < 100 ? 'healthy' : 'warning';
+      } catch (error) {
+        systemChecks.database.status = 'error';
+      }
+
+      res.json({
+        overallHealth: health.overallSystemHealth,
+        slo: health,
+        system: systemChecks,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Health check error:', error);
+      res.status(500).json({ 
+        overallHealth: 'critical',
+        error: 'Health check failed',
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+
+  // Error tracking endpoint
+  app.get("/api/monitoring/errors", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { timeframe = '24h', limit = 50 } = req.query;
+      
+      let hours = 24;
+      if (timeframe === '1h') hours = 1;
+      else if (timeframe === '6h') hours = 6;
+      else if (timeframe === '7d') hours = 24 * 7;
+
+      const timeRange = {
+        from: new Date(Date.now() - hours * 60 * 60 * 1000),
+        to: new Date()
+      };
+
+      const [errors, summary] = await Promise.all([
+        storage.getTopErrors(parseInt(limit as string), timeRange),
+        storage.getErrorSummary(timeRange)
+      ]);
+
+      res.json({
+        errors,
+        summary,
+        timeRange
+      });
+    } catch (error) {
+      console.error('Error tracking error:', error);
+      res.status(500).json({ message: "فشل في جلب تقرير الأخطاء" });
+    }
+  });
+
+  // SLO metrics endpoint
+  app.get("/api/monitoring/slo", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { service, timeframe = '24h' } = req.query;
+      
+      let hours = 24;
+      if (timeframe === '1h') hours = 1;
+      else if (timeframe === '6h') hours = 6;
+      else if (timeframe === '7d') hours = 24 * 7;
+
+      const timeRange = {
+        from: new Date(Date.now() - hours * 60 * 60 * 1000),
+        to: new Date()
+      };
+
+      if (service) {
+        const compliance = await storage.getSloComplianceReport(service as string, timeRange);
+        res.json({ service, compliance, timeRange });
+      } else {
+        const measurements = await storage.getSloMeasurements({ timeRange });
+        res.json({ measurements, timeRange });
+      }
+    } catch (error) {
+      console.error('SLO metrics error:', error);
+      res.status(500).json({ message: "فشل في جلب مؤشرات SLO" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
