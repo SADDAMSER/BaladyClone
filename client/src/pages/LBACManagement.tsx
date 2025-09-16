@@ -50,84 +50,42 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import Header from '@/components/Header';
 import { apiRequest } from '@/lib/queryClient';
+import {
+  type PermissionGeographicConstraints,
+  type InsertPermissionGeographicConstraints,
+  type TemporaryPermissionDelegations,
+  type InsertTemporaryPermissionDelegations,
+  type GeographicRoleTemplates,
+  type InsertGeographicRoleTemplates,
+  type UserGeographicAssignmentHistory,
+  type LbacAccessAuditLog
+} from '@shared/schema';
 
-// Types for LBAC entities
-interface PermissionGeographicConstraint {
-  id: string;
-  permissionId: string;
-  constraintType: 'restrict' | 'allow' | 'conditional';
-  constraintLevel: 'governorate' | 'district' | 'subDistrict' | 'neighborhood';
-  constraintValue: string;
-  isActive: boolean;
-  createdAt: string;
-  // Expanded data
+// Use shared types from schema
+type PermissionGeographicConstraint = PermissionGeographicConstraints & {
   permission?: { code: string; nameAr: string; nameEn: string; };
   geographic?: { nameAr: string; nameEn: string; };
-}
+};
 
-interface TemporaryPermissionDelegation {
-  id: string;
-  delegatorId: string;
-  delegeeId: string;
-  permissionConstraintId: string;
-  startDate: string;
-  endDate: string;
-  reason: string;
-  status: 'pending' | 'active' | 'expired' | 'revoked';
-  approvedBy?: string;
-  approvedAt?: string;
-  isActive: boolean;
-  createdAt: string;
-  // Expanded data
+type TemporaryPermissionDelegation = TemporaryPermissionDelegations & {
   delegator?: { fullName: string; username: string; };
   delegee?: { fullName: string; username: string; };
   approver?: { fullName: string; username: string; };
-}
+};
 
-interface GeographicRoleTemplate {
-  id: string;
-  templateName: string;
-  description?: string;
-  applicableLevel: 'governorate' | 'district' | 'subDistrict' | 'neighborhood';
-  templatePermissions: string[];
-  defaultConstraints: any;
-  isActive: boolean;
-  createdAt: string;
-  // Usage count
+type GeographicRoleTemplate = GeographicRoleTemplates & {
   usageCount?: number;
-}
+};
 
-interface AssignmentHistory {
-  id: string;
-  userId: string;
-  originalAssignmentId: string;
-  changeType: 'created' | 'updated' | 'deleted' | 'transferred';
-  previousValues?: any;
-  newValues?: any;
-  changedBy: string;
-  changeReason?: string;
-  changedAt: string;
-  // Expanded data
+type AssignmentHistory = UserGeographicAssignmentHistory & {
   user?: { fullName: string; username: string; };
   changedByUser?: { fullName: string; username: string; };
-}
+};
 
-interface AccessAuditLog {
-  id: string;
-  userId: string;
-  requestedResource: string;
-  requestedAction: string;
-  governorateId?: string;
-  districtId?: string;
-  subDistrictId?: string;
-  neighborhoodId?: string;
-  accessGranted: boolean;
-  denialReason?: string;
-  accessedAt: string;
-  // Expanded data
+type AccessAuditLog = LbacAccessAuditLog & {
   user?: { fullName: string; username: string; };
   geographic?: { nameAr: string; level: string; };
-}
+};
 
 // Form schemas
 const constraintSchema = z.object({
@@ -143,18 +101,18 @@ const constraintSchema = z.object({
 });
 
 const delegationSchema = z.object({
-  delegatorId: z.string().min(1, 'المفوض مطلوب'),
-  delegeeId: z.string().min(1, 'المفوض إليه مطلوب'),
+  fromUserId: z.string().min(1, 'المفوض مطلوب'),
+  toUserId: z.string().min(1, 'المفوض إليه مطلوب'),
   permissionConstraintId: z.string().min(1, 'قيد الصلاحية مطلوب'),
   startDate: z.date({ required_error: 'تاريخ البداية مطلوب' }),
   endDate: z.date({ required_error: 'تاريخ النهاية مطلوب' }),
-  reason: z.string().min(10, 'السبب يجب أن يكون 10 أحرف على الأقل')
+  delegationReason: z.string().min(10, 'السبب يجب أن يكون 10 أحرف على الأقل')
 });
 
 const roleTemplateSchema = z.object({
   templateName: z.string().min(1, 'اسم القالب مطلوب'),
   description: z.string().optional(),
-  applicableLevel: z.enum(['governorate', 'district', 'subDistrict', 'neighborhood'], {
+  geographicLevel: z.enum(['governorate', 'district', 'subDistrict', 'neighborhood'], {
     errorMap: () => ({ message: 'المستوى المطبق مطلوب' })
   }),
   templatePermissions: z.array(z.string()).min(1, 'صلاحية واحدة على الأقل مطلوبة'),
@@ -186,12 +144,13 @@ export default function LBACManagement() {
   });
   const [delegationFilters, setDelegationFilters] = useState({
     status: '',
-    includeExpired: false
+    includeExpired: false,
+    delegatorId: '',
+    delegeeId: ''
   });
   const [auditFilters, setAuditFilters] = useState({
     accessGranted: '',
-    governorateId: '',
-    districtId: ''
+    userId: ''
   });
 
   // Forms
@@ -208,10 +167,12 @@ export default function LBACManagement() {
     resolver: zodResolver(delegationSchema)
   });
 
-  const templateForm = useForm<RoleTemplateForm>({
+  const templateForm = useForm<z.infer<typeof roleTemplateSchema>>({
     resolver: zodResolver(roleTemplateSchema),
     defaultValues: {
-      applicableLevel: 'governorate',
+      templateName: '',
+      description: '',
+      geographicLevel: 'governorate',
       templatePermissions: [],
       isActive: true
     }
@@ -263,7 +224,7 @@ export default function LBACManagement() {
     mutationFn: (data: ConstraintForm) => apiRequest('POST', '/api/lbac/permission-constraints', data),
     onSuccess: () => {
       toast({ title: 'تم إنشاء القيد بنجاح' });
-      queryClient.invalidateQueries({ queryKey: ['lbac-constraints'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/lbac/permission-constraints'] });
       setConstraintDialogOpen(false);
       constraintForm.reset();
     },
@@ -277,7 +238,7 @@ export default function LBACManagement() {
       apiRequest('PUT', `/api/lbac/permission-constraints/${id}`, data),
     onSuccess: () => {
       toast({ title: 'تم تحديث القيد بنجاح' });
-      queryClient.invalidateQueries({ queryKey: ['lbac-constraints'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/lbac/permission-constraints'] });
       setConstraintDialogOpen(false);
       setEditingConstraint(null);
       constraintForm.reset();
@@ -291,7 +252,7 @@ export default function LBACManagement() {
     mutationFn: (id: string) => apiRequest('DELETE', `/api/lbac/permission-constraints/${id}`),
     onSuccess: () => {
       toast({ title: 'تم حذف القيد بنجاح' });
-      queryClient.invalidateQueries({ queryKey: ['lbac-constraints'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/lbac/permission-constraints'] });
     },
     onError: () => {
       toast({ title: 'فشل في حذف القيد', variant: 'destructive' });
@@ -306,7 +267,7 @@ export default function LBACManagement() {
     }),
     onSuccess: () => {
       toast({ title: 'تم إنشاء التفويض بنجاح' });
-      queryClient.invalidateQueries({ queryKey: ['lbac-delegations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/lbac/delegations'] });
       setDelegationDialogOpen(false);
       delegationForm.reset();
     },
@@ -320,7 +281,7 @@ export default function LBACManagement() {
       apiRequest('POST', `/api/lbac/delegations/${id}/activate`, { approvedBy }),
     onSuccess: () => {
       toast({ title: 'تم تفعيل التفويض بنجاح' });
-      queryClient.invalidateQueries({ queryKey: ['lbac-delegations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/lbac/delegations'] });
     },
     onError: () => {
       toast({ title: 'فشل في تفعيل التفويض', variant: 'destructive' });
@@ -332,7 +293,7 @@ export default function LBACManagement() {
       apiRequest('POST', `/api/lbac/delegations/${id}/deactivate`, { reason }),
     onSuccess: () => {
       toast({ title: 'تم إلغاء التفويض بنجاح' });
-      queryClient.invalidateQueries({ queryKey: ['lbac-delegations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/lbac/delegations'] });
     },
     onError: () => {
       toast({ title: 'فشل في إلغاء التفويض', variant: 'destructive' });
@@ -343,7 +304,7 @@ export default function LBACManagement() {
     mutationFn: (data: RoleTemplateForm) => apiRequest('POST', '/api/lbac/role-templates', data),
     onSuccess: () => {
       toast({ title: 'تم إنشاء القالب بنجاح' });
-      queryClient.invalidateQueries({ queryKey: ['lbac-role-templates'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/lbac/role-templates'] });
       setTemplateDialogOpen(false);
       templateForm.reset();
     },
@@ -360,7 +321,7 @@ export default function LBACManagement() {
     }) => apiRequest('POST', `/api/lbac/role-templates/${templateId}/apply`, { userId, targetGeographicId }),
     onSuccess: () => {
       toast({ title: 'تم تطبيق القالب بنجاح' });
-      queryClient.invalidateQueries({ queryKey: ['lbac-assignment-history'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/lbac/assignment-history'] });
     },
     onError: () => {
       toast({ title: 'فشل في تطبيق القالب', variant: 'destructive' });
@@ -383,12 +344,12 @@ export default function LBACManagement() {
   const handleEditDelegation = (delegation: TemporaryPermissionDelegation) => {
     setEditingDelegation(delegation);
     delegationForm.reset({
-      delegatorId: delegation.delegatorId,
-      delegeeId: delegation.delegeeId,
+      fromUserId: delegation.fromUserId,
+      toUserId: delegation.toUserId,
       permissionConstraintId: delegation.permissionConstraintId,
       startDate: new Date(delegation.startDate),
       endDate: new Date(delegation.endDate),
-      reason: delegation.reason
+      delegationReason: delegation.delegationReason || ''
     });
     setDelegationDialogOpen(true);
   };
@@ -398,7 +359,7 @@ export default function LBACManagement() {
     templateForm.reset({
       templateName: template.templateName,
       description: template.description,
-      applicableLevel: template.applicableLevel as any,
+      geographicLevel: template.geographicLevel as any,
       templatePermissions: template.templatePermissions,
       isActive: template.isActive
     });
@@ -808,7 +769,7 @@ export default function LBACManagement() {
                         <div className="grid grid-cols-2 gap-4">
                           <FormField
                             control={delegationForm.control}
-                            name="delegatorId"
+                            name="fromUserId"
                             render={({ field }) => (
                               <FormItem>
                                 <FormLabel>المفوض (المانح)</FormLabel>
@@ -832,7 +793,7 @@ export default function LBACManagement() {
                           />
                           <FormField
                             control={delegationForm.control}
-                            name="delegeeId"
+                            name="toUserId"
                             render={({ field }) => (
                               <FormItem>
                                 <FormLabel>المفوض إليه (المستقبل)</FormLabel>
@@ -963,7 +924,7 @@ export default function LBACManagement() {
                         </div>
                         <FormField
                           control={delegationForm.control}
-                          name="reason"
+                          name="delegationReason"
                           render={({ field }) => (
                             <FormItem>
                               <FormLabel>سبب التفويض</FormLabel>
@@ -1185,7 +1146,7 @@ export default function LBACManagement() {
                         />
                         <FormField
                           control={templateForm.control}
-                          name="applicableLevel"
+                          name="geographicLevel"
                           render={({ field }) => (
                             <FormItem>
                               <FormLabel>المستوى المطبق</FormLabel>
@@ -1462,18 +1423,18 @@ export default function LBACManagement() {
                     </Select>
                   </div>
                   <div className="flex-1 min-w-[200px]">
-                    <Label htmlFor="audit-governorate-filter">المحافظة</Label>
-                    <Select value={auditFilters.governorateId} onValueChange={(value) => 
-                      setAuditFilters(prev => ({ ...prev, governorateId: value }))
+                    <Label htmlFor="audit-user-filter">المستخدم</Label>
+                    <Select value={auditFilters.userId} onValueChange={(value) => 
+                      setAuditFilters(prev => ({ ...prev, userId: value }))
                     }>
-                      <SelectTrigger data-testid="filter-audit-governorate">
-                        <SelectValue placeholder="جميع المحافظات" />
+                      <SelectTrigger data-testid="filter-audit-user">
+                        <SelectValue placeholder="جميع المستخدمين" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">جميع المحافظات</SelectItem>
-                        {governorates.map((gov: any) => (
-                          <SelectItem key={gov.id} value={gov.id}>
-                            {gov.nameAr}
+                        <SelectItem value="">جميع المستخدمين</SelectItem>
+                        {users.map((user: any) => (
+                          <SelectItem key={user.id} value={user.id}>
+                            {user.fullName}
                           </SelectItem>
                         ))}
                       </SelectContent>

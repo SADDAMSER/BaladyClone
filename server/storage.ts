@@ -11,6 +11,9 @@ import {
   appointments, contactAttempts, surveyAssignmentForms, userGeographicAssignments,
   fieldVisits, surveyResults, surveyReports,
   roles, permissions, rolePermissions, userRoles,
+  // Enhanced LBAC Hardening tables - Phase 6
+  permissionGeographicConstraints, temporaryPermissionDelegations,
+  geographicRoleTemplates, userGeographicAssignmentHistory, lbacAccessAuditLog,
   type User, type InsertUser, type Department, type InsertDepartment,
   type Position, type InsertPosition, type LawRegulation, type InsertLawRegulation,
   type LawSection, type InsertLawSection, type LawArticle, type InsertLawArticle,
@@ -45,6 +48,12 @@ import {
   type UserGeographicAssignment, type InsertUserGeographicAssignment,
   type Role, type InsertRole, type Permission, type InsertPermission,
   type RolePermission, type InsertRolePermission, type UserRole, type InsertUserRole,
+  // Enhanced LBAC Hardening types - Phase 6
+  type PermissionGeographicConstraints, type InsertPermissionGeographicConstraints,
+  type TemporaryPermissionDelegations, type InsertTemporaryPermissionDelegations,
+  type GeographicRoleTemplates, type InsertGeographicRoleTemplates,
+  type UserGeographicAssignmentHistory, type InsertUserGeographicAssignmentHistory,
+  type LbacAccessAuditLog, type InsertLbacAccessAuditLog,
   type DeletionTombstone, type InsertDeletionTombstone,
   type ChangeTracking, type InsertChangeTracking,
   type PerformanceMetric, type InsertPerformanceMetric,
@@ -1078,10 +1087,10 @@ export class DatabaseStorage implements IStorage {
     const conditions = [];
     
     if (filters?.delegatorId) {
-      conditions.push(eq(temporaryPermissionDelegations.delegatorId, filters.delegatorId));
+      conditions.push(eq(temporaryPermissionDelegations.fromUserId, filters.delegatorId));
     }
     if (filters?.delegeeId) {
-      conditions.push(eq(temporaryPermissionDelegations.delegeeId, filters.delegeeId));
+      conditions.push(eq(temporaryPermissionDelegations.toUserId, filters.delegeeId));
     }
     if (filters?.status) {
       conditions.push(eq(temporaryPermissionDelegations.status, filters.status));
@@ -1130,7 +1139,7 @@ export class DatabaseStorage implements IStorage {
       .set({ 
         status: 'active', 
         isActive: true, 
-        approvedBy,
+        approvedById: approvedBy,
         updatedAt: sql`CURRENT_TIMESTAMP` 
       })
       .where(eq(temporaryPermissionDelegations.id, id))
@@ -1143,7 +1152,7 @@ export class DatabaseStorage implements IStorage {
       .set({ 
         status: 'revoked', 
         isActive: false, 
-        revocationReason: reason,
+        revokeReason: reason,
         updatedAt: sql`CURRENT_TIMESTAMP` 
       })
       .where(eq(temporaryPermissionDelegations.id, id))
@@ -1163,7 +1172,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(ilike(geographicRoleTemplates.templateName, `%${filters.templateName}%`));
     }
     if (filters?.applicableLevel) {
-      conditions.push(eq(geographicRoleTemplates.applicableLevel, filters.applicableLevel));
+      conditions.push(eq(geographicRoleTemplates.geographicLevel, filters.applicableLevel));
     }
     if (filters?.isActive !== undefined) {
       conditions.push(eq(geographicRoleTemplates.isActive, filters.isActive));
@@ -1241,7 +1250,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(userGeographicAssignmentHistory.changeType, filters.changeType));
     }
     if (filters?.changedBy) {
-      conditions.push(eq(userGeographicAssignmentHistory.changedBy, filters.changedBy));
+      conditions.push(eq(userGeographicAssignmentHistory.changedById, filters.changedBy));
     }
     if (filters?.dateRange) {
       conditions.push(sql`${userGeographicAssignmentHistory.changeDate} BETWEEN ${filters.dateRange.start} AND ${filters.dateRange.end}`);
@@ -1284,10 +1293,10 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(lbacAccessAuditLog.denialReason, filters.denialReason));
     }
     if (filters?.governorateId) {
-      conditions.push(eq(lbacAccessAuditLog.governorateId, filters.governorateId));
+      conditions.push(eq(lbacAccessAuditLog.targetGovernorateId, filters.governorateId));
     }
     if (filters?.districtId) {
-      conditions.push(eq(lbacAccessAuditLog.districtId, filters.districtId));
+      conditions.push(eq(lbacAccessAuditLog.targetDistrictId, filters.districtId));
     }
     if (filters?.dateRange) {
       conditions.push(sql`${lbacAccessAuditLog.createdAt} BETWEEN ${filters.dateRange.start} AND ${filters.dateRange.end}`);
