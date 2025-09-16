@@ -15,6 +15,7 @@ import OrganizationalStructure from "@/pages/OrganizationalStructure";
 import AdvancedOrganizationalStructure from "@/pages/AdvancedOrganizationalStructure";
 import AdvancedAnalytics from "@/pages/AdvancedAnalytics";
 import UserManagement from "@/pages/UserManagement";
+import LBACManagement from "@/pages/LBACManagement";
 import Permissions from "@/pages/Permissions";
 import GeographicDataManager from "@/pages/GeographicDataManager";
 import DocumentArchive from "@/pages/DocumentArchive";
@@ -66,6 +67,7 @@ function AuthenticatedRouter() {
         <Route path="/advanced-organizational-structure" component={AdvancedOrganizationalStructure} />
         <Route path="/advanced-analytics" component={AdvancedAnalytics} />
         <Route path="/user-management" component={UserManagement} />
+        <Route path="/lbac-management" component={LBACManagement} />
         <Route path="/permissions" component={Permissions} />
         <Route path="/geographic-data" component={GeographicDataManager} />
         <Route path="/document-archive" component={DocumentArchive} />
@@ -155,6 +157,11 @@ function MainRouter() {
         </AuthProvider>
       </Route>
       <Route path="/user-management">
+        <AuthProvider>
+          <AuthenticatedRouter />
+        </AuthProvider>
+      </Route>
+      <Route path="/lbac-management">
         <AuthProvider>
           <AuthenticatedRouter />
         </AuthProvider>
