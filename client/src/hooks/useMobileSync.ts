@@ -4,6 +4,8 @@ import { apiRequest } from '@/lib/queryClient';
 import { useAuth } from '@/auth/useAuth';
 import { useLBACFilter } from '@/hooks/useLBACFilter';
 import { useToast } from '@/hooks/use-toast';
+import { getSecureStore, type SyncMetrics, type RetryState } from '@/lib/secureIndexedDB';
+import { StoreMigration, type MigrationResult } from '@/lib/storeMigration';
 
 export interface SyncOperation {
   id?: string; // Generated locally for tracking
@@ -21,6 +23,14 @@ interface RetryConfig {
   baseDelay: number; // milliseconds
   maxDelay: number; // milliseconds
   backoffMultiplier: number;
+  jitterEnabled: boolean; // جديد: إضافة تشويش للـ retry timing
+}
+
+interface CircuitBreakerState {
+  isOpen: boolean;
+  failureCount: number;
+  lastFailureTime: number;
+  successCount: number;
 }
 
 interface SyncError {
@@ -69,13 +79,26 @@ export function useMobileSync() {
   const { getAllowedGeographicIds, hasAnyGeographicAccess } = useLBACFilter();
   const { toast } = useToast();
 
-  // Retry configuration
+  // Hardened retry configuration with jitter
   const retryConfig: RetryConfig = {
-    maxRetries: 3,
+    maxRetries: 5,
     baseDelay: 1000,
     maxDelay: 30000,
-    backoffMultiplier: 2
+    backoffMultiplier: 2,
+    jitterEnabled: true
   };
+
+  // Circuit breaker state
+  const [circuitBreaker, setCircuitBreaker] = useState<CircuitBreakerState>({
+    isOpen: false,
+    failureCount: 0,
+    lastFailureTime: 0,
+    successCount: 0
+  });
+
+  // Secure storage
+  const [secureStore, setSecureStore] = useState<any>(null);
+  const [migrationStatus, setMigrationStatus] = useState<'checking' | 'required' | 'migrating' | 'completed'>('checking');
   
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({
     isOnline: navigator.onLine,
@@ -155,10 +178,29 @@ export function useMobileSync() {
     const config = { ...retryConfig, ...customConfig };
     const currentAttempts = retryAttempts.get(operationName) || 0;
 
+    // Check circuit breaker
+    if (circuitBreaker.isOpen) {
+      const timeSinceLastFailure = Date.now() - circuitBreaker.lastFailureTime;
+      const cooldownPeriod = 60000; // 1 minute cooldown
+      
+      if (timeSinceLastFailure < cooldownPeriod) {
+        throw new Error('Circuit breaker open - cooling down');
+      } else {
+        // Half-open state - try one request
+        setCircuitBreaker(prev => ({ ...prev, isOpen: false }));
+      }
+    }
+
     try {
       const result = await operation();
       
-      // Reset retry count on success
+      // Success - reset circuit breaker and retry count
+      setCircuitBreaker(prev => ({ 
+        ...prev, 
+        failureCount: 0, 
+        successCount: prev.successCount + 1 
+      }));
+      
       if (currentAttempts > 0) {
         setRetryAttempts(prev => {
           const newMap = new Map(prev);
@@ -171,6 +213,19 @@ export function useMobileSync() {
     } catch (error) {
       const syncError = classifyError(error);
       
+      // Update circuit breaker on consecutive failures
+      setCircuitBreaker(prev => {
+        const newFailureCount = prev.failureCount + 1;
+        const shouldOpen = newFailureCount >= 5; // Open after 5 consecutive failures
+        
+        return {
+          ...prev,
+          failureCount: newFailureCount,
+          lastFailureTime: Date.now(),
+          isOpen: shouldOpen
+        };
+      });
+      
       if (!syncError.retryable || currentAttempts >= config.maxRetries) {
         // Show error toast for final failure
         toast({
@@ -182,11 +237,16 @@ export function useMobileSync() {
         throw error;
       }
 
-      // Calculate delay with exponential backoff
-      const delay = Math.min(
+      // Calculate delay with exponential backoff + jitter
+      let delay = Math.min(
         config.baseDelay * Math.pow(config.backoffMultiplier, currentAttempts),
         config.maxDelay
       );
+
+      // Add full jitter to prevent thundering herd (random between 0 and calculated delay)
+      if (config.jitterEnabled) {
+        delay = Math.round(Math.random() * delay); // Full jitter: random(0, delay)
+      }
 
       // Update retry count
       setRetryAttempts(prev => {
@@ -220,12 +280,74 @@ export function useMobileSync() {
     return device;
   });
 
+  // Initialize secure storage and migration
+  useEffect(() => {
+    const initializeSecureStorage = async () => {
+      if (!user || !token) return;
+
+      try {
+        // Check migration status
+        const status = StoreMigration.getMigrationStatus();
+        setMigrationStatus(status);
+
+        if (status === 'required') {
+          setMigrationStatus('migrating');
+          console.log('🔄 Migrating to encrypted storage...');
+          
+          const result = await StoreMigration.migrate();
+          if (result.success) {
+            console.log(`✅ Migration success: ${result.migratedCount} items`);
+            setMigrationStatus('completed');
+          } else {
+            console.error('❌ Migration failed:', result.errors);
+            toast({
+              title: 'خطأ في الترقية',
+              description: 'فشل في ترقية نظام التخزين الآمن',
+              variant: 'destructive'
+            });
+            return;
+          }
+        } else if (status === 'completed') {
+          setMigrationStatus('completed');
+        }
+
+        // Initialize secure store
+        const store = await getSecureStore();
+        setSecureStore(store);
+
+        // Load existing operations
+        const operations = await store.getAllItems('operations');
+        if (operations?.length > 0) {
+          setOfflineOperations(operations);
+        }
+
+      } catch (error) {
+        console.error('❌ SecureStorage init failed:', error);
+        toast({
+          title: 'خطأ في التهيئة',
+          description: 'فشل في تهيئة النظام الآمن',
+          variant: 'destructive'
+        });
+      }
+    };
+
+    initializeSecureStorage();
+  }, [user, token, toast]);
+
   // Monitor online/offline status
   useEffect(() => {
     const handleOnline = () => {
       setSyncStatus(prev => ({ ...prev, isOnline: true }));
+      // Reset circuit breaker on reconnection
+      setCircuitBreaker(prev => ({ 
+        ...prev, 
+        isOpen: false, 
+        failureCount: 0,
+        successCount: 0 
+      }));
+      
       // Auto-sync when coming back online
-      if (user && token) {
+      if (user && token && migrationStatus === 'completed') {
         triggerSync();
       }
     };
@@ -241,7 +363,7 @@ export function useMobileSync() {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [user, token]);
+  }, [user, token, migrationStatus]);
 
   // Get sync session info
   const { data: syncSession, refetch: refetchSession } = useQuery({
