@@ -4,6 +4,7 @@ import {
   applications, surveyingDecisions, tasks, systemSettings, governorates, districts,
   subDistricts, neighborhoods, harat, sectors, neighborhoodUnits, blocks, plots, streets, streetSegments,
   deviceRegistrations, syncSessions, offlineOperations, syncConflicts,
+  deletionTombstones, changeTracking,
   serviceTemplates, dynamicForms, workflowDefinitions, serviceBuilder,
   applicationAssignments, applicationStatusHistory, applicationReviews, notifications,
   appointments, contactAttempts, surveyAssignmentForms, userGeographicAssignments,
@@ -42,7 +43,9 @@ import {
   type SurveyReport, type InsertSurveyReport,
   type UserGeographicAssignment, type InsertUserGeographicAssignment,
   type Role, type InsertRole, type Permission, type InsertPermission,
-  type RolePermission, type InsertRolePermission, type UserRole, type InsertUserRole
+  type RolePermission, type InsertRolePermission, type UserRole, type InsertUserRole,
+  type DeletionTombstone, type InsertDeletionTombstone,
+  type ChangeTracking, type InsertChangeTracking
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, like, ilike, and, or, desc, asc, sql, count, inArray } from "drizzle-orm";
@@ -456,6 +459,109 @@ export interface IStorage {
   // Differential Sync Operations
   getChangedRecords(tableName: string, lastSyncTimestamp: Date, limit?: number, lbacFilter?: any, user?: { id: string; username: string; role: string }): Promise<any[]>;
   applyBulkChanges(tableName: string, operations: OfflineOperation[]): Promise<{ success: number; conflicts: number; errors: number }>;
+
+  // ===========================================
+  // DELETE PROPAGATION & CHANGE TRACKING SYSTEM
+  // ===========================================
+
+  // Monotonic Versioning System
+  createChangeVersion(): Promise<string>;
+  getNextSequence(): Promise<string>;
+
+  // Deletion Tombstones Management  
+  getDeletionTombstones(filters?: {
+    tableName?: string;
+    recordId?: string;
+    deletedById?: string;
+    propagationStatus?: string;
+    deviceId?: string;
+    sessionId?: string;
+    isActive?: boolean;
+  }): Promise<DeletionTombstone[]>;
+  getDeletionTombstone(id: string): Promise<DeletionTombstone | undefined>;
+  createDeletionTombstone(tombstone: InsertDeletionTombstone): Promise<DeletionTombstone>;
+  updateTombstonePropagationStatus(id: string, status: string, propagatedAt?: Date): Promise<DeletionTombstone>;
+  expireTombstone(id: string): Promise<void>;
+  cleanupExpiredTombstones(): Promise<number>;
+
+  // Change Tracking Management
+  getChangeHistory(filters?: {
+    tableName?: string;
+    recordId?: string;
+    changedById?: string;
+    operationType?: string;
+    changeSource?: string;
+    syncStatus?: string;
+    deviceId?: string;
+    sessionId?: string;
+    fromDate?: Date;
+    toDate?: Date;
+  }): Promise<ChangeTracking[]>;
+  getChangeTrackingEntry(id: string): Promise<ChangeTracking | undefined>;
+  createChangeTrackingEntry(entry: InsertChangeTracking): Promise<ChangeTracking>;
+  updateChangeSyncStatus(id: string, status: string, syncedAt?: Date): Promise<ChangeTracking>;
+  getChangesByVersion(tableName: string, minVersion?: string, maxVersion?: string): Promise<ChangeTracking[]>;
+
+  // Safe CRUD Wrapper Methods with Idempotency
+  safeCreate<T>(
+    tableName: string,
+    data: any,
+    metadata: {
+      userId?: string;
+      deviceId?: string;
+      sessionId?: string;
+      clientChangeId?: string;
+      changeSource?: string;
+      geographic?: { governorateId?: string; districtId?: string };
+    }
+  ): Promise<{ record: T; changeEntry: ChangeTracking; isNewRecord: boolean }>;
+
+  safeUpdate<T>(
+    tableName: string,
+    recordId: string,
+    updates: any,
+    metadata: {
+      userId?: string;
+      deviceId?: string;
+      sessionId?: string;
+      clientChangeId?: string;
+      changeSource?: string;
+      geographic?: { governorateId?: string; districtId?: string };
+    }
+  ): Promise<{ record: T; changeEntry: ChangeTracking; fieldsChanged: string[] }>;
+
+  safeDelete(
+    tableName: string,
+    recordId: string,
+    metadata: {
+      userId?: string;
+      deviceId?: string;
+      sessionId?: string;
+      clientChangeId?: string;
+      changeSource?: string;
+      deletionReason?: string;
+      deletionType?: string;
+      geographic?: { governorateId?: string; districtId?: string };
+    }
+  ): Promise<{ tombstone: DeletionTombstone; changeEntry: ChangeTracking }>;
+
+  // Batch Operations with Change Tracking
+  safeBatchCreate<T>(
+    tableName: string,
+    records: any[],
+    metadata: {
+      userId?: string;
+      deviceId?: string;
+      sessionId?: string;
+      changeSource?: string;
+      geographic?: { governorateId?: string; districtId?: string };
+    }
+  ): Promise<{ records: T[]; changeEntries: ChangeTracking[] }>;
+
+  // Idempotency & Retry Logic
+  isChangeProcessed(deviceId: string, clientChangeId: string): Promise<boolean>;
+  getProcessedChange(deviceId: string, clientChangeId: string): Promise<ChangeTracking | undefined>;
+  retryFailedChanges(maxRetries?: number): Promise<{ success: number; failed: number }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -513,7 +619,6 @@ export class DatabaseStorage implements IStorage {
         email: users.email,
         role: users.role,
         createdAt: users.createdAt,
-        lastLoginAt: users.lastLoginAt,
         isActive: users.isActive
       },
       filterableFields: {
@@ -1581,7 +1686,7 @@ export class DatabaseStorage implements IStorage {
 
   async getApplicationsPaginated(params: PaginationParams): Promise<PaginatedResponse<Application>> {
     return await executePaginatedQuery<Application>(db, applications, params, {
-      searchableFields: [applications.applicationNumber, applications.notes],
+      searchableFields: [applications.applicationNumber],
       sortableFields: {
         applicationNumber: applications.applicationNumber,
         status: applications.status,
@@ -3602,6 +3707,577 @@ export class DatabaseStorage implements IStorage {
     }
 
     return { success, conflicts, errors };
+  }
+
+  // ===========================================
+  // DELETE PROPAGATION & CHANGE TRACKING SYSTEM
+  // ===========================================
+
+  // Global sequence counter for monotonic versioning
+  private static sequenceCounter = 0;
+
+  // Monotonic Versioning System
+  async createChangeVersion(): Promise<string> {
+    const now = new Date();
+    const year = now.getFullYear();
+    const timestamp = now.getTime();
+    
+    // Create monotonic version: YYYY-TTTTTTTTTTTTTTnnnnn (year + timestamp + sequence)
+    const sequence = await this.getNextSequence();
+    return `${year}-${timestamp.toString().padStart(13, '0')}${sequence.padStart(5, '0')}`;
+  }
+
+  async getNextSequence(): Promise<string> {
+    DatabaseStorage.sequenceCounter = (DatabaseStorage.sequenceCounter + 1) % 100000;
+    return DatabaseStorage.sequenceCounter.toString();
+  }
+
+  // Deletion Tombstones Management
+  async getDeletionTombstones(filters?: {
+    tableName?: string;
+    recordId?: string;
+    deletedById?: string;
+    propagationStatus?: string;
+    deviceId?: string;
+    sessionId?: string;
+    isActive?: boolean;
+  }): Promise<DeletionTombstone[]> {
+    const conditions = [];
+    
+    if (filters) {
+      if (filters.tableName) conditions.push(eq(deletionTombstones.tableName, filters.tableName));
+      if (filters.recordId) conditions.push(eq(deletionTombstones.recordId, filters.recordId));
+      if (filters.deletedById) conditions.push(eq(deletionTombstones.deletedById, filters.deletedById));
+      if (filters.propagationStatus) conditions.push(eq(deletionTombstones.propagationStatus, filters.propagationStatus));
+      if (filters.deviceId) conditions.push(eq(deletionTombstones.deviceId, filters.deviceId));
+      if (filters.sessionId) conditions.push(eq(deletionTombstones.sessionId, filters.sessionId));
+      if (filters.isActive !== undefined) conditions.push(eq(deletionTombstones.isActive, filters.isActive));
+    }
+    
+    if (conditions.length > 0) {
+      return await db.select().from(deletionTombstones).where(and(...conditions));
+    }
+    
+    return await db.select().from(deletionTombstones);
+  }
+
+  async getDeletionTombstone(id: string): Promise<DeletionTombstone | undefined> {
+    const [tombstone] = await db
+      .select()
+      .from(deletionTombstones)
+      .where(eq(deletionTombstones.id, id));
+    return tombstone || undefined;
+  }
+
+  async createDeletionTombstone(tombstone: InsertDeletionTombstone): Promise<DeletionTombstone> {
+    const [created] = await db
+      .insert(deletionTombstones)
+      .values({
+        ...tombstone,
+        syncVersion: tombstone.syncVersion || await this.createChangeVersion(),
+      })
+      .returning();
+    return created;
+  }
+
+  async updateTombstonePropagationStatus(id: string, status: string, propagatedAt?: Date): Promise<DeletionTombstone> {
+    const [updated] = await db
+      .update(deletionTombstones)
+      .set({
+        propagationStatus: status,
+        propagatedAt: propagatedAt || new Date(),
+        propagationAttempts: sql`${deletionTombstones.propagationAttempts} + 1`,
+        updatedAt: sql`CURRENT_TIMESTAMP`
+      })
+      .where(eq(deletionTombstones.id, id))
+      .returning();
+    return updated;
+  }
+
+  async expireTombstone(id: string): Promise<void> {
+    await db
+      .update(deletionTombstones)
+      .set({
+        isActive: false,
+        expiresAt: new Date(),
+        updatedAt: sql`CURRENT_TIMESTAMP`
+      })
+      .where(eq(deletionTombstones.id, id));
+  }
+
+  async cleanupExpiredTombstones(): Promise<number> {
+    const result = await db
+      .delete(deletionTombstones)
+      .where(
+        and(
+          eq(deletionTombstones.isActive, false),
+          sql`${deletionTombstones.expiresAt} < CURRENT_TIMESTAMP`
+        )
+      );
+    return result.rowCount || 0;
+  }
+
+  // Change Tracking Management
+  async getChangeHistory(filters?: {
+    tableName?: string;
+    recordId?: string;
+    changedById?: string;
+    operationType?: string;
+    changeSource?: string;
+    syncStatus?: string;
+    deviceId?: string;
+    sessionId?: string;
+    fromDate?: Date;
+    toDate?: Date;
+  }): Promise<ChangeTracking[]> {
+    const conditions = [];
+    
+    if (filters) {
+      if (filters.tableName) conditions.push(eq(changeTracking.tableName, filters.tableName));
+      if (filters.recordId) conditions.push(eq(changeTracking.recordId, filters.recordId));
+      if (filters.changedById) conditions.push(eq(changeTracking.changedById, filters.changedById));
+      if (filters.operationType) conditions.push(eq(changeTracking.operationType, filters.operationType));
+      if (filters.changeSource) conditions.push(eq(changeTracking.changeSource, filters.changeSource));
+      if (filters.syncStatus) conditions.push(eq(changeTracking.syncStatus, filters.syncStatus));
+      if (filters.deviceId) conditions.push(eq(changeTracking.deviceId, filters.deviceId));
+      if (filters.sessionId) conditions.push(eq(changeTracking.sessionId, filters.sessionId));
+      if (filters.fromDate) conditions.push(sql`${changeTracking.changedAt} >= ${filters.fromDate.toISOString()}`);
+      if (filters.toDate) conditions.push(sql`${changeTracking.changedAt} <= ${filters.toDate.toISOString()}`);
+    }
+    
+    const query = db.select().from(changeTracking);
+    
+    if (conditions.length > 0) {
+      return await query.where(and(...conditions)).orderBy(desc(changeTracking.changedAt));
+    }
+    
+    return await query.orderBy(desc(changeTracking.changedAt));
+  }
+
+  async getChangeTrackingEntry(id: string): Promise<ChangeTracking | undefined> {
+    const [entry] = await db
+      .select()
+      .from(changeTracking)
+      .where(eq(changeTracking.id, id));
+    return entry || undefined;
+  }
+
+  async createChangeTrackingEntry(entry: InsertChangeTracking): Promise<ChangeTracking> {
+    const [created] = await db
+      .insert(changeTracking)
+      .values({
+        ...entry,
+        changeVersion: await this.createChangeVersion(),
+        changeSequence: await this.getNextSequence(),
+      })
+      .returning();
+    return created;
+  }
+
+  async updateChangeSyncStatus(id: string, status: string, syncedAt?: Date): Promise<ChangeTracking> {
+    const [updated] = await db
+      .update(changeTracking)
+      .set({
+        syncStatus: status,
+        syncedAt: syncedAt || new Date(),
+        syncAttempts: sql`${changeTracking.syncAttempts} + 1`,
+        updatedAt: sql`CURRENT_TIMESTAMP`
+      })
+      .where(eq(changeTracking.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getChangesByVersion(tableName: string, minVersion?: string, maxVersion?: string): Promise<ChangeTracking[]> {
+    const conditions = [eq(changeTracking.tableName, tableName)];
+    
+    if (minVersion) {
+      conditions.push(sql`${changeTracking.changeVersion} >= ${minVersion}`);
+    }
+    if (maxVersion) {
+      conditions.push(sql`${changeTracking.changeVersion} <= ${maxVersion}`);
+    }
+    
+    return await db
+      .select()
+      .from(changeTracking)
+      .where(and(...conditions))
+      .orderBy(asc(changeTracking.changeVersion));
+  }
+
+  // Safe CRUD Wrapper Methods with Idempotency
+  async safeCreate<T>(
+    tableName: string,
+    data: any,
+    metadata: {
+      userId?: string;
+      deviceId?: string;
+      sessionId?: string;
+      clientChangeId?: string;
+      changeSource?: string;
+      geographic?: { governorateId?: string; districtId?: string };
+    }
+  ): Promise<{ record: T; changeEntry: ChangeTracking; isNewRecord: boolean }> {
+    // Check for idempotency if clientChangeId provided
+    if (metadata.deviceId && metadata.clientChangeId) {
+      const existingChange = await this.getProcessedChange(metadata.deviceId, metadata.clientChangeId);
+      if (existingChange) {
+        // Return existing record
+        const record = existingChange.recordSnapshot as T;
+        return { record, changeEntry: existingChange, isNewRecord: false };
+      }
+    }
+
+    // Get the table reference
+    const tableMap = this.getTableMap();
+    const table = tableMap[tableName];
+    if (!table) {
+      throw new Error(`Table ${tableName} not found`);
+    }
+
+    // Create the record
+    const results = await db.insert(table).values(data).returning();
+    const [record] = results as any[];
+    
+    // Create change tracking entry
+    const changeEntry = await this.createChangeTrackingEntry({
+      tableName,
+      recordId: record.id,
+      operationType: 'insert',
+      changedById: metadata.userId,
+      changeSource: metadata.changeSource || 'web_app',
+      deviceId: metadata.deviceId,
+      sessionId: metadata.sessionId,
+      clientChangeId: metadata.clientChangeId,
+      recordSnapshot: record,
+      governorateId: metadata.geographic?.governorateId,
+      districtId: metadata.geographic?.districtId,
+      syncStatus: 'pending',
+    });
+
+    return { record, changeEntry, isNewRecord: true };
+  }
+
+  async safeUpdate<T>(
+    tableName: string,
+    recordId: string,
+    updates: any,
+    metadata: {
+      userId?: string;
+      deviceId?: string;
+      sessionId?: string;
+      clientChangeId?: string;
+      changeSource?: string;
+      geographic?: { governorateId?: string; districtId?: string };
+    }
+  ): Promise<{ record: T; changeEntry: ChangeTracking; fieldsChanged: string[] }> {
+    // Check for idempotency if clientChangeId provided
+    if (metadata.deviceId && metadata.clientChangeId) {
+      const existingChange = await this.getProcessedChange(metadata.deviceId, metadata.clientChangeId);
+      if (existingChange) {
+        // Return existing record
+        const record = existingChange.recordSnapshot as T;
+        const fieldsChanged = Object.keys(existingChange.fieldChanges || {});
+        return { record, changeEntry: existingChange, fieldsChanged };
+      }
+    }
+
+    // Get the table reference  
+    const tableMap = this.getTableMap();
+    const table = tableMap[tableName];
+    if (!table) {
+      throw new Error(`Table ${tableName} not found`);
+    }
+
+    // Get original record first
+    const [originalRecord] = await db
+      .select()
+      .from(table)
+      .where(eq(table.id, recordId));
+    
+    if (!originalRecord) {
+      throw new Error(`Record ${recordId} not found in table ${tableName}`);
+    }
+
+    // Calculate field changes
+    const fieldChanges: Record<string, { old: any; new: any }> = {};
+    const fieldsChanged: string[] = [];
+    
+    for (const [field, newValue] of Object.entries(updates)) {
+      const oldValue = (originalRecord as any)[field];
+      if (oldValue !== newValue) {
+        fieldChanges[field] = { old: oldValue, new: newValue };
+        fieldsChanged.push(field);
+      }
+    }
+
+    // Update the record
+    const [record] = await db
+      .update(table)
+      .set({ ...updates, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(table.id, recordId))
+      .returning();
+    
+    // Create change tracking entry
+    const changeEntry = await this.createChangeTrackingEntry({
+      tableName,
+      recordId,
+      operationType: 'update',
+      changedById: metadata.userId,
+      changeSource: metadata.changeSource || 'web_app',
+      deviceId: metadata.deviceId,
+      sessionId: metadata.sessionId,
+      clientChangeId: metadata.clientChangeId,
+      fieldChanges,
+      recordSnapshot: record,
+      governorateId: metadata.geographic?.governorateId,
+      districtId: metadata.geographic?.districtId,
+      syncStatus: 'pending',
+    });
+
+    return { record, changeEntry, fieldsChanged };
+  }
+
+  async safeDelete(
+    tableName: string,
+    recordId: string,
+    metadata: {
+      userId?: string;
+      deviceId?: string;
+      sessionId?: string;
+      clientChangeId?: string;
+      changeSource?: string;
+      deletionReason?: string;
+      deletionType?: string;
+      geographic?: { governorateId?: string; districtId?: string };
+    }
+  ): Promise<{ tombstone: DeletionTombstone; changeEntry: ChangeTracking }> {
+    // Check for idempotency if clientChangeId provided
+    if (metadata.deviceId && metadata.clientChangeId) {
+      const existingChange = await this.getProcessedChange(metadata.deviceId, metadata.clientChangeId);
+      if (existingChange) {
+        // Find corresponding tombstone
+        const [tombstone] = await this.getDeletionTombstones({ 
+          tableName, 
+          recordId,
+          deviceId: metadata.deviceId
+        });
+        return { tombstone, changeEntry: existingChange };
+      }
+    }
+
+    // Get the table reference
+    const tableMap = this.getTableMap();
+    const table = tableMap[tableName];
+    if (!table) {
+      throw new Error(`Table ${tableName} not found`);
+    }
+
+    // Get original record first
+    const [originalRecord] = await db
+      .select()
+      .from(table)
+      .where(eq(table.id, recordId));
+    
+    if (!originalRecord) {
+      throw new Error(`Record ${recordId} not found in table ${tableName}`);
+    }
+
+    // Create deletion tombstone
+    const tombstone = await this.createDeletionTombstone({
+      tableName,
+      recordId,
+      deletedById: metadata.userId,
+      deletionReason: metadata.deletionReason,
+      deletionType: metadata.deletionType || 'soft',
+      originalData: originalRecord,
+      deviceId: metadata.deviceId,
+      sessionId: metadata.sessionId,
+      governorateId: metadata.geographic?.governorateId,
+      districtId: metadata.geographic?.districtId,
+      propagationStatus: 'pending',
+    });
+
+    // Delete the actual record
+    await db.delete(table).where(eq(table.id, recordId));
+
+    // Create change tracking entry
+    const changeEntry = await this.createChangeTrackingEntry({
+      tableName,
+      recordId,
+      operationType: 'delete',
+      changedById: metadata.userId,
+      changeSource: metadata.changeSource || 'web_app',
+      deviceId: metadata.deviceId,
+      sessionId: metadata.sessionId,
+      clientChangeId: metadata.clientChangeId,
+      recordSnapshot: originalRecord,
+      governorateId: metadata.geographic?.governorateId,
+      districtId: metadata.geographic?.districtId,
+      syncStatus: 'pending',
+    });
+
+    return { tombstone, changeEntry };
+  }
+
+  // Batch Operations with Change Tracking
+  async safeBatchCreate<T>(
+    tableName: string,
+    records: any[],
+    metadata: {
+      userId?: string;
+      deviceId?: string;
+      sessionId?: string;
+      changeSource?: string;
+      geographic?: { governorateId?: string; districtId?: string };
+    }
+  ): Promise<{ records: T[]; changeEntries: ChangeTracking[] }> {
+    const tableMap = this.getTableMap();
+    const table = tableMap[tableName];
+    if (!table) {
+      throw new Error(`Table ${tableName} not found`);
+    }
+
+    // Insert all records
+    const results = await db.insert(table).values(records).returning();
+    const createdRecords = results as T[];
+    
+    // Create change tracking entries for all records
+    const changeEntries = await Promise.all(
+      createdRecords.map((record: any) => 
+        this.createChangeTrackingEntry({
+          tableName,
+          recordId: record.id,
+          operationType: 'insert',
+          changedById: metadata.userId,
+          changeSource: metadata.changeSource || 'web_app',
+          deviceId: metadata.deviceId,
+          sessionId: metadata.sessionId,
+          recordSnapshot: record,
+          governorateId: metadata.geographic?.governorateId,
+          districtId: metadata.geographic?.districtId,
+          syncStatus: 'pending',
+        })
+      )
+    );
+
+    return { records: createdRecords, changeEntries };
+  }
+
+  // Idempotency & Retry Logic
+  async isChangeProcessed(deviceId: string, clientChangeId: string): Promise<boolean> {
+    const [existing] = await db
+      .select()
+      .from(changeTracking)
+      .where(
+        and(
+          eq(changeTracking.deviceId, deviceId),
+          eq(changeTracking.clientChangeId, clientChangeId)
+        )
+      )
+      .limit(1);
+    
+    return !!existing;
+  }
+
+  async getProcessedChange(deviceId: string, clientChangeId: string): Promise<ChangeTracking | undefined> {
+    const [existing] = await db
+      .select()
+      .from(changeTracking)
+      .where(
+        and(
+          eq(changeTracking.deviceId, deviceId),
+          eq(changeTracking.clientChangeId, clientChangeId)
+        )
+      );
+    
+    return existing || undefined;
+  }
+
+  async retryFailedChanges(maxRetries: number = 3): Promise<{ success: number; failed: number }> {
+    // Get all failed sync changes that haven't exceeded max retries
+    const failedChanges = await db
+      .select()
+      .from(changeTracking)
+      .where(
+        and(
+          eq(changeTracking.syncStatus, 'failed'),
+          sql`${changeTracking.syncAttempts} < ${maxRetries}`
+        )
+      );
+
+    let success = 0;
+    let failed = 0;
+
+    for (const change of failedChanges) {
+      try {
+        // Try to resync the change
+        await this.updateChangeSyncStatus(change.id, 'synced');
+        success++;
+      } catch (error) {
+        console.error(`Failed to retry change ${change.id}:`, error);
+        await this.updateChangeSyncStatus(change.id, 'failed');
+        failed++;
+      }
+    }
+
+    return { success, failed };
+  }
+
+  // Helper method to get table map (for dynamic table access)
+  private getTableMap(): Record<string, any> {
+    return {
+      users,
+      departments,
+      positions,
+      governorates,
+      districts,
+      subDistricts,
+      neighborhoods,
+      harat,
+      sectors,
+      neighborhoodUnits,
+      blocks,
+      plots,
+      streets,
+      streetSegments,
+      lawsRegulations,
+      lawSections,
+      lawArticles,
+      requirementCategories,
+      requirements,
+      services,
+      serviceRequirements,
+      applications,
+      surveyingDecisions,
+      tasks,
+      systemSettings,
+      deviceRegistrations,
+      syncSessions,
+      offlineOperations,
+      syncConflicts,
+      deletionTombstones,
+      changeTracking,
+      serviceTemplates,
+      dynamicForms,
+      workflowDefinitions,
+      serviceBuilder,
+      applicationAssignments,
+      applicationStatusHistory,
+      applicationReviews,
+      notifications,
+      appointments,
+      contactAttempts,
+      surveyAssignmentForms,
+      userGeographicAssignments,
+      fieldVisits,
+      surveyResults,
+      surveyReports,
+      roles,
+      permissions,
+      rolePermissions,
+      userRoles,
+    };
   }
 }
 

@@ -1976,7 +1976,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...params,
         filters: {
           ...params.filters,
-          applicantId: req.user?.id
+          applicantId: req.user?.id || ""
         }
       };
       const result = await storage.getApplicationsPaginated(citizenParams);

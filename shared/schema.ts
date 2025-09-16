@@ -2217,3 +2217,130 @@ export const insertUserRoleSchema = createInsertSchema(userRoles).omit({
 export type UserRole = typeof userRoles.$inferSelect;
 export type InsertUserRole = z.infer<typeof insertUserRoleSchema>;
 
+// ===========================================
+// DELETE PROPAGATION & TOMBSTONE SYSTEM
+// ===========================================
+
+// Deletion Tombstones - تتبع الحذف للمزامنة التفاضلية
+export const deletionTombstones = pgTable("deletion_tombstones", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  // Deleted record identification
+  tableName: text("table_name").notNull(), // اسم الجدول الذي حُذف منه السجل
+  recordId: uuid("record_id").notNull(), // معرف السجل المحذوف
+  // Deletion metadata
+  deletedAt: timestamp("deleted_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  deletedById: uuid("deleted_by_id")
+    .references(() => users.id, { onDelete: "set null" }),
+  deletionReason: text("deletion_reason"), // سبب الحذف
+  deletionType: text("deletion_type").notNull().default("soft"), // soft, hard, cascade
+  // Original record data (for potential restoration)
+  originalData: jsonb("original_data"), // البيانات الأصلية قبل الحذف
+  recordHash: text("record_hash"), // hash للتحقق من سلامة البيانات
+  // Sync metadata
+  syncVersion: text("sync_version").notNull().default("1"), // إصدار للتزامن
+  deviceId: text("device_id"), // الجهاز الذي قام بالحذف
+  sessionId: uuid("session_id")
+    .references(() => syncSessions.id, { onDelete: "set null" }),
+  // Geographic context for LBAC
+  governorateId: uuid("governorate_id")
+    .references(() => governorates.id, { onDelete: "set null" }),
+  districtId: uuid("district_id")
+    .references(() => districts.id, { onDelete: "set null" }),
+  // Propagation status
+  propagationStatus: text("propagation_status").notNull().default("pending"), // pending, propagated, failed
+  propagatedAt: timestamp("propagated_at"),
+  propagationAttempts: integer("propagation_attempts").default(0),
+  maxPropagationAttempts: integer("max_propagation_attempts").default(3),
+  // TTL for cleanup
+  expiresAt: timestamp("expires_at"), // تاريخ انتهاء الصلاحية لحذف tombstone
+  // Metadata
+  deletionMetadata: jsonb("deletion_metadata"),
+  notes: text("notes"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  // Performance indexes for delete propagation
+  tombstoneTableRecordIndex: sql`CREATE INDEX IF NOT EXISTS idx_tombstone_table_record ON deletion_tombstones (table_name, record_id)`,
+  tombstoneDeletedAtIndex: sql`CREATE INDEX IF NOT EXISTS idx_tombstone_deleted_at ON deletion_tombstones (deleted_at, propagation_status)`,
+  tombstoneSyncStatusIndex: sql`CREATE INDEX IF NOT EXISTS idx_tombstone_sync_status ON deletion_tombstones (sync_version, propagation_status)`,
+  tombstoneDeviceIndex: sql`CREATE INDEX IF NOT EXISTS idx_tombstone_device ON deletion_tombstones (device_id, session_id)`,
+  // Unique constraint to prevent duplicate tombstones
+  uniqueTombstoneEntry: sql`CONSTRAINT unique_tombstone_entry UNIQUE (table_name, record_id, sync_version)`,
+}));
+
+// Change Tracking - تتبع الإصدارات للمزامنة المرتبة 
+export const changeTracking = pgTable("change_tracking", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  // Record identification
+  tableName: text("table_name").notNull(),
+  recordId: uuid("record_id").notNull(),
+  // Monotonic versioning for strict ordering
+  changeVersion: text("change_version").notNull(), // Monotonic version (e.g., "2025-001234567890")
+  changeSequence: text("change_sequence").notNull(), // Global sequence number
+  operationType: text("operation_type").notNull(), // insert, update, delete
+  // Change metadata
+  changedAt: timestamp("changed_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  changedById: uuid("changed_by_id")
+    .references(() => users.id, { onDelete: "set null" }),
+  changeSource: text("change_source").default("web_app"), // web_app, mobile_app, api, system
+  // Data changes
+  fieldChanges: jsonb("field_changes"), // { field: { old: value, new: value } }
+  recordSnapshot: jsonb("record_snapshot"), // full record snapshot after change
+  recordHash: text("record_hash"), // hash للتحقق من سلامة البيانات
+  // Session tracking for idempotency  
+  deviceId: text("device_id"),
+  sessionId: uuid("session_id")
+    .references(() => syncSessions.id, { onDelete: "set null" }),
+  clientChangeId: text("client_change_id"), // Client-provided idempotency key
+  // Geographic context for LBAC
+  governorateId: uuid("governorate_id")
+    .references(() => governorates.id, { onDelete: "set null" }),
+  districtId: uuid("district_id")
+    .references(() => districts.id, { onDelete: "set null" }),
+  // Sync status
+  syncStatus: text("sync_status").notNull().default("pending"), // pending, synced, ignored
+  syncedAt: timestamp("synced_at"),
+  syncAttempts: integer("sync_attempts").default(0),
+  // Metadata
+  changeMetadata: jsonb("change_metadata"),
+  notes: text("notes"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  // Critical indexes for change tracking and sync
+  changeTrackingVersionIndex: sql`CREATE INDEX IF NOT EXISTS idx_change_tracking_version ON change_tracking (table_name, change_version, change_sequence)`,
+  changeTrackingTimestampIndex: sql`CREATE INDEX IF NOT EXISTS idx_change_tracking_timestamp ON change_tracking (table_name, changed_at, sync_status)`,
+  changeTrackingSessionIndex: sql`CREATE INDEX IF NOT EXISTS idx_change_tracking_session ON change_tracking (session_id, device_id, client_change_id)`,
+  changeTrackingRecordIndex: sql`CREATE INDEX IF NOT EXISTS idx_change_tracking_record ON change_tracking (table_name, record_id, changed_at)`,
+  // Idempotency constraint
+  uniqueClientChange: sql`CONSTRAINT unique_client_change UNIQUE (device_id, client_change_id)`,
+}));
+
+// ===========================================
+// DELETION & CHANGE TRACKING SCHEMAS & TYPES  
+// ===========================================
+
+// Deletion Tombstones schemas
+export const insertDeletionTombstoneSchema = createInsertSchema(deletionTombstones).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type DeletionTombstone = typeof deletionTombstones.$inferSelect;
+export type InsertDeletionTombstone = z.infer<typeof insertDeletionTombstoneSchema>;
+
+// Change Tracking schemas
+export const insertChangeTrackingSchema = createInsertSchema(changeTracking).omit({
+  id: true,
+  changeVersion: true, // Auto-generated by createChangeTrackingEntry
+  changeSequence: true, // Auto-generated by createChangeTrackingEntry
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type ChangeTracking = typeof changeTracking.$inferSelect;
+export type InsertChangeTracking = z.infer<typeof insertChangeTrackingSchema>;
+
