@@ -146,21 +146,100 @@ const extractGeographicIds = async (req: AuthenticatedRequest): Promise<{
   return {};
 };
 
-// LBAC Enforcement Middleware - FIXED with proper hierarchical scope expansion
-const enforceLBACAccess = (requiredLevel: 'governorate' | 'district' | 'subDistrict' | 'neighborhood') => {
+// In-memory cache for user geographic scopes (performance optimization)
+interface CachedUserScope {
+  scope: any;
+  timestamp: number;
+  expiresAt: number;
+}
+
+const userScopeCache = new Map<string, CachedUserScope>();
+const SCOPE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const MAX_REQUESTS_PER_WINDOW = 100;
+
+// Rate limiting for LBAC checks
+const rateLimitTracker = new Map<string, { count: number; resetTime: number }>();
+const MAX_RATE_LIMIT_ENTRIES = 10000; // Prevent unbounded growth
+
+// Audit log interface
+interface LBACAccessLog {
+  userId: string;
+  timestamp: Date;
+  method: string;
+  path: string;
+  requiredLevel: string;
+  targetId?: string;
+  accessGranted: boolean;
+  userAgent?: string;
+  ipAddress?: string;
+  denialReason?: string;
+}
+
+// Enhanced LBAC Enforcement Middleware with Security & Performance
+const enforceLBACAccess = (
+  requiredLevel: 'governorate' | 'district' | 'subDistrict' | 'neighborhood',
+  options?: {
+    bypassCache?: boolean;
+    enableAuditLog?: boolean;
+    strictMode?: boolean;
+    maxCacheAge?: number;
+  }
+) => {
+  const config = {
+    bypassCache: false,
+    enableAuditLog: true,
+    strictMode: true,
+    maxCacheAge: SCOPE_CACHE_TTL,
+    ...options
+  };
+
   return async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    const startTime = Date.now();
     const user = req.user;
+    
     if (!user) {
       return res.status(401).json({ message: 'Authentication required' });
     }
 
-    // Admins bypass LBAC
+    // Admins bypass LBAC (with audit logging)
     if (user.role === 'admin') {
+      if (config.enableAuditLog) {
+        await logLBACAccess({
+          userId: user.id,
+          timestamp: new Date(),
+          method: req.method,
+          path: req.path,
+          requiredLevel,
+          accessGranted: true,
+          userAgent: req.headers['user-agent'],
+          ipAddress: req.ip || req.connection.remoteAddress
+        });
+      }
       return next();
     }
 
     try {
-      // Extract geographic IDs from request (direct or derived)
+      // Rate limiting check
+      const rateLimitKey = `${user.id}:${requiredLevel}`;
+      if (!checkRateLimit(rateLimitKey)) {
+        if (config.enableAuditLog) {
+          await logLBACAccess({
+            userId: user.id,
+            timestamp: new Date(),
+            method: req.method,
+            path: req.path,
+            requiredLevel,
+            accessGranted: false,
+            denialReason: 'rate_limit_exceeded',
+            userAgent: req.headers['user-agent'],
+            ipAddress: req.ip || req.connection.remoteAddress
+          });
+        }
+        return res.status(429).json({ message: 'Too many requests' });
+      }
+
+      // Extract geographic IDs from request (with error handling)
       const targetIds = await extractGeographicIds(req);
       
       let targetId: string | undefined;
@@ -170,19 +249,30 @@ const enforceLBACAccess = (requiredLevel: 'governorate' | 'district' | 'subDistr
       else if (requiredLevel === 'neighborhood') targetId = targetIds.neighborhoodId;
 
       if (!targetId) {
+        if (config.enableAuditLog) {
+          await logLBACAccess({
+            userId: user.id,
+            timestamp: new Date(),
+            method: req.method,
+            path: req.path,
+            requiredLevel,
+            accessGranted: false,
+            denialReason: 'missing_geographic_context',
+            userAgent: req.headers['user-agent'],
+            ipAddress: req.ip || req.connection.remoteAddress
+          });
+        }
+        // SECURITY: Don't leak geographic structure in error message
         return res.status(400).json({ 
-          message: 'Geographic context required for LBAC enforcement',
-          requiredLevel,
-          extractedIds: targetIds
+          message: 'Invalid request: Geographic context required'
         });
       }
 
-      // Use hierarchical scope expansion for PROPER LBAC
-      const userScope = await storage.expandUserGeographicScope(user.id);
-      
-      let hasAccess = false;
+      // Get user scope with caching
+      const { scope: userScope, cacheHit } = await getUserGeographicScopeWithCache(user.id, config);
       
       // Check access based on required level and hierarchical scope
+      let hasAccess = false;
       if (requiredLevel === 'governorate' && userScope.governorateIds.includes(targetId)) {
         hasAccess = true;
       } else if (requiredLevel === 'district' && userScope.districtIds.includes(targetId)) {
@@ -193,27 +283,169 @@ const enforceLBACAccess = (requiredLevel: 'governorate' | 'district' | 'subDistr
         hasAccess = true;
       }
 
-      if (!hasAccess) {
-        return res.status(403).json({ 
-          message: 'Insufficient geographic access permissions',
+      // Audit logging
+      if (config.enableAuditLog) {
+        await logLBACAccess({
+          userId: user.id,
+          timestamp: new Date(),
+          method: req.method,
+          path: req.path,
           requiredLevel,
           targetId,
-          userScope: {
-            governorateCount: userScope.governorateIds.length,
-            districtCount: userScope.districtIds.length,
-            subDistrictCount: userScope.subDistrictIds.length,
-            neighborhoodCount: userScope.neighborhoodIds.length
-          }
+          accessGranted: hasAccess,
+          denialReason: hasAccess ? undefined : 'insufficient_geographic_permissions',
+          userAgent: req.headers['user-agent'],
+          ipAddress: req.ip || req.connection.remoteAddress
         });
+      }
+
+      if (!hasAccess) {
+        // SECURITY: Minimal information disclosure
+        return res.status(403).json({ 
+          message: 'Access denied: Insufficient permissions'
+        });
+      }
+
+      // Add performance metrics to response headers (development only)
+      if (process.env.NODE_ENV === 'development') {
+        res.setHeader('X-LBAC-Processing-Time', `${Date.now() - startTime}ms`);
+        res.setHeader('X-LBAC-Cache-Hit', cacheHit ? 'true' : 'false');
       }
 
       next();
     } catch (error) {
       console.error('LBAC enforcement error:', error);
-      return res.status(500).json({ message: 'Error enforcing geographic access control' });
+      
+      if (config.enableAuditLog) {
+        await logLBACAccess({
+          userId: user.id,
+          timestamp: new Date(),
+          method: req.method,
+          path: req.path,
+          requiredLevel,
+          accessGranted: false,
+          denialReason: 'system_error',
+          userAgent: req.headers['user-agent'],
+          ipAddress: req.ip || req.connection.remoteAddress
+        });
+      }
+      
+      // SECURITY: Don't leak internal error details
+      return res.status(500).json({ message: 'Internal server error' });
     }
   };
 };
+
+// Helper function to get user scope with caching - FIXED: Return cache hit info
+async function getUserGeographicScopeWithCache(userId: string, config: any): Promise<{ scope: any; cacheHit: boolean }> {
+  const now = Date.now();
+  const cached = userScopeCache.get(userId);
+  
+  // Check if cache is valid and not bypassed
+  if (!config.bypassCache && cached && now < cached.expiresAt) {
+    return { scope: cached.scope, cacheHit: true };
+  }
+  
+  // Fetch fresh scope from storage
+  const scope = await storage.expandUserGeographicScope(userId);
+  
+  // Cache the result
+  userScopeCache.set(userId, {
+    scope,
+    timestamp: now,
+    expiresAt: now + config.maxCacheAge
+  });
+  
+  // Cleanup expired cache entries periodically (both caches)
+  if (Math.random() < 0.01) { // 1% chance to cleanup
+    cleanupExpiredCache();
+    cleanupExpiredRateLimits();
+  }
+  
+  return { scope, cacheHit: false };
+}
+
+// Rate limiting checker - FIXED: Correct window reset logic
+function checkRateLimit(key: string): boolean {
+  const now = Date.now();
+  const current = rateLimitTracker.get(key);
+  
+  // FIXED: Correct reset condition - check if current time >= resetTime
+  if (!current || now >= current.resetTime) {
+    // New window or expired - reset counter
+    rateLimitTracker.set(key, {
+      count: 1,
+      resetTime: now + RATE_LIMIT_WINDOW
+    });
+    return true;
+  }
+  
+  if (current.count >= MAX_REQUESTS_PER_WINDOW) {
+    return false; // Rate limit exceeded
+  }
+  
+  current.count++;
+  return true;
+}
+
+// Rate limit cleanup to prevent unbounded memory growth
+function cleanupExpiredRateLimits() {
+  const now = Date.now();
+  
+  // Clean expired entries
+  Array.from(rateLimitTracker.entries()).forEach(([key, entry]) => {
+    if (now >= entry.resetTime) {
+      rateLimitTracker.delete(key);
+    }
+  });
+  
+  // If still too many entries, remove oldest ones (LRU-style)
+  if (rateLimitTracker.size > MAX_RATE_LIMIT_ENTRIES) {
+    const entries = Array.from(rateLimitTracker.entries());
+    // Sort by resetTime and remove the oldest
+    entries.sort((a, b) => a[1].resetTime - b[1].resetTime);
+    const toRemove = entries.slice(0, rateLimitTracker.size - MAX_RATE_LIMIT_ENTRIES);
+    toRemove.forEach(([key]) => rateLimitTracker.delete(key));
+  }
+}
+
+// Cache cleanup
+function cleanupExpiredCache() {
+  const now = Date.now();
+  // Use Array.from to fix TypeScript iteration compatibility
+  Array.from(userScopeCache.entries()).forEach(([key, cached]) => {
+    if (now >= cached.expiresAt) {
+      userScopeCache.delete(key);
+    }
+  });
+}
+
+// Audit logging function
+async function logLBACAccess(log: LBACAccessLog) {
+  try {
+    // In production, this would write to a dedicated audit table
+    // For now, we'll use console logging with structured format
+    console.log('LBAC_AUDIT:', JSON.stringify({
+      ...log,
+      timestamp: log.timestamp.toISOString()
+    }));
+    
+    // TODO: Write to audit table in database
+    // await storage.createAuditLog({
+    //   userId: log.userId,
+    //   action: 'lbac_access_check',
+    //   resource: `${log.method} ${log.path}`,
+    //   details: log,
+    //   timestamp: log.timestamp
+    // });
+  } catch (error) {
+    console.error('Failed to log LBAC access:', error);
+  }
+}
+
+// Enhanced RBAC (Role-Based Access Control) Middleware with caching
+const roleCache = new Map<string, { roles: string[]; timestamp: number }>();
+const ROLE_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
 // RBAC (Role-Based Access Control) Middleware
 const requireRole = (allowedRoles: string | string[]) => {
