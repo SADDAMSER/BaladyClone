@@ -2216,3 +2216,4 @@ export const insertUserRoleSchema = createInsertSchema(userRoles).omit({
 
 export type UserRole = typeof userRoles.$inferSelect;
 export type InsertUserRole = z.infer<typeof insertUserRoleSchema>;
+
