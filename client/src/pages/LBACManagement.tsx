@@ -629,7 +629,6 @@ export default function LBACManagement() {
                         <SelectValue placeholder="جميع الأنواع" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">جميع الأنواع</SelectItem>
                         <SelectItem value="allow">سماح</SelectItem>
                         <SelectItem value="restrict">تقييد</SelectItem>
                         <SelectItem value="conditional">مشروط</SelectItem>
@@ -645,7 +644,6 @@ export default function LBACManagement() {
                         <SelectValue placeholder="جميع المستويات" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">جميع المستويات</SelectItem>
                         <SelectItem value="governorate">محافظة</SelectItem>
                         <SelectItem value="district">مديرية</SelectItem>
                         <SelectItem value="subDistrict">عزلة</SelectItem>
@@ -662,7 +660,6 @@ export default function LBACManagement() {
                         <SelectValue placeholder="جميع الحالات" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">جميع الحالات</SelectItem>
                         <SelectItem value="true">نشط</SelectItem>
                         <SelectItem value="false">غير نشط</SelectItem>
                       </SelectContent>
@@ -974,7 +971,6 @@ export default function LBACManagement() {
                         <SelectValue placeholder="جميع الحالات" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">جميع الحالات</SelectItem>
                         <SelectItem value="pending">في الانتظار</SelectItem>
                         <SelectItem value="active">نشط</SelectItem>
                         <SelectItem value="expired">منتهي الصلاحية</SelectItem>
@@ -1416,7 +1412,6 @@ export default function LBACManagement() {
                         <SelectValue placeholder="جميع المحاولات" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">جميع المحاولات</SelectItem>
                         <SelectItem value="true">مسموح</SelectItem>
                         <SelectItem value="false">مرفوض</SelectItem>
                       </SelectContent>
@@ -1431,7 +1426,6 @@ export default function LBACManagement() {
                         <SelectValue placeholder="جميع المستخدمين" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">جميع المستخدمين</SelectItem>
                         {users.map((user: any) => (
                           <SelectItem key={user.id} value={user.id}>
                             {user.fullName}
