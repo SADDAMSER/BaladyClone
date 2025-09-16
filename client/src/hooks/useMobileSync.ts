@@ -346,7 +346,7 @@ export function useMobileSync() {
       const response = await apiRequest('/api/sync/push', 'POST', {
         deviceId,
         operations,
-        conflictResolution: 'server_wins' // Default conflict resolution
+        conflictResolution: 'use_remote' // Default to server precedence, will be handled per-table by backend
       });
 
       const data = await response.json();

@@ -21,6 +21,7 @@ export interface SyncTableConfig {
   rbacCheck?: (user: AuthUser, operation: string, recordId?: string, recordData?: any) => boolean; // Enhanced authorization with record-level checks
   conflictFields: string[]; // Fields to check for conflicts
   primaryKey: string; // Primary key field name
+  defaultConflictStrategy?: 'use_local' | 'use_remote' | 'merge' | 'server_wins' | 'client_wins'; // Default conflict resolution strategy
 }
 
 // Registry of tables allowed for mobile sync
@@ -33,7 +34,8 @@ export const SYNC_REGISTRY: Record<string, SyncTableConfig> = {
     requiredRoles: ['engineer', 'surveyor', 'manager', 'admin'],
     lbacField: 'blockId', // LBAC through block hierarchy
     conflictFields: ['area', 'plotType', 'ownershipType', 'geometry'],
-    primaryKey: 'id'
+    primaryKey: 'id',
+    defaultConflictStrategy: 'merge' // Geographic data should be merged carefully
   },
   
   blocks: {
@@ -62,6 +64,7 @@ export const SYNC_REGISTRY: Record<string, SyncTableConfig> = {
     hasUpdatedAt: true,
     allowedOperations: ['read', 'update'],
     requiredRoles: ['engineer', 'surveyor', 'manager', 'admin'],
+    defaultConflictStrategy: 'use_remote', // Server data takes precedence for critical applications
     rbacCheck: (user: AuthUser, operation: string, recordId?: string, recordData?: any) => {
       // CRITICAL: Real record-level RBAC validation for applications
       if (operation === 'read') {
@@ -428,6 +431,12 @@ export function generateLBACFilter(user: AuthUser, tableName: string): any {
 // Get table configuration
 export function getSyncTableConfig(tableName: string): SyncTableConfig | null {
   return SYNC_REGISTRY[tableName] || null;
+}
+
+// Get default conflict strategy for a table
+export function getTableConflictStrategy(tableName: string): string {
+  const config = getSyncTableConfig(tableName);
+  return config?.defaultConflictStrategy || 'use_remote'; // Default to server precedence
 }
 
 // Validate sync operation

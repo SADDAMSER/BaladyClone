@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import ConflictResolutionModal from '@/components/sync/ConflictResolutionModal';
 import { 
   RefreshCw, 
   Upload, 
@@ -45,6 +46,7 @@ export function SyncButton({
   } = useSyncStatus();
 
   const [lastAction, setLastAction] = useState<'pull' | 'push' | 'full' | null>(null);
+  const [conflictModalOpen, setConflictModalOpen] = useState(false);
 
   const handleFullSync = async () => {
     setLastAction('full');
@@ -177,9 +179,14 @@ export function SyncButton({
               غير متصل
             </Badge>
           ) : syncStatus.failedOperations > 0 ? (
-            <Badge variant="outline" className="text-red-600">
+            <Badge 
+              variant="outline" 
+              className="text-red-600 cursor-pointer hover:bg-red-50"
+              onClick={() => setConflictModalOpen(true)}
+              data-testid="badge-failed-operations"
+            >
               <AlertCircle className="h-3 w-3 ml-1" />
-              {syncStatus.failedOperations} فاشل
+              {syncStatus.failedOperations} تعارض
             </Badge>
           ) : hasAnyPendingData ? (
             <Badge variant="default" data-testid="badge-pending-operations">
@@ -200,6 +207,12 @@ export function SyncButton({
           )}
         </div>
       )}
+
+      <ConflictResolutionModal
+        open={conflictModalOpen}
+        onOpenChange={setConflictModalOpen}
+        sessionId="temp-session-id" // TODO: Get from syncSession data
+      />
     </div>
   );
 }

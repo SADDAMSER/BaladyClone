@@ -4146,7 +4146,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
 
           // Apply bulk changes for this operation
-          const result = await storage.applyBulkChanges(op.tableName, [offlineOp]);
+          const result = await storage.applyBulkChanges(op.tableName, [offlineOp], session.id);
           results.success += result.success;
           results.conflicts += result.conflicts;
           results.errors += result.errors;
@@ -4181,6 +4181,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error in sync push:', error);
       res.status(500).json({ error: 'فشل في رفع التغييرات' });
+    }
+  });
+
+  // Get sync conflicts for a session
+  app.get('/api/sync/conflicts', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { sessionId } = req.query;
+      
+      const conflicts = await storage.getUnresolvedConflicts(sessionId as string);
+      
+      res.json(conflicts);
+    } catch (error) {
+      console.error('Error getting sync conflicts:', error);
+      res.status(500).json({ error: 'فشل في استرجاع التعارضات' });
     }
   });
 

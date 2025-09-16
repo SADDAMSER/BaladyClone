@@ -3586,7 +3586,7 @@ export class DatabaseStorage implements IStorage {
     return syncTableMap[tableName] || null;
   }
 
-  async applyBulkChanges(tableName: string, operations: OfflineOperation[]): Promise<{ success: number; conflicts: number; errors: number }> {
+  async applyBulkChanges(tableName: string, operations: OfflineOperation[], sessionId?: string): Promise<{ success: number; conflicts: number; errors: number }> {
     let success = 0;
     let conflicts = 0;
     let errors = 0;
@@ -3597,6 +3597,10 @@ export class DatabaseStorage implements IStorage {
       console.error(`[SECURITY] Rejected sync operation for unauthorized table: ${tableName}`);
       return { success: 0, conflicts: 0, errors: operations.length };
     }
+
+    // Import sync registry for conflict detection
+    const { getSyncTableConfig } = await import('./syncRegistry');
+    const tableConfig = getSyncTableConfig(tableName);
 
     for (const operation of operations) {
       try {
@@ -3679,24 +3683,91 @@ export class DatabaseStorage implements IStorage {
           updateData.updatedAt = sql`CURRENT_TIMESTAMP`;
           
           console.log(`[DEBUG] Updating ${tableName} record ID: ${operation.recordId}`);
-          const result = await db.update(resolvedTable)
-            .set(updateData)
+          
+          // Get existing record for conflict detection
+          const [existingRecord] = await db
+            .select()
+            .from(resolvedTable)
             .where(eq(resolvedTable.id, operation.recordId));
           
-          if (result.rowCount === 0) {
+          if (!existingRecord) {
+            // Record not found - create conflict
+            if (sessionId && tableConfig) {
+              await this.createSyncConflict({
+                syncSessionId: sessionId,
+                tableName,
+                recordId: operation.recordId,
+                fieldName: null, // Full record conflict
+                serverValue: null, // Record doesn't exist
+                clientValue: updateData,
+                conflictType: 'deleted_on_server',
+                // conflictReason: 'Record was deleted on server while client tried to update' // TODO: Add to schema if needed
+              });
+            }
             conflicts++;
           } else {
-            success++;
+            // Check for field-level conflicts using conflictFields
+            let hasFieldConflicts = false;
+            
+            if (tableConfig?.conflictFields && sessionId) {
+              for (const fieldName of tableConfig.conflictFields) {
+                if (updateData[fieldName] !== undefined && 
+                    existingRecord[fieldName] !== updateData[fieldName]) {
+                  // Create field-level conflict
+                  await this.createSyncConflict({
+                    syncSessionId: sessionId,
+                    tableName,
+                    recordId: operation.recordId,
+                    fieldName,
+                    serverValue: existingRecord[fieldName],
+                    clientValue: updateData[fieldName],
+                    conflictType: 'concurrent_update',
+                    // conflictReason: `Field '${fieldName}' was modified on both client and server` // TODO: Add to schema if needed
+                  });
+                  hasFieldConflicts = true;
+                }
+              }
+            }
+            
+            if (hasFieldConflicts) {
+              conflicts++;
+            } else {
+              // No conflicts - proceed with update
+              const result = await db.update(resolvedTable)
+                .set(updateData)
+                .where(eq(resolvedTable.id, operation.recordId));
+              success++;
+            }
           }
         } else if (operation.operationType === 'delete') {
           // Use Drizzle ORM for safe deletes (no raw SQL with table names)
           console.log(`[DEBUG] Deleting ${tableName} record ID: ${operation.recordId}`);
-          const result = await db.delete(resolvedTable)
+          
+          // Check if record exists
+          const [existingRecord] = await db
+            .select()
+            .from(resolvedTable)
             .where(eq(resolvedTable.id, operation.recordId));
           
-          if (result.rowCount === 0) {
+          if (!existingRecord) {
+            // Record not found - create conflict
+            if (sessionId && tableConfig) {
+              await this.createSyncConflict({
+                syncSessionId: sessionId,
+                tableName,
+                recordId: operation.recordId,
+                fieldName: null,
+                serverValue: null, // Already deleted
+                clientValue: operation.operationData as any,
+                conflictType: 'deleted_on_server',
+                // conflictReason: 'Record was already deleted on server' // TODO: Add to schema if needed
+              });
+            }
             conflicts++;
           } else {
+            // Record exists - proceed with delete
+            const result = await db.delete(resolvedTable)
+              .where(eq(resolvedTable.id, operation.recordId));
             success++;
           }
         }
