@@ -89,6 +89,69 @@ export interface IStorage {
   updateUserGeographicAssignment(id: string, updates: any): Promise<any>;
   deleteUserGeographicAssignment(id: string): Promise<void>;
 
+  // Enhanced LBAC Hardening - Phase 6
+  // Permission Geographic Constraints management
+  getPermissionGeographicConstraints(filters?: {
+    permissionId?: string;
+    constraintType?: string;
+    constraintLevel?: string;
+    isActive?: boolean;
+  }): Promise<any[]>;
+  getPermissionGeographicConstraint(id: string): Promise<any | undefined>;
+  createPermissionGeographicConstraint(constraint: any): Promise<any>;
+  updatePermissionGeographicConstraint(id: string, updates: any): Promise<any>;
+  deletePermissionGeographicConstraint(id: string): Promise<void>;
+
+  // Temporary Permission Delegations management  
+  getTemporaryPermissionDelegations(filters?: {
+    delegatorId?: string;
+    delegeeId?: string;
+    status?: string;
+    isActive?: boolean;
+    includeExpired?: boolean;
+  }): Promise<any[]>;
+  getTemporaryPermissionDelegation(id: string): Promise<any | undefined>;
+  createTemporaryPermissionDelegation(delegation: any): Promise<any>;
+  updateTemporaryPermissionDelegation(id: string, updates: any): Promise<any>;
+  deleteTemporaryPermissionDelegation(id: string): Promise<void>;
+  activateTemporaryDelegation(id: string, approvedBy: string): Promise<any>;
+  deactivateTemporaryDelegation(id: string, reason?: string): Promise<any>;
+
+  // Geographic Role Templates management
+  getGeographicRoleTemplates(filters?: {
+    templateName?: string;
+    applicableLevel?: string;
+    isActive?: boolean;
+  }): Promise<any[]>;
+  getGeographicRoleTemplate(id: string): Promise<any | undefined>;
+  createGeographicRoleTemplate(template: any): Promise<any>;
+  updateGeographicRoleTemplate(id: string, updates: any): Promise<any>;
+  deleteGeographicRoleTemplate(id: string): Promise<void>;
+  applyGeographicRoleTemplate(templateId: string, userId: string, targetGeographicId: string): Promise<any>;
+
+  // User Geographic Assignment History management (audit trail)
+  getUserGeographicAssignmentHistory(filters?: {
+    userId?: string;
+    originalAssignmentId?: string;
+    changeType?: string;
+    changedBy?: string;
+    dateRange?: { start: Date; end: Date };
+  }): Promise<any[]>;
+  getUserGeographicAssignmentHistoryRecord(id: string): Promise<any | undefined>;
+  createUserGeographicAssignmentHistory(historyRecord: any): Promise<any>;
+
+  // LBAC Access Audit Log management
+  getLbacAccessAuditLogs(filters?: {
+    userId?: string;
+    accessGranted?: boolean;
+    denialReason?: string;
+    governorateId?: string;
+    districtId?: string;
+    dateRange?: { start: Date; end: Date };
+  }): Promise<any[]>;
+  getLbacAccessAuditLog(id: string): Promise<any | undefined>;
+  createLbacAccessAuditLog(auditLog: any): Promise<any>;
+
   // RBAC (Role-Based Access Control) - النظام الجديد للصلاحيات
   // Roles management
   getRoles(filters?: { isActive?: boolean; isSystemRole?: boolean }): Promise<Role[]>;
@@ -948,6 +1011,302 @@ export class DatabaseStorage implements IStorage {
       subDistrictIds: Array.from(scope.subDistrictIds),
       neighborhoodIds: Array.from(scope.neighborhoodIds)
     };
+  }
+
+  // ===========================================
+  // ENHANCED LBAC HARDENING - Phase 6 Implementation
+  // ===========================================
+
+  // Permission Geographic Constraints management
+  async getPermissionGeographicConstraints(filters?: {
+    permissionId?: string;
+    constraintType?: string;
+    constraintLevel?: string;
+    isActive?: boolean;
+  }): Promise<any[]> {
+    const conditions = [];
+    
+    if (filters?.permissionId) {
+      conditions.push(eq(permissionGeographicConstraints.permissionId, filters.permissionId));
+    }
+    if (filters?.constraintType) {
+      conditions.push(eq(permissionGeographicConstraints.constraintType, filters.constraintType));
+    }
+    if (filters?.constraintLevel) {
+      conditions.push(eq(permissionGeographicConstraints.constraintLevel, filters.constraintLevel));
+    }
+    if (filters?.isActive !== undefined) {
+      conditions.push(eq(permissionGeographicConstraints.isActive, filters.isActive));
+    }
+
+    return await db.select().from(permissionGeographicConstraints)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(permissionGeographicConstraints.createdAt));
+  }
+
+  async getPermissionGeographicConstraint(id: string): Promise<any | undefined> {
+    const result = await db.select().from(permissionGeographicConstraints)
+      .where(eq(permissionGeographicConstraints.id, id));
+    return result[0];
+  }
+
+  async createPermissionGeographicConstraint(constraint: any): Promise<any> {
+    const result = await db.insert(permissionGeographicConstraints).values(constraint).returning();
+    return result[0];
+  }
+
+  async updatePermissionGeographicConstraint(id: string, updates: any): Promise<any> {
+    const result = await db.update(permissionGeographicConstraints)
+      .set({ ...updates, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(permissionGeographicConstraints.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deletePermissionGeographicConstraint(id: string): Promise<void> {
+    await db.delete(permissionGeographicConstraints).where(eq(permissionGeographicConstraints.id, id));
+  }
+
+  // Temporary Permission Delegations management
+  async getTemporaryPermissionDelegations(filters?: {
+    delegatorId?: string;
+    delegeeId?: string;
+    status?: string;
+    isActive?: boolean;
+    includeExpired?: boolean;
+  }): Promise<any[]> {
+    const conditions = [];
+    
+    if (filters?.delegatorId) {
+      conditions.push(eq(temporaryPermissionDelegations.delegatorId, filters.delegatorId));
+    }
+    if (filters?.delegeeId) {
+      conditions.push(eq(temporaryPermissionDelegations.delegeeId, filters.delegeeId));
+    }
+    if (filters?.status) {
+      conditions.push(eq(temporaryPermissionDelegations.status, filters.status));
+    }
+    if (filters?.isActive !== undefined) {
+      conditions.push(eq(temporaryPermissionDelegations.isActive, filters.isActive));
+    }
+
+    // Temporal validity check - don't include expired unless specifically requested
+    if (!filters?.includeExpired) {
+      const now = sql`CURRENT_TIMESTAMP`;
+      conditions.push(sql`${temporaryPermissionDelegations.endDate} > ${now}`);
+      conditions.push(sql`${temporaryPermissionDelegations.startDate} <= ${now}`);
+    }
+
+    return await db.select().from(temporaryPermissionDelegations)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(temporaryPermissionDelegations.createdAt));
+  }
+
+  async getTemporaryPermissionDelegation(id: string): Promise<any | undefined> {
+    const result = await db.select().from(temporaryPermissionDelegations)
+      .where(eq(temporaryPermissionDelegations.id, id));
+    return result[0];
+  }
+
+  async createTemporaryPermissionDelegation(delegation: any): Promise<any> {
+    const result = await db.insert(temporaryPermissionDelegations).values(delegation).returning();
+    return result[0];
+  }
+
+  async updateTemporaryPermissionDelegation(id: string, updates: any): Promise<any> {
+    const result = await db.update(temporaryPermissionDelegations)
+      .set({ ...updates, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(temporaryPermissionDelegations.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteTemporaryPermissionDelegation(id: string): Promise<void> {
+    await db.delete(temporaryPermissionDelegations).where(eq(temporaryPermissionDelegations.id, id));
+  }
+
+  async activateTemporaryDelegation(id: string, approvedBy: string): Promise<any> {
+    const result = await db.update(temporaryPermissionDelegations)
+      .set({ 
+        status: 'active', 
+        isActive: true, 
+        approvedBy,
+        updatedAt: sql`CURRENT_TIMESTAMP` 
+      })
+      .where(eq(temporaryPermissionDelegations.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deactivateTemporaryDelegation(id: string, reason?: string): Promise<any> {
+    const result = await db.update(temporaryPermissionDelegations)
+      .set({ 
+        status: 'revoked', 
+        isActive: false, 
+        revocationReason: reason,
+        updatedAt: sql`CURRENT_TIMESTAMP` 
+      })
+      .where(eq(temporaryPermissionDelegations.id, id))
+      .returning();
+    return result[0];
+  }
+
+  // Geographic Role Templates management
+  async getGeographicRoleTemplates(filters?: {
+    templateName?: string;
+    applicableLevel?: string;
+    isActive?: boolean;
+  }): Promise<any[]> {
+    const conditions = [];
+    
+    if (filters?.templateName) {
+      conditions.push(ilike(geographicRoleTemplates.templateName, `%${filters.templateName}%`));
+    }
+    if (filters?.applicableLevel) {
+      conditions.push(eq(geographicRoleTemplates.applicableLevel, filters.applicableLevel));
+    }
+    if (filters?.isActive !== undefined) {
+      conditions.push(eq(geographicRoleTemplates.isActive, filters.isActive));
+    }
+
+    return await db.select().from(geographicRoleTemplates)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(geographicRoleTemplates.createdAt));
+  }
+
+  async getGeographicRoleTemplate(id: string): Promise<any | undefined> {
+    const result = await db.select().from(geographicRoleTemplates)
+      .where(eq(geographicRoleTemplates.id, id));
+    return result[0];
+  }
+
+  async createGeographicRoleTemplate(template: any): Promise<any> {
+    const result = await db.insert(geographicRoleTemplates).values(template).returning();
+    return result[0];
+  }
+
+  async updateGeographicRoleTemplate(id: string, updates: any): Promise<any> {
+    const result = await db.update(geographicRoleTemplates)
+      .set({ ...updates, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(geographicRoleTemplates.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteGeographicRoleTemplate(id: string): Promise<void> {
+    await db.delete(geographicRoleTemplates).where(eq(geographicRoleTemplates.id, id));
+  }
+
+  async applyGeographicRoleTemplate(templateId: string, userId: string, targetGeographicId: string): Promise<any> {
+    // This method would apply a role template to a user for a specific geographic area
+    // Implementation would involve creating user geographic assignments based on the template
+    const template = await this.getGeographicRoleTemplate(templateId);
+    if (!template) {
+      throw new Error('Template not found');
+    }
+
+    // Create geographic assignment based on template
+    const assignmentData = {
+      userId,
+      assignmentType: template.applicableLevel,
+      isActive: true,
+      startDate: new Date(),
+      // Set the appropriate geographic field based on template level
+      ...(template.applicableLevel === 'governorate' && { governorateId: targetGeographicId }),
+      ...(template.applicableLevel === 'district' && { districtId: targetGeographicId }),
+      ...(template.applicableLevel === 'subDistrict' && { subDistrictId: targetGeographicId }),
+      ...(template.applicableLevel === 'neighborhood' && { neighborhoodId: targetGeographicId }),
+    };
+
+    return await this.createUserGeographicAssignment(assignmentData);
+  }
+
+  // User Geographic Assignment History management (audit trail)
+  async getUserGeographicAssignmentHistory(filters?: {
+    userId?: string;
+    originalAssignmentId?: string;
+    changeType?: string;
+    changedBy?: string;
+    dateRange?: { start: Date; end: Date };
+  }): Promise<any[]> {
+    const conditions = [];
+    
+    if (filters?.userId) {
+      conditions.push(eq(userGeographicAssignmentHistory.userId, filters.userId));
+    }
+    if (filters?.originalAssignmentId) {
+      conditions.push(eq(userGeographicAssignmentHistory.originalAssignmentId, filters.originalAssignmentId));
+    }
+    if (filters?.changeType) {
+      conditions.push(eq(userGeographicAssignmentHistory.changeType, filters.changeType));
+    }
+    if (filters?.changedBy) {
+      conditions.push(eq(userGeographicAssignmentHistory.changedBy, filters.changedBy));
+    }
+    if (filters?.dateRange) {
+      conditions.push(sql`${userGeographicAssignmentHistory.changeDate} BETWEEN ${filters.dateRange.start} AND ${filters.dateRange.end}`);
+    }
+
+    return await db.select().from(userGeographicAssignmentHistory)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(userGeographicAssignmentHistory.changeDate));
+  }
+
+  async getUserGeographicAssignmentHistoryRecord(id: string): Promise<any | undefined> {
+    const result = await db.select().from(userGeographicAssignmentHistory)
+      .where(eq(userGeographicAssignmentHistory.id, id));
+    return result[0];
+  }
+
+  async createUserGeographicAssignmentHistory(historyRecord: any): Promise<any> {
+    const result = await db.insert(userGeographicAssignmentHistory).values(historyRecord).returning();
+    return result[0];
+  }
+
+  // LBAC Access Audit Log management
+  async getLbacAccessAuditLogs(filters?: {
+    userId?: string;
+    accessGranted?: boolean;
+    denialReason?: string;
+    governorateId?: string;
+    districtId?: string;
+    dateRange?: { start: Date; end: Date };
+  }): Promise<any[]> {
+    const conditions = [];
+    
+    if (filters?.userId) {
+      conditions.push(eq(lbacAccessAuditLog.userId, filters.userId));
+    }
+    if (filters?.accessGranted !== undefined) {
+      conditions.push(eq(lbacAccessAuditLog.accessGranted, filters.accessGranted));
+    }
+    if (filters?.denialReason) {
+      conditions.push(eq(lbacAccessAuditLog.denialReason, filters.denialReason));
+    }
+    if (filters?.governorateId) {
+      conditions.push(eq(lbacAccessAuditLog.governorateId, filters.governorateId));
+    }
+    if (filters?.districtId) {
+      conditions.push(eq(lbacAccessAuditLog.districtId, filters.districtId));
+    }
+    if (filters?.dateRange) {
+      conditions.push(sql`${lbacAccessAuditLog.createdAt} BETWEEN ${filters.dateRange.start} AND ${filters.dateRange.end}`);
+    }
+
+    return await db.select().from(lbacAccessAuditLog)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(lbacAccessAuditLog.createdAt));
+  }
+
+  async getLbacAccessAuditLog(id: string): Promise<any | undefined> {
+    const result = await db.select().from(lbacAccessAuditLog)
+      .where(eq(lbacAccessAuditLog.id, id));
+    return result[0];
+  }
+
+  async createLbacAccessAuditLog(auditLog: any): Promise<any> {
+    const result = await db.insert(lbacAccessAuditLog).values(auditLog).returning();
+    return result[0];
   }
 
   // ===========================================

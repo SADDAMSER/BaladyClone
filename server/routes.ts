@@ -19,7 +19,11 @@ import {
   insertNotificationSchema, insertApplicationStatusHistorySchema,
   insertApplicationAssignmentSchema, insertApplicationReviewSchema,
   insertRoleSchema, insertPermissionSchema, insertRolePermissionSchema,
-  insertUserRoleSchema
+  insertUserRoleSchema,
+  // Enhanced LBAC Hardening schemas - Phase 6
+  insertPermissionGeographicConstraintsSchema, insertTemporaryPermissionDelegationsSchema,
+  insertGeographicRoleTemplatesSchema, insertUserGeographicAssignmentHistorySchema,
+  insertLbacAccessAuditLogSchema
 } from "@shared/schema";
 import { DEFAULT_PERMISSIONS } from "@shared/defaults";
 import { PaginationParams, validatePaginationParams } from "./pagination";
@@ -4752,6 +4756,286 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('SLO metrics error:', error);
       res.status(500).json({ message: "فشل في جلب مؤشرات SLO" });
+    }
+  });
+
+  // ===========================================
+  // ENHANCED LBAC GEOGRAPHIC PERMISSION MANAGEMENT APIs - Phase 6
+  // ===========================================
+
+  // Permission Geographic Constraints endpoints
+  app.get("/api/lbac/permission-constraints", authenticateToken, requireRole(['manager', 'admin']), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { permissionId, constraintType, constraintLevel, isActive } = req.query;
+      const constraints = await storage.getPermissionGeographicConstraints({
+        permissionId: permissionId as string,
+        constraintType: constraintType as string,
+        constraintLevel: constraintLevel as string,
+        isActive: isActive ? isActive === 'true' : undefined
+      });
+      res.json(constraints);
+    } catch (error) {
+      console.error('Error fetching permission constraints:', error);
+      res.status(500).json({ message: "خطأ في استرجاع قيود الصلاحيات الجغرافية" });
+    }
+  });
+
+  app.get("/api/lbac/permission-constraints/:id", authenticateToken, requireRole(['manager', 'admin']), async (req: AuthenticatedRequest, res) => {
+    try {
+      const constraint = await storage.getPermissionGeographicConstraint(req.params.id);
+      if (!constraint) {
+        return res.status(404).json({ message: "قيد الصلاحية غير موجود" });
+      }
+      res.json(constraint);
+    } catch (error) {
+      console.error('Error fetching permission constraint:', error);
+      res.status(500).json({ message: "خطأ في استرجاع قيد الصلاحية" });
+    }
+  });
+
+  app.post("/api/lbac/permission-constraints", authenticateToken, requireRole(['admin']), validateRequest(insertPermissionGeographicConstraintsSchema), async (req: AuthenticatedRequest, res) => {
+    try {
+      const constraintData = insertPermissionGeographicConstraintsSchema.parse(req.body);
+      const constraint = await storage.createPermissionGeographicConstraint(constraintData);
+      res.status(201).json(constraint);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "بيانات غير صحيحة", errors: error.errors });
+      }
+      console.error('Error creating permission constraint:', error);
+      res.status(500).json({ message: "خطأ في إنشاء قيد الصلاحية" });
+    }
+  });
+
+  app.put("/api/lbac/permission-constraints/:id", authenticateToken, requireRole(['admin']), validateRequest(insertPermissionGeographicConstraintsSchema), async (req: AuthenticatedRequest, res) => {
+    try {
+      const updates = insertPermissionGeographicConstraintsSchema.parse(req.body);
+      const constraint = await storage.updatePermissionGeographicConstraint(req.params.id, updates);
+      res.json(constraint);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "بيانات غير صحيحة", errors: error.errors });
+      }
+      console.error('Error updating permission constraint:', error);
+      res.status(500).json({ message: "خطأ في تحديث قيد الصلاحية" });
+    }
+  });
+
+  app.delete("/api/lbac/permission-constraints/:id", authenticateToken, requireRole(['admin']), async (req: AuthenticatedRequest, res) => {
+    try {
+      await storage.deletePermissionGeographicConstraint(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting permission constraint:', error);
+      res.status(500).json({ message: "خطأ في حذف قيد الصلاحية" });
+    }
+  });
+
+  // Temporary Permission Delegations endpoints
+  app.get("/api/lbac/delegations", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { delegatorId, delegeeId, status, isActive, includeExpired } = req.query;
+      const delegations = await storage.getTemporaryPermissionDelegations({
+        delegatorId: delegatorId as string,
+        delegeeId: delegeeId as string,
+        status: status as string,
+        isActive: isActive ? isActive === 'true' : undefined,
+        includeExpired: includeExpired === 'true'
+      });
+      res.json(delegations);
+    } catch (error) {
+      console.error('Error fetching delegations:', error);
+      res.status(500).json({ message: "خطأ في استرجاع تفويضات الصلاحيات" });
+    }
+  });
+
+  app.get("/api/lbac/delegations/:id", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const delegation = await storage.getTemporaryPermissionDelegation(req.params.id);
+      if (!delegation) {
+        return res.status(404).json({ message: "التفويض غير موجود" });
+      }
+      res.json(delegation);
+    } catch (error) {
+      console.error('Error fetching delegation:', error);
+      res.status(500).json({ message: "خطأ في استرجاع التفويض" });
+    }
+  });
+
+  app.post("/api/lbac/delegations", authenticateToken, validateRequest(insertTemporaryPermissionDelegationsSchema), async (req: AuthenticatedRequest, res) => {
+    try {
+      const delegationData = insertTemporaryPermissionDelegationsSchema.parse(req.body);
+      const delegation = await storage.createTemporaryPermissionDelegation(delegationData);
+      res.status(201).json(delegation);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "بيانات غير صحيحة", errors: error.errors });
+      }
+      console.error('Error creating delegation:', error);
+      res.status(500).json({ message: "خطأ في إنشاء التفويض" });
+    }
+  });
+
+  app.put("/api/lbac/delegations/:id", authenticateToken, validateRequest(insertTemporaryPermissionDelegationsSchema), async (req: AuthenticatedRequest, res) => {
+    try {
+      const updates = insertTemporaryPermissionDelegationsSchema.parse(req.body);
+      const delegation = await storage.updateTemporaryPermissionDelegation(req.params.id, updates);
+      res.json(delegation);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "بيانات غير صحيحة", errors: error.errors });
+      }
+      console.error('Error updating delegation:', error);
+      res.status(500).json({ message: "خطأ في تحديث التفويض" });
+    }
+  });
+
+  app.post("/api/lbac/delegations/:id/activate", authenticateToken, requireRole(['manager', 'admin']), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { approvedBy } = req.body;
+      if (!approvedBy) {
+        return res.status(400).json({ message: "معرف الموافق مطلوب" });
+      }
+      const delegation = await storage.activateTemporaryDelegation(req.params.id, approvedBy);
+      res.json(delegation);
+    } catch (error) {
+      console.error('Error activating delegation:', error);
+      res.status(500).json({ message: "خطأ في تفعيل التفويض" });
+    }
+  });
+
+  app.post("/api/lbac/delegations/:id/deactivate", authenticateToken, requireRole(['manager', 'admin']), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { reason } = req.body;
+      const delegation = await storage.deactivateTemporaryDelegation(req.params.id, reason);
+      res.json(delegation);
+    } catch (error) {
+      console.error('Error deactivating delegation:', error);
+      res.status(500).json({ message: "خطأ في إلغاء تفعيل التفويض" });
+    }
+  });
+
+  // Geographic Role Templates endpoints
+  app.get("/api/lbac/role-templates", authenticateToken, requireRole(['manager', 'admin']), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { templateName, applicableLevel, isActive } = req.query;
+      const templates = await storage.getGeographicRoleTemplates({
+        templateName: templateName as string,
+        applicableLevel: applicableLevel as string,
+        isActive: isActive ? isActive === 'true' : undefined
+      });
+      res.json(templates);
+    } catch (error) {
+      console.error('Error fetching role templates:', error);
+      res.status(500).json({ message: "خطأ في استرجاع قوالب الأدوار الجغرافية" });
+    }
+  });
+
+  app.get("/api/lbac/role-templates/:id", authenticateToken, requireRole(['manager', 'admin']), async (req: AuthenticatedRequest, res) => {
+    try {
+      const template = await storage.getGeographicRoleTemplate(req.params.id);
+      if (!template) {
+        return res.status(404).json({ message: "قالب الدور غير موجود" });
+      }
+      res.json(template);
+    } catch (error) {
+      console.error('Error fetching role template:', error);
+      res.status(500).json({ message: "خطأ في استرجاع قالب الدور" });
+    }
+  });
+
+  app.post("/api/lbac/role-templates", authenticateToken, requireRole(['admin']), validateRequest(insertGeographicRoleTemplatesSchema), async (req: AuthenticatedRequest, res) => {
+    try {
+      const templateData = insertGeographicRoleTemplatesSchema.parse(req.body);
+      const template = await storage.createGeographicRoleTemplate(templateData);
+      res.status(201).json(template);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "بيانات غير صحيحة", errors: error.errors });
+      }
+      console.error('Error creating role template:', error);
+      res.status(500).json({ message: "خطأ في إنشاء قالب الدور" });
+    }
+  });
+
+  app.post("/api/lbac/role-templates/:id/apply", authenticateToken, requireRole(['admin']), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { userId, targetGeographicId } = req.body;
+      if (!userId || !targetGeographicId) {
+        return res.status(400).json({ message: "معرف المستخدم والمنطقة الجغرافية مطلوبان" });
+      }
+      const assignment = await storage.applyGeographicRoleTemplate(req.params.id, userId, targetGeographicId);
+      res.json(assignment);
+    } catch (error) {
+      console.error('Error applying role template:', error);
+      res.status(500).json({ message: "خطأ في تطبيق قالب الدور" });
+    }
+  });
+
+  // User Geographic Assignment History endpoints (audit trail)
+  app.get("/api/lbac/assignment-history", authenticateToken, requireRole(['manager', 'admin']), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { userId, originalAssignmentId, changeType, changedBy, startDate, endDate } = req.query;
+      const dateRange = startDate && endDate ? { start: new Date(startDate as string), end: new Date(endDate as string) } : undefined;
+      
+      const history = await storage.getUserGeographicAssignmentHistory({
+        userId: userId as string,
+        originalAssignmentId: originalAssignmentId as string,
+        changeType: changeType as string,
+        changedBy: changedBy as string,
+        dateRange
+      });
+      res.json(history);
+    } catch (error) {
+      console.error('Error fetching assignment history:', error);
+      res.status(500).json({ message: "خطأ في استرجاع تاريخ التعيينات الجغرافية" });
+    }
+  });
+
+  app.get("/api/lbac/assignment-history/:id", authenticateToken, requireRole(['manager', 'admin']), async (req: AuthenticatedRequest, res) => {
+    try {
+      const historyRecord = await storage.getUserGeographicAssignmentHistoryRecord(req.params.id);
+      if (!historyRecord) {
+        return res.status(404).json({ message: "سجل التاريخ غير موجود" });
+      }
+      res.json(historyRecord);
+    } catch (error) {
+      console.error('Error fetching assignment history record:', error);
+      res.status(500).json({ message: "خطأ في استرجاع سجل التاريخ" });
+    }
+  });
+
+  // LBAC Access Audit Log endpoints
+  app.get("/api/lbac/access-audit", authenticateToken, requireRole(['admin']), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { userId, accessGranted, denialReason, governorateId, districtId, startDate, endDate } = req.query;
+      const dateRange = startDate && endDate ? { start: new Date(startDate as string), end: new Date(endDate as string) } : undefined;
+      
+      const auditLogs = await storage.getLbacAccessAuditLogs({
+        userId: userId as string,
+        accessGranted: accessGranted ? accessGranted === 'true' : undefined,
+        denialReason: denialReason as string,
+        governorateId: governorateId as string,
+        districtId: districtId as string,
+        dateRange
+      });
+      res.json(auditLogs);
+    } catch (error) {
+      console.error('Error fetching access audit logs:', error);
+      res.status(500).json({ message: "خطأ في استرجاع سجلات مراجعة الوصول" });
+    }
+  });
+
+  app.get("/api/lbac/access-audit/:id", authenticateToken, requireRole(['admin']), async (req: AuthenticatedRequest, res) => {
+    try {
+      const auditLog = await storage.getLbacAccessAuditLog(req.params.id);
+      if (!auditLog) {
+        return res.status(404).json({ message: "سجل المراجعة غير موجود" });
+      }
+      res.json(auditLog);
+    } catch (error) {
+      console.error('Error fetching access audit log:', error);
+      res.status(500).json({ message: "خطأ في استرجاع سجل المراجعة" });
     }
   });
 
