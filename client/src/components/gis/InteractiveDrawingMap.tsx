@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { MapContainer, TileLayer, useMap, useMapEvents, Marker, Polyline, Polygon } from 'react-leaflet';
 import L, { LatLng, LeafletMouseEvent } from 'leaflet';
 import DrawingToolbar, { type DrawingMode } from './DrawingToolbar';
+import GeographicBoundaryLayer from './GeographicBoundaryLayer';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Globe, Map as MapIcon, Layers, Shapes } from 'lucide-react';
@@ -41,6 +42,10 @@ interface InteractiveDrawingMapProps {
   center?: [number, number];
   zoom?: number;
   isEnabled?: boolean;
+  // Geographic boundary props
+  selectedGovernorateId?: string;
+  selectedDistrictId?: string;
+  onBoundaryClick?: (type: 'governorate' | 'district', id: string, name: string) => void;
 }
 
 type MapType = 'streets' | 'satellite' | 'hybrid' | 'terrain';
@@ -570,7 +575,10 @@ export default function InteractiveDrawingMap({
   height = '500px',
   center = [15.3694, 44.1910], // Yemen center
   zoom = 7,
-  isEnabled = true
+  isEnabled = true,
+  selectedGovernorateId,
+  selectedDistrictId,
+  onBoundaryClick
 }: InteractiveDrawingMapProps) {
   const [currentMode, setCurrentMode] = useState<DrawingMode>('pan');
   const [drawingState, setDrawingState] = useState<DrawingState>({
@@ -666,6 +674,13 @@ export default function InteractiveDrawingMap({
             isEnabled={isEnabled}
             drawingState={drawingState}
             setDrawingState={setDrawingState}
+          />
+          
+          {/* Geographic Boundaries */}
+          <GeographicBoundaryLayer
+            selectedGovernorateId={selectedGovernorateId}
+            selectedDistrictId={selectedDistrictId}
+            onBoundaryClick={onBoundaryClick}
           />
           
           {/* Existing Features */}

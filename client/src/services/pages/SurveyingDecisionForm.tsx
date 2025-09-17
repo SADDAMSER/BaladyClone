@@ -629,6 +629,28 @@ export default function SurveyingDecisionForm() {
                 features={formData.drawnFeatures}
                 height="600px"
                 isEnabled={true}
+                selectedGovernorateId={formData.governorate}
+                selectedDistrictId={formData.district}
+                onBoundaryClick={(type, id, name) => {
+                  if (type === 'governorate') {
+                    const selectedGov = governorates.find(g => g.id === id);
+                    if (selectedGov) {
+                      handleGovernorateChange(id);
+                      toast({
+                        title: "تم اختيار المحافظة",
+                        description: `تم اختيار محافظة ${name}`,
+                        variant: "default",
+                      });
+                    }
+                  } else if (type === 'district') {
+                    setFormData(prev => ({ ...prev, district: id }));
+                    toast({
+                      title: "تم اختيار المديرية",
+                      description: `تم اختيار مديرية ${name}`,
+                      variant: "default",
+                    });
+                  }
+                }}
               />
               
               {formData.drawnFeatures.length === 0 && (
