@@ -29,6 +29,7 @@ import { DEFAULT_PERMISSIONS } from "@shared/defaults";
 import { PaginationParams, validatePaginationParams } from "./pagination";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -36,6 +37,20 @@ if (!JWT_SECRET) {
 }
 // Type assertion to ensure TypeScript knows JWT_SECRET is defined
 const jwtSecret: string = JWT_SECRET;
+
+// Helper function to generate consistent UUIDs for mock users
+function generateMockUserUuid(username: string): string {
+  // Create a consistent UUID based on the username
+  const hash = crypto.createHash('sha256').update(`mock-user-${username}`).digest('hex');
+  // Convert to UUID v4 format
+  return [
+    hash.slice(0, 8),
+    hash.slice(8, 12),
+    '4' + hash.slice(13, 16), // Version 4
+    ((parseInt(hash.slice(16, 17), 16) & 0x3) | 0x8).toString(16) + hash.slice(17, 20), // Variant bits
+    hash.slice(20, 32)
+  ].join('-');
+}
 
 interface AuthenticatedRequest extends Request {
   user?: {
@@ -679,9 +694,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log('Mock user found, creating token for:', mockUser.username);
         
         // Create JWT token for mock user
+        // Generate consistent UUID for mock users
+        const mockUuid = generateMockUserUuid(mockUser.username);
         const token = jwt.sign(
           { 
-            id: `mock-${mockUser.username}`, 
+            id: mockUuid, 
             username: mockUser.username, 
             role: mockUser.role,
             roleCodes: [mockUser.role]
