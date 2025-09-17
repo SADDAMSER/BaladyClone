@@ -35,7 +35,8 @@ interface SurveyFormData {
   email: string;
   
   // معلومات الموقع
-  governorate: string;
+  governorate: string; // governorate ID
+  governorateCode: string; // governorate code for display
   district: string;
   area: string;
   landNumber: string;
@@ -82,6 +83,7 @@ export default function SurveyingDecisionForm() {
     contactPhone: '',
     email: '',
     governorate: '',
+    governorateCode: '',
     district: '',
     area: '',
     landNumber: '',
@@ -135,6 +137,7 @@ export default function SurveyingDecisionForm() {
         contactPhone: '',
         email: '',
         governorate: '',
+        governorateCode: '',
         district: '',
         area: '',
         landNumber: '',
@@ -167,9 +170,12 @@ export default function SurveyingDecisionForm() {
   };
 
   const handleGovernorateChange = (value: string) => {
+    // Find the selected governorate to get both ID and code
+    const selectedGov = governorates.find(gov => gov.id === value);
     setFormData(prev => ({
       ...prev,
-      governorate: value,
+      governorate: value, // Save governorate ID
+      governorateCode: selectedGov?.code || '', // Save governorate code
       district: '' // Reset district when governorate changes
     }));
   };
@@ -242,7 +248,7 @@ export default function SurveyingDecisionForm() {
         plotInfo: {
           landNumber: formData.landNumber,
           plotNumber: formData.plotNumber,
-          governorate: formData.governorate,
+          governorate: formData.governorateCode, // Use code for display/storage
           district: formData.district,
           area: formData.area,
           coordinates: formData.coordinates,
@@ -429,7 +435,7 @@ export default function SurveyingDecisionForm() {
                         <SelectItem value="error" disabled>خطأ في تحميل المحافظات</SelectItem>
                       ) : (
                         governorates.map((gov) => (
-                          <SelectItem key={gov.id} value={gov.code} data-testid={`option-governorate-${gov.code}`}>
+                          <SelectItem key={gov.id} value={gov.id} data-testid={`option-governorate-${gov.code}`}>
                             {gov.nameAr}
                           </SelectItem>
                         ))
@@ -453,7 +459,7 @@ export default function SurveyingDecisionForm() {
                         <SelectItem value="no-districts" disabled>لا توجد مديريات متاحة</SelectItem>
                       ) : (
                         districts.map((district) => (
-                          <SelectItem key={district.id} value={district.code || ''} data-testid={`option-district-${district.code || 'no-code'}`}>
+                          <SelectItem key={district.id} value={district.code || district.id} data-testid={`option-district-${district.code || district.id}`}>
                             {district.nameAr}
                           </SelectItem>
                         ))
