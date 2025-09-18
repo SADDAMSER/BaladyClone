@@ -6,6 +6,8 @@ import 'package:dreamflow_app/screens/main_navigation.dart';
 import 'package:dreamflow_app/services/database_service.dart';
 import 'package:dreamflow_app/services/sync_service.dart';
 import 'package:dreamflow_app/services/auth_service.dart';
+import 'package:dreamflow_app/services/secure_auth_service.dart';
+import 'package:dreamflow_app/services/real_sync_service.dart';
 
 void main() {
   runZonedGuarded(() async {
@@ -17,7 +19,8 @@ void main() {
     };
     await DatabaseService.init();
     await SyncService.init();
-    await AuthService.init();
+    await SecureAuthService.init();
+    await RealSyncService.init();
     // ignore: avoid_print
     print('App starting...');
     runApp(const BinaaSurveyorApp());
