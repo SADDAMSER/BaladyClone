@@ -7602,6 +7602,165 @@ export class DatabaseStorage implements IStorage {
       sloMeasurements,
     };
   }
+
+  // =============================================
+  // MOBILE SURVEY ATTACHMENTS MANAGEMENT
+  // =============================================
+
+  // Create mobile survey attachment record
+  async createMobileSurveyAttachment(data: any, metadata: any = {}): Promise<any> {
+    try {
+      // Import mobileSurveyAttachments from schema
+      const { mobileSurveyAttachments } = await import("@shared/schema");
+      
+      const newAttachment = await db.insert(mobileSurveyAttachments).values(data).returning();
+      
+      // Create change tracking entry if metadata provided
+      if (metadata.userId) {
+        await this.createChangeTrackingEntry('mobile_survey_attachments', newAttachment[0].id, 'created', {
+          userId: metadata.userId,
+          deviceId: metadata.deviceId,
+          geographic: metadata.geographic,
+          recordSnapshot: newAttachment[0]
+        });
+      }
+      
+      return newAttachment[0];
+    } catch (error) {
+      console.error('Failed to create mobile survey attachment:', error);
+      throw error;
+    }
+  }
+
+  // Update mobile survey attachment record
+  async updateMobileSurveyAttachment(id: string, data: any, metadata: any = {}): Promise<any> {
+    try {
+      const { mobileSurveyAttachments } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      
+      const updatedAttachment = await db.update(mobileSurveyAttachments)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(mobileSurveyAttachments.id, id))
+        .returning();
+      
+      if (updatedAttachment.length === 0) {
+        throw new Error('Attachment not found');
+      }
+      
+      // Create change tracking entry if metadata provided
+      if (metadata.userId) {
+        await this.createChangeTrackingEntry('mobile_survey_attachments', id, 'updated', {
+          userId: metadata.userId,
+          deviceId: metadata.deviceId,
+          geographic: metadata.geographic,
+          recordSnapshot: updatedAttachment[0]
+        });
+      }
+      
+      return updatedAttachment[0];
+    } catch (error) {
+      console.error('Failed to update mobile survey attachment:', error);
+      throw error;
+    }
+  }
+
+  // Delete mobile survey attachment (soft delete)
+  async deleteMobileSurveyAttachment(id: string, metadata: any = {}): Promise<boolean> {
+    try {
+      const { mobileSurveyAttachments, deletionTombstones } = await import("@shared/schema");
+      const { eq, sql } = await import("drizzle-orm");
+      
+      // Get attachment before deletion for tombstone
+      const attachment = await db.select()
+        .from(mobileSurveyAttachments)
+        .where(eq(mobileSurveyAttachments.id, id))
+        .limit(1);
+      
+      if (attachment.length === 0) {
+        return false;
+      }
+      
+      // Soft delete by marking as deleted
+      await db.update(mobileSurveyAttachments)
+        .set({ 
+          isDeleted: true, 
+          deletedAt: new Date(),
+          updatedAt: new Date() 
+        })
+        .where(eq(mobileSurveyAttachments.id, id));
+      
+      // Create deletion tombstone for sync
+      await db.insert(deletionTombstones).values({
+        tableName: 'mobile_survey_attachments',
+        recordId: id,
+        deletionReason: 'user_deleted',
+        originalData: attachment[0],
+        governorateId: attachment[0].captureLocation?.governorateId,
+        districtId: attachment[0].captureLocation?.districtId,
+        deletedById: metadata.userId,
+        syncVersion: '1',
+        isActive: true,
+        expiresAt: sql`NOW() + INTERVAL '90 days'` // Keep tombstone for 90 days
+      });
+      
+      // Create change tracking entry if metadata provided
+      if (metadata.userId) {
+        await this.createChangeTrackingEntry('mobile_survey_attachments', id, 'deleted', {
+          userId: metadata.userId,
+          deviceId: metadata.deviceId,
+          geographic: metadata.geographic,
+          recordSnapshot: null
+        });
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Failed to delete mobile survey attachment:', error);
+      throw error;
+    }
+  }
+
+  // Get mobile survey attachment by ID
+  async getMobileSurveyAttachment(id: string): Promise<any | null> {
+    try {
+      const { mobileSurveyAttachments } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      
+      const result = await db.select()
+        .from(mobileSurveyAttachments)
+        .where(eq(mobileSurveyAttachments.id, id))
+        .limit(1);
+      
+      return result.length > 0 ? result[0] : null;
+    } catch (error) {
+      console.error('Failed to get mobile survey attachment:', error);
+      return null;
+    }
+  }
+
+  // Get attachments for a session
+  async getMobileSurveyAttachmentsBySession(sessionId: string, options: { includeDeleted?: boolean } = {}): Promise<any[]> {
+    try {
+      const { mobileSurveyAttachments } = await import("@shared/schema");
+      const { eq, and } = await import("drizzle-orm");
+      
+      const conditions = [eq(mobileSurveyAttachments.sessionId, sessionId)];
+      
+      if (!options.includeDeleted) {
+        conditions.push(eq(mobileSurveyAttachments.isDeleted, false));
+      }
+      
+      const result = await db.select()
+        .from(mobileSurveyAttachments)
+        .where(and(...conditions))
+        .orderBy(mobileSurveyAttachments.createdAt);
+      
+      return result;
+    } catch (error) {
+      console.error('Failed to get session attachments:', error);
+      return [];
+    }
+  }
 }
 
 export const storage = new DatabaseStorage();

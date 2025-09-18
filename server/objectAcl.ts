@@ -118,20 +118,14 @@ class GeographicScopeAccessGroup extends BaseObjectAccessGroup {
       // Parse geographic scope from id (JSON string)
       const scope = JSON.parse(this.id);
       
-      // This would integrate with the existing LBAC system
-      // For now, we'll implement a simplified check
-      // In production, this should call getUserGeographicAssignments()
+      // SECURITY FIX: Use dedicated AccessControlService (no circular dependency)
+      const { accessControlService } = await import('./accessControlService');
       
-      // TODO: Integrate with actual LBAC validation
-      // const userAssignments = await getUserGeographicAssignments(userId);
-      // return userAssignments.some(assignment => 
-      //   matchesGeographicScope(assignment, scope)
-      // );
+      return await accessControlService.hasGeographicAccess(userId, scope);
       
-      return true; // Simplified for MVP
     } catch (error) {
       console.error('Error checking geographic scope membership:', error);
-      return false;
+      return false; // SECURE DEFAULT: Deny access on error
     }
   }
 }
@@ -144,14 +138,14 @@ class DepartmentMembersAccessGroup extends BaseObjectAccessGroup {
 
   async hasMember(userId: string): Promise<boolean> {
     try {
-      // TODO: Integrate with department membership system
-      // const userDepartments = await getUserDepartments(userId);
-      // return userDepartments.some(dept => dept.id === this.id);
+      // SECURITY FIX: Use dedicated AccessControlService
+      const { accessControlService } = await import('./accessControlService');
       
-      return true; // Simplified for MVP
+      return await accessControlService.isDepartmentMember(userId, this.id);
+      
     } catch (error) {
       console.error('Error checking department membership:', error);
-      return false;
+      return false; // SECURE DEFAULT: Deny access on error
     }
   }
 }
@@ -164,14 +158,14 @@ class SurveyorGroupAccessGroup extends BaseObjectAccessGroup {
 
   async hasMember(userId: string): Promise<boolean> {
     try {
-      // TODO: Integrate with surveyor certification system
-      // const surveyorCertifications = await getSurveyorCertifications(userId);
-      // return surveyorCertifications.some(cert => cert.regionId === this.id);
+      // SECURITY FIX: Use dedicated AccessControlService
+      const { accessControlService } = await import('./accessControlService');
       
-      return true; // Simplified for MVP
+      return await accessControlService.isSurveyorOrEngineer(userId);
+      
     } catch (error) {
       console.error('Error checking surveyor group membership:', error);
-      return false;
+      return false; // SECURE DEFAULT: Deny access on error
     }
   }
 }
@@ -184,14 +178,14 @@ class ApplicationStakeholdersAccessGroup extends BaseObjectAccessGroup {
 
   async hasMember(userId: string): Promise<boolean> {
     try {
-      // TODO: Integrate with application stakeholder system
-      // const applicationStakeholders = await getApplicationStakeholders(this.id);
-      // return applicationStakeholders.some(stakeholder => stakeholder.userId === userId);
+      // SECURITY FIX: Use dedicated AccessControlService
+      const { accessControlService } = await import('./accessControlService');
       
-      return true; // Simplified for MVP
+      return await accessControlService.isApplicationStakeholder(userId, this.id);
+      
     } catch (error) {
       console.error('Error checking application stakeholder membership:', error);
-      return false;
+      return false; // SECURE DEFAULT: Deny access on error
     }
   }
 }

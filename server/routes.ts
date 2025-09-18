@@ -30,6 +30,9 @@ import { PaginationParams, validatePaginationParams } from "./pagination";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
+// Object Storage imports for secure file management
+import { ObjectStorageService, ObjectNotFoundError } from './objectStorage';
+import { ObjectPermission, ObjectAccessGroupType } from './objectAcl';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -6442,6 +6445,322 @@ export async function registerRoutes(app: Express): Promise<Server> {
           message: 'Failed to apply sync changes'
         }
       });
+    }
+  });
+
+  // =============================================
+  // SECURE FILE MANAGEMENT ENDPOINTS
+  // =============================================
+
+  // Secure file management endpoints using imported services
+
+  // Serve protected mobile survey attachments
+  app.get('/mobile-attachments/:attachmentId(*)', authenticateMobileAccess, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const user = req.user!;
+      const attachmentId = req.params.attachmentId;
+      const objectStorageService = new ObjectStorageService();
+      
+      // Get attachment metadata from database for LBAC validation
+      const attachment = await db.select()
+        .from(mobileSurveyAttachments)
+        .where(eq(mobileSurveyAttachments.id, attachmentId))
+        .limit(1);
+      
+      if (attachment.length === 0) {
+        return res.status(404).json({ error: 'Attachment not found' });
+      }
+      
+      const attachmentRecord = attachment[0];
+      
+      // LBAC validation - user must have access to the session's geographic scope
+      const hasAccess = await validateLBACAccess(user.id, 'sessions', attachmentRecord.sessionId, 'read');
+      if (!hasAccess) {
+        return res.status(403).json({ 
+          error: 'Access denied',
+          code: 'LBAC_VIOLATION' 
+        });
+      }
+      
+      // Get file from object storage
+      try {
+        const objectFile = await objectStorageService.getMobileSurveyAttachmentFile(attachmentId);
+        const canAccess = await objectStorageService.canAccessMobileSurveyAttachment({
+          userId: user.id,
+          attachmentId,
+          requestedPermission: ObjectPermission.READ,
+        });
+        
+        if (!canAccess) {
+          return res.status(403).json({ error: 'File access denied' });
+        }
+        
+        objectStorageService.downloadObject(objectFile, res);
+      } catch (error) {
+        console.error('Error accessing attachment file:', error);
+        if (error instanceof ObjectNotFoundError) {
+          return res.status(404).json({ error: 'File not found' });
+        }
+        return res.status(500).json({ error: 'File access error' });
+      }
+      
+    } catch (error) {
+      console.error('Error serving mobile attachment:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Get upload URL for mobile survey attachment
+  app.post('/api/mobile/v1/attachments/upload-url', authenticateMobileAccess, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const user = req.user!;
+      const { sessionId, fileName, fileSize, mimeType, attachmentType } = req.body;
+      
+      // Validate required fields
+      if (!sessionId || !fileName || !fileSize || !mimeType || !attachmentType) {
+        return res.status(400).json({
+          error: 'Missing required fields',
+          required: ['sessionId', 'fileName', 'fileSize', 'mimeType', 'attachmentType']
+        });
+      }
+      
+      // Validate file size (max 50MB as per schema constraint)
+      if (fileSize > 52428800) {
+        return res.status(400).json({
+          error: 'File size exceeds maximum limit of 50MB'
+        });
+      }
+      
+      // LBAC validation - user must have write access to the session
+      const hasAccess = await validateLBACAccess(user.id, 'sessions', sessionId, 'update');
+      if (!hasAccess) {
+        return res.status(403).json({ 
+          error: 'Access denied to upload to this session',
+          code: 'LBAC_VIOLATION' 
+        });
+      }
+      
+      // Get session details for geographic context
+      const sessionResult = await db.select()
+        .from(mobileSurveySessions)
+        .where(eq(mobileSurveySessions.id, sessionId))
+        .limit(1);
+      
+      if (sessionResult.length === 0) {
+        return res.status(404).json({ error: 'Survey session not found' });
+      }
+      
+      const session = sessionResult[0];
+      
+      // Create attachment record in database (pending upload)
+      const attachmentId = randomUUID();
+      const fileExtension = fileName.split('.').pop();
+      
+      const newAttachment = await db.insert(mobileSurveyAttachments).values({
+        id: attachmentId,
+        sessionId,
+        fileName: `${attachmentId}.${fileExtension}`,
+        originalFileName: fileName,
+        fileType: mimeType.startsWith('image/') ? 'image' : 
+                 mimeType.startsWith('video/') ? 'video' : 
+                 mimeType.startsWith('audio/') ? 'audio' : 'document',
+        mimeType,
+        fileSize,
+        attachmentType,
+        isUploaded: false,
+        capturedAt: new Date(),
+      }).returning();
+      
+      // Generate presigned upload URL
+      const objectStorageService = new ObjectStorageService();
+      const uploadURL = await objectStorageService.getMobileSurveyAttachmentUploadURL(
+        attachmentId, 
+        fileExtension
+      );
+      
+      res.json({
+        success: true,
+        data: {
+          attachmentId,
+          uploadURL,
+          expiresIn: 900, // 15 minutes
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error generating upload URL:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Confirm attachment upload and set ACL policy
+  app.post('/api/mobile/v1/attachments/:attachmentId/confirm', authenticateMobileAccess, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const user = req.user!;
+      const attachmentId = req.params.attachmentId;
+      const { actualFileSize, checksum } = req.body;
+      
+      // Get attachment record
+      const attachmentResult = await db.select()
+        .from(mobileSurveyAttachments)
+        .where(eq(mobileSurveyAttachments.id, attachmentId))
+        .limit(1);
+      
+      if (attachmentResult.length === 0) {
+        return res.status(404).json({ error: 'Attachment not found' });
+      }
+      
+      const attachment = attachmentResult[0];
+      
+      // LBAC validation
+      const hasAccess = await validateLBACAccess(user.id, 'sessions', attachment.sessionId, 'update');
+      if (!hasAccess) {
+        return res.status(403).json({ 
+          error: 'Access denied',
+          code: 'LBAC_VIOLATION' 
+        });
+      }
+      
+      // Get session and application details for geographic context
+      const sessionResult = await db.select()
+        .from(mobileSurveySessions)
+        .where(eq(mobileSurveySessions.id, attachment.sessionId))
+        .limit(1);
+      
+      if (sessionResult.length === 0) {
+        return res.status(404).json({ error: 'Session not found' });
+      }
+      
+      const session = sessionResult[0];
+      
+      try {
+        // Set ACL policy for the uploaded file
+        const objectStorageService = new ObjectStorageService();
+        const storageUrl = `https://storage.googleapis.com/${process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID}/${process.env.PRIVATE_OBJECT_DIR}/mobile-survey/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${attachmentId}.${attachment.originalFileName.split('.').pop()}`;
+        
+        const normalizedPath = await objectStorageService.trySetAttachmentAclPolicy(
+          storageUrl,
+          {
+            owner: user.id,
+            visibility: "private", // Government survey files are always private
+            classification: "internal", // Government internal classification
+            applicationId: session.applicationId,
+            sessionId: session.id,
+            geographicScope: {
+              governorateId: session.governorateId,
+              districtId: session.districtId,
+              subDistrictId: session.subDistrictId,
+              neighborhoodId: session.neighborhoodId,
+            },
+            aclRules: [{
+              group: {
+                type: ObjectAccessGroupType.GEOGRAPHIC_SCOPE,
+                id: JSON.stringify({
+                  governorateId: session.governorateId,
+                  districtId: session.districtId,
+                  subDistrictId: session.subDistrictId,
+                  neighborhoodId: session.neighborhoodId,
+                })
+              },
+              permission: ObjectPermission.READ
+            }],
+            retentionPolicy: {
+              retentionYears: 10, // Government records retention
+              requiresApprovalForDeletion: true
+            }
+          }
+        );
+        
+        // Update attachment record
+        const updatedAttachment = await db.update(mobileSurveyAttachments)
+          .set({
+            isUploaded: true,
+            uploadedAt: new Date(),
+            storageUrl: normalizedPath,
+            fileSize: actualFileSize || attachment.fileSize,
+            updatedAt: new Date(),
+          })
+          .where(eq(mobileSurveyAttachments.id, attachmentId))
+          .returning();
+        
+        // Create change tracking entry for sync
+        await storage.createChangeTrackingEntry('mobile_survey_attachments', attachmentId, 'created', {
+          userId: user.id,
+          deviceId: req.deviceId,
+          geographic: {
+            governorateId: session.governorateId,
+            districtId: session.districtId,
+          },
+          recordSnapshot: updatedAttachment[0]
+        });
+        
+        res.json({
+          success: true,
+          data: {
+            attachment: updatedAttachment[0],
+            downloadUrl: normalizedPath
+          }
+        });
+        
+      } catch (error) {
+        console.error('Error setting attachment ACL policy:', error);
+        // Mark upload as failed but don't fail the entire request
+        await db.update(mobileSurveyAttachments)
+          .set({
+            uploadRetryCount: attachment.uploadRetryCount + 1,
+            updatedAt: new Date(),
+          })
+          .where(eq(mobileSurveyAttachments.id, attachmentId));
+        
+        res.status(500).json({ 
+          error: 'Failed to finalize upload',
+          retryable: attachment.uploadRetryCount < 5
+        });
+      }
+      
+    } catch (error) {
+      console.error('Error confirming attachment upload:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Get attachments for a mobile survey session
+  app.get('/api/mobile/v1/sessions/:sessionId/attachments', authenticateMobileAccess, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const user = req.user!;
+      const sessionId = req.params.sessionId;
+      
+      // LBAC validation
+      const hasAccess = await validateLBACAccess(user.id, 'sessions', sessionId, 'read');
+      if (!hasAccess) {
+        return res.status(403).json({ 
+          error: 'Access denied',
+          code: 'LBAC_VIOLATION' 
+        });
+      }
+      
+      // Get attachments
+      const attachments = await db.select()
+        .from(mobileSurveyAttachments)
+        .where(and(
+          eq(mobileSurveyAttachments.sessionId, sessionId),
+          eq(mobileSurveyAttachments.isUploaded, true)
+        ))
+        .orderBy(desc(mobileSurveyAttachments.createdAt));
+      
+      res.json({
+        success: true,
+        data: {
+          attachments: attachments.map(attachment => ({
+            ...attachment,
+            downloadUrl: `/mobile-attachments/${attachment.id}`
+          }))
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error fetching session attachments:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
