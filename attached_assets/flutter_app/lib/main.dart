@@ -114,7 +114,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
+                    color: Colors.black.withOpacity(0.1),
                     blurRadius: 20,
                     offset: const Offset(0, 8),
                   ),
@@ -142,7 +142,7 @@ class _SplashScreenState extends State<SplashScreen> {
             Text(
               'Yemen Construction Platform',
               style: theme.textTheme.titleMedium?.copyWith(
-                color: Colors.white.withValues(alpha: 0.9),
+                color: Colors.white.withOpacity(0.9),
               ),
             ),
             

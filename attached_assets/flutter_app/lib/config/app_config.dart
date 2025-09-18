@@ -1,5 +1,6 @@
 class AppConfig {
-  static const String backendUrl = 'http://localhost:5000';
+  // Development URL - same domain for Replit environment
+  static const String backendUrl = '';
   static const String appName = 'بنّاء المساحي - Bina\'a Al-Yaman Surveyor';
   static const String version = '1.0.0';
   static const int requestTimeoutSeconds = 30;

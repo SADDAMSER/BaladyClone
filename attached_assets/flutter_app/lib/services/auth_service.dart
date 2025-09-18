@@ -362,6 +362,9 @@ class AuthService {
     if (deviceId == null) {
       deviceId = _generateDeviceId();
       await prefs.setString(_deviceIdKey, deviceId);
+      print('📱 Generated new device ID: $deviceId');
+    } else {
+      print('📱 Using existing device ID: $deviceId');
     }
 
     // Get platform information

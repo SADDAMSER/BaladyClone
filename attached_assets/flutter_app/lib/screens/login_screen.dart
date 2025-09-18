@@ -88,7 +88,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: theme.colorScheme.primary.withValues(alpha: 0.3),
+                      color: theme.colorScheme.primary.withOpacity(0.3),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     ),
@@ -117,7 +117,7 @@ class _LoginScreenState extends State<LoginScreen> {
               Text(
                 'Bina\'a Al-Yaman Surveyor',
                 style: theme.textTheme.titleMedium?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                  color: theme.colorScheme.onSurface.withOpacity(0.7),
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -143,7 +143,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(color: theme.colorScheme.outline.withValues(alpha: 0.5)),
+                          borderSide: BorderSide(color: theme.colorScheme.outline.withOpacity(0.5)),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
@@ -186,7 +186,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(color: theme.colorScheme.outline.withValues(alpha: 0.5)),
+                          borderSide: BorderSide(color: theme.colorScheme.outline.withOpacity(0.5)),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
