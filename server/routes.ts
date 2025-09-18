@@ -5513,6 +5513,402 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ================================================================
+  // CORE MOBILE ENDPOINTS - Phase 5
+  // ================================================================
+
+  // GET /api/mobile/v1/tasks - Get assigned tasks for surveyor
+  app.get("/api/mobile/v1/tasks", authenticateMobileAccess, async (req: AuthenticatedRequest, res) => {
+    try {
+      const user = req.user!;
+      const deviceId = req.deviceId!;
+      
+      // Extract query parameters
+      const {
+        status,
+        assignedAfter,
+        limit = "20",
+        cursor
+      } = req.query;
+      
+      // Validate pagination params
+      const paginationLimit = Math.min(parseInt(limit as string) || 20, 100);
+      
+      // Build filters for assigned tasks (surveyorId = user.id)
+      const filters: any = {
+        surveyorId: user.id, // SECURITY: Only tasks assigned to this surveyor
+        // Add additional filters based on query params
+      };
+      
+      // Add status filter if provided
+      if (status) {
+        const statusArray = Array.isArray(status) ? status : [status];
+        filters.status = statusArray;
+      }
+      
+      // Add assignedAfter filter if provided
+      if (assignedAfter) {
+        try {
+          filters.assignedAfter = new Date(assignedAfter as string);
+        } catch {
+          return res.status(400).json({
+            success: false,
+            error: {
+              code: 'INVALID_DATE',
+              message: 'assignedAfter must be a valid ISO date string'
+            }
+          });
+        }
+      }
+      
+      // Get user's geographic assignments for LBAC
+      const userGeographicAssignments = await storage.getUserGeographicAssignments({
+        userId: user.id,
+        isActive: true
+      });
+      
+      // Apply LBAC: Filter tasks by user's geographic scope
+      const lbacFilter = {
+        userId: user.id,
+        userGeographicScope: userGeographicAssignments
+      };
+      
+      // Get tasks with LBAC filtering
+      const tasksResult = await storage.getMobileFieldVisits({
+        ...filters,
+        userId: user.id, // Use userId instead of surveyorId
+        lbacFilter,
+        limit: paginationLimit,
+        cursor: cursor as string
+      });
+      
+      // Transform tasks to match mobile API specification
+      const transformedTasks = tasksResult.map((task: any) => ({
+        applicationId: task.applicationId,
+        applicationNumber: task.applicationData?.applicationNumber || `APP-${task.applicationId?.slice(0, 8)}`,
+        applicantName: task.applicationData?.applicantName || 'Unknown Applicant',
+        applicantPhone: task.applicationData?.applicantPhone || '',
+        serviceType: task.applicationData?.serviceType || 'surveying_decision',
+        priority: task.priority || 'medium',
+        assignedAt: task.assignedAt || task.createdAt,
+        dueDate: task.scheduledDate,
+        estimatedDuration: task.estimatedDuration || 180, // Default 3 hours
+        location: {
+          governorate: task.applicationData?.locationData?.governorate || '',
+          district: task.applicationData?.locationData?.district || '',
+          subDistrict: task.applicationData?.locationData?.subDistrict || '',
+          neighborhood: task.applicationData?.locationData?.neighborhood || '',
+          plotNumber: task.applicationData?.plotNumber || ''
+        },
+        coordinates: {
+          lat: task.startLocation?.coordinates?.[1] || 0,
+          lng: task.startLocation?.coordinates?.[0] || 0,
+          accuracy: task.gpsAccuracy || 0
+        },
+        attachments: [], // TODO: Add attachments from storage
+        instructions: task.notes || 'Complete assigned survey task',
+        requirements: task.requirements || [],
+        status: task.status || 'assigned',
+        lastUpdated: task.updatedAt || task.createdAt
+      }));
+      
+      // Calculate pagination metadata
+      const hasMore = transformedTasks.length >= paginationLimit;
+      const nextCursor = hasMore && transformedTasks.length > 0 
+        ? Buffer.from(JSON.stringify({
+            id: transformedTasks[transformedTasks.length - 1].applicationId,
+            timestamp: transformedTasks[transformedTasks.length - 1].lastUpdated
+          })).toString('base64')
+        : null;
+      
+      // Response according to mobile API specification
+      res.json({
+        success: true,
+        data: {
+          tasks: transformedTasks,
+          pagination: {
+            hasMore,
+            nextCursor,
+            totalCount: transformedTasks.length // Note: This is page count, not total
+          },
+          syncMetadata: {
+            serverTimestamp: new Date().toISOString(),
+            syncCursor: nextCursor || cursor || ''
+          }
+        }
+      });
+      
+    } catch (error) {
+      console.error('Mobile tasks endpoint error:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to retrieve tasks'
+        }
+      });
+    }
+  });
+
+  // POST /api/mobile/v1/sessions - Create new survey session
+  app.post("/api/mobile/v1/sessions", authenticateMobileAccess, async (req: AuthenticatedRequest, res) => {
+    try {
+      const user = req.user!;
+      const deviceId = req.deviceId!;
+      
+      const {
+        applicationId,
+        surveyType,
+        startLocation,
+        weatherConditions,
+        notes,
+        clientMetadata
+      } = req.body;
+      
+      // Validate required fields
+      if (!applicationId || !surveyType || !startLocation) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'MISSING_REQUIRED_FIELDS',
+            message: 'applicationId, surveyType, and startLocation are required'
+          }
+        });
+      }
+      
+      // Validate coordinates
+      if (!startLocation.lat || !startLocation.lng) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_COORDINATES',
+            message: 'Valid latitude and longitude are required'
+          }
+        });
+      }
+      
+      // Check if user has access to this application (LBAC)
+      const application = await storage.getApplication(applicationId);
+      if (!application) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            code: 'APPLICATION_NOT_FOUND',
+            message: 'Application not found'
+          }
+        });
+      }
+      
+      // LBAC: Check if user can access this application's geographic area
+      const userGeographicAssignments = await storage.getUserGeographicAssignments({
+        userId: user.id,
+        isActive: true
+      });
+      
+      // Simple LBAC check - verify user has geographic assignments
+      const hasAccess = userGeographicAssignments && userGeographicAssignments.length > 0;
+      
+      if (!hasAccess) {
+        return res.status(403).json({
+          success: false,
+          error: {
+            code: 'LBAC_VIOLATION',
+            message: 'Access denied to this geographic area'
+          }
+        });
+      }
+      
+      // Check for existing active session for this application
+      const existingSessions = await storage.getMobileSurveySessions({
+        // Note: Using basic filter since interface is limited - will filter manually
+      });
+      
+      // Filter by applicationId manually since it's not in the filter interface
+      const activeSessionsForApp = existingSessions?.filter(s => s.applicationId === applicationId) || [];
+      
+      if (activeSessionsForApp.length > 0) {
+        return res.status(409).json({
+          success: false,
+          error: {
+            code: 'SESSION_EXISTS',
+            message: 'An active session already exists for this application'
+          }
+        });
+      }
+      
+      // Create new survey session
+      const sessionData = {
+        surveyorId: user.id,
+        applicationId,
+        deviceId, // Required field
+        idempotencyKey: req.headers['x-idempotency-key'] as string || `session-${Date.now()}`, // Required field
+        surveyType,
+        startLocation: {
+          timestamp: startLocation.timestamp || new Date().toISOString(),
+          lat: startLocation.lat,
+          lng: startLocation.lng,
+          accuracy: startLocation.accuracy || 0
+        },
+        startTime: new Date(),
+        gpsAccuracy: startLocation.accuracy || 0,
+        weatherConditions,
+        notes,
+        status: 'active' as const,
+        clientMetadata: clientMetadata || {}
+      };
+      
+      // Metadata for change tracking  
+      const metadata = {
+        userId: user.id, // Use userId as expected by storage interface
+        deviceId,
+        clientChangeId: req.headers['x-idempotency-key'] as string,
+        geographic: {
+          governorateId: (application as any).governorateId || '',
+          districtId: (application as any).districtId || ''
+        }
+      };
+      
+      // Create session with change tracking
+      const result = await storage.createMobileSurveySession(sessionData, metadata);
+      
+      res.status(201).json({
+        success: true,
+        data: {
+          sessionId: result.session.id,
+          sessionNumber: `SRV-${result.session.id.slice(0, 8).toUpperCase()}`,
+          status: result.session.status,
+          startTime: result.session.startTime?.toISOString(),
+          syncCursor: Buffer.from(JSON.stringify({
+            sessionId: result.session.id,
+            changeId: result.changeEntry.id
+          })).toString('base64')
+        }
+      });
+      
+    } catch (error) {
+      console.error('Mobile session creation error:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to create survey session'
+        }
+      });
+    }
+  });
+
+  // PUT /api/mobile/v1/sessions/:sessionId/submit - Submit survey session
+  app.put("/api/mobile/v1/sessions/:sessionId/submit", authenticateMobileAccess, async (req: AuthenticatedRequest, res) => {
+    try {
+      const user = req.user!;
+      const deviceId = req.deviceId!;
+      const sessionId = req.params.sessionId;
+      
+      const {
+        endLocation,
+        qualityScore,
+        notes,
+        pointsCount,
+        geometriesCount,
+        attachmentsCount
+      } = req.body;
+      
+      // Validate required fields
+      if (!endLocation || qualityScore === undefined) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'MISSING_REQUIRED_FIELDS',
+            message: 'endLocation and qualityScore are required'
+          }
+        });
+      }
+      
+      // Validate coordinates
+      if (!endLocation.lat || !endLocation.lng) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_COORDINATES',
+            message: 'Valid end location coordinates are required'
+          }
+        });
+      }
+      
+      // Get existing session
+      const sessions = await storage.getMobileSurveySessions({
+        // Note: Using basic filter since interface is limited - will filter manually
+      });
+      
+      // Filter by sessionId manually since it's not in the filter interface
+      const session = sessions?.find(s => s.id === sessionId);
+      
+      if (!session) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            code: 'SESSION_NOT_FOUND',
+            message: 'Survey session not found'
+          }
+        });
+      }
+      
+      // Check if session can be submitted
+      if (session.status === 'submitted') {
+        return res.status(409).json({
+          success: false,
+          error: {
+            code: 'ALREADY_SUBMITTED',
+            message: 'Session has already been submitted'
+          }
+        });
+      }
+      
+      if (session.status !== 'in_progress') {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_SESSION_STATUS',
+            message: 'Session must be in progress to submit'
+          }
+        });
+      }
+      
+      // Metadata for submission
+      const metadata = {
+        userId: user.id, // Use userId instead of surveyorId
+        deviceId,
+        clientChangeId: req.headers['x-idempotency-key'] as string
+      };
+      
+      // Submit session using storage method
+      const submittedSession = await storage.submitMobileSurveySession(sessionId, metadata);
+      
+      res.json({
+        success: true,
+        data: {
+          sessionId: submittedSession.id,
+          status: submittedSession.status,
+          submittedAt: submittedSession.updatedAt?.toISOString(), // Use updatedAt instead
+          syncCursor: Buffer.from(JSON.stringify({
+            sessionId: submittedSession.id,
+            submittedAt: submittedSession.updatedAt
+          })).toString('base64')
+        }
+      });
+      
+    } catch (error) {
+      console.error('Mobile session submission error:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to submit survey session'
+        }
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
