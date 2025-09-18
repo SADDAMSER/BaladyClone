@@ -52,7 +52,7 @@ class SyncOperation {
 }
 
 class SyncService {
-  static const String _baseUrl = 'http://localhost:5000';
+  static const String _baseUrl = 'http://10.0.2.2:5000'; // Android emulator
   static const String _syncEndpoint = '/api/mobile/v1/sync/apply';
   static bool _isInitialized = false;
   static Timer? _syncTimer;
@@ -107,18 +107,35 @@ class SyncService {
         'operations': surveyData,
       };
 
+      // التحقق من وجود رمز المصادقة
+      final authToken = await _getAuthToken();
+      if (authToken == null || authToken.isEmpty) {
+        return const SyncResult(
+          isSuccess: false,
+          errorMessage: 'يجب تسجيل الدخول أولاً للمزامنة',
+        );
+      }
+
       // إرسال البيانات للخادم
+      final headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $authToken',
+      };
+
       final response = await http.post(
         Uri.parse('$_baseUrl$_syncEndpoint'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${await _getAuthToken()}',
-        },
+        headers: headers,
         body: jsonEncode(payload),
       );
 
       if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
+        Map<String, dynamic>? responseData;
+        try {
+          responseData = jsonDecode(response.body);
+        } catch (e) {
+          // إذا فشل parsing الـ JSON، استخدم بيانات افتراضية
+          responseData = {'success': true};
+        }
         
         // تحديث حالة المهمة كمُرسلة
         final task = UpdatedDatabaseService.getTaskById(taskId);
@@ -136,10 +153,22 @@ class SyncService {
           responseData: responseData,
         );
       } else {
-        final errorData = jsonDecode(response.body);
+        // معالجة أخطاء الخادم بأمان
+        String errorMessage = 'خطأ في الخادم: ${response.statusCode}';
+        try {
+          final errorData = jsonDecode(response.body);
+          errorMessage = errorData['message'] ?? errorMessage;
+        } catch (e) {
+          // إذا فشل parsing للخطأ، استخدم الرسالة الافتراضية
+          if (response.body.isNotEmpty) {
+            final maxLength = response.body.length < 100 ? response.body.length : 100;
+            errorMessage += ' - ${response.body.substring(0, maxLength)}';
+          }
+        }
+        
         return SyncResult(
           isSuccess: false,
-          errorMessage: errorData['message'] ?? 'خطأ في الخادم: ${response.statusCode}',
+          errorMessage: errorMessage,
         );
       }
     } catch (e) {
@@ -258,6 +287,16 @@ class SyncService {
   /// الحصول على رمز المصادقة
   static Future<String?> _getAuthToken() async {
     return await _storage.read(key: 'auth_token');
+  }
+  
+  /// Legacy compatibility function - redirects to submitCompletedSurvey
+  static Future<void> syncTask(String taskId) async {
+    final result = await submitCompletedSurvey(taskId);
+    if (result.isSuccess) {
+      print('SYNC->TASK:$taskId:SUCCESS:${result.submittedOperations} operations');
+    } else {
+      print('SYNC->TASK:$taskId:FAILED:${result.errorMessage}');
+    }
   }
 
   /// تعيين رمز المصادقة
