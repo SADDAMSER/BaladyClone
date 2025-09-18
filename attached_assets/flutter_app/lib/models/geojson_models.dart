@@ -2,6 +2,7 @@
 /// Aligned with server schema (shared/schema.ts)
 
 import 'dart:convert';
+import 'dart:math' as math;
 
 /// Base GeoJSON coordinate - always [longitude, latitude, elevation?]
 /// Following GeoJSON RFC 7946 specification
@@ -351,9 +352,6 @@ extension NumExtensions on num {
   double atan2(num other) => math.atan2(this.toDouble(), other.toDouble());
   double sqrt() => math.sqrt(this.toDouble());
 }
-
-// Import math library
-import 'dart:math' as math;
 
 // Constants for geometric calculations  
 const double _COORDINATE_TOLERANCE = 1e-7; // ~1cm precision (appropriate for GPS)

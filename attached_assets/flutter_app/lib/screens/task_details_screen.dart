@@ -79,7 +79,7 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
       RegExp(r'(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)'),
       // Degrees with symbols: 15.3544° 44.2066°
       RegExp(r'(-?\d+\.?\d*)°[,\s]*(-?\d+\.?\d*)°'),
-      // DMS format: 15°21'15.84"N 44°12'23.76"E (basic extraction)
+      // DMS format: 15°21'15.84"N 44°12'23.76"E (basic extraction)  
       RegExp(r'(\d+)°\d+\'\d+\.?\d*\"[NS][,\s]*(\d+)°\d+\'\d+\.?\d*\"[EW]'),
     ];
     
