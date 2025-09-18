@@ -7,6 +7,8 @@ interface GeographicBoundaryLayerProps {
   selectedGovernorateId?: string;
   selectedDistrictId?: string;
   onBoundaryClick?: (type: 'governorate' | 'district', id: string, name: string) => void;
+  onGovernorateSelect?: (governorateId: string) => void;
+  onDistrictSelect?: (districtId: string) => void;
 }
 
 interface GeometryData {
@@ -123,7 +125,9 @@ function BoundaryPolygon({
 export default function GeographicBoundaryLayer({
   selectedGovernorateId,
   selectedDistrictId,
-  onBoundaryClick
+  onBoundaryClick,
+  onGovernorateSelect,
+  onDistrictSelect
 }: GeographicBoundaryLayerProps) {
   const map = useMap();
 
@@ -228,7 +232,12 @@ export default function GeographicBoundaryLayer({
           feature={governorate}
           type="governorate"
           isSelected={governorate.id === selectedGovernorateId}
-          onClick={onBoundaryClick}
+          onClick={(type, id, name) => {
+            onBoundaryClick?.(type, id, name);
+            if (type === 'governorate') {
+              onGovernorateSelect?.(id);
+            }
+          }}
         />
       ))}
       
@@ -239,7 +248,12 @@ export default function GeographicBoundaryLayer({
           feature={district}
           type="district"
           isSelected={district.id === selectedDistrictId}
-          onClick={onBoundaryClick}
+          onClick={(type, id, name) => {
+            onBoundaryClick?.(type, id, name);
+            if (type === 'district') {
+              onDistrictSelect?.(id);
+            }
+          }}
         />
       ))}
     </>

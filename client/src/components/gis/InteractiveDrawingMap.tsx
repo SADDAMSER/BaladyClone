@@ -45,7 +45,12 @@ interface InteractiveDrawingMapProps {
   // Geographic boundary props
   selectedGovernorateId?: string;
   selectedDistrictId?: string;
+  onGovernorateSelect?: (governorateId: string) => void;
+  onDistrictSelect?: (districtId: string) => void;
   onBoundaryClick?: (type: 'governorate' | 'district', id: string, name: string) => void;
+  // Control props
+  showDrawingTools?: boolean;
+  showBoundaryControls?: boolean;
 }
 
 type MapType = 'streets' | 'satellite' | 'hybrid' | 'terrain';
@@ -578,7 +583,11 @@ export default function InteractiveDrawingMap({
   isEnabled = true,
   selectedGovernorateId,
   selectedDistrictId,
-  onBoundaryClick
+  onGovernorateSelect,
+  onDistrictSelect,
+  onBoundaryClick,
+  showDrawingTools = true,
+  showBoundaryControls = false
 }: InteractiveDrawingMapProps) {
   const [currentMode, setCurrentMode] = useState<DrawingMode>('pan');
   const [drawingState, setDrawingState] = useState<DrawingState>({
@@ -681,6 +690,8 @@ export default function InteractiveDrawingMap({
             selectedGovernorateId={selectedGovernorateId}
             selectedDistrictId={selectedDistrictId}
             onBoundaryClick={onBoundaryClick}
+            onGovernorateSelect={onGovernorateSelect}
+            onDistrictSelect={onDistrictSelect}
           />
           
           {/* Existing Features */}

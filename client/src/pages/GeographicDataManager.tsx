@@ -22,8 +22,10 @@ import {
   X,
   Map,
   Globe,
-  Building
+  Building,
+  Eye
 } from 'lucide-react';
+import InteractiveDrawingMap from '@/components/gis/InteractiveDrawingMap';
 import { useToast } from '@/hooks/use-toast';
 import Header from '@/components/Header';
 import { useForm } from 'react-hook-form';
@@ -96,6 +98,8 @@ export default function GeographicDataManager() {
   const [selectedGovernorate, setSelectedGovernorate] = useState<Governorate | null>(null);
   const [selectedDistrict, setSelectedDistrict] = useState<District | null>(null);
   const [selectedGovernorateFilter, setSelectedGovernorateFilter] = useState<string>('all');
+  const [mapSelectedGovernorateId, setMapSelectedGovernorateId] = useState<string>('');
+  const [mapSelectedDistrictId, setMapSelectedDistrictId] = useState<string>('');
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -360,7 +364,7 @@ export default function GeographicDataManager() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="governorates" className="flex items-center gap-2" data-testid="tab-governorates">
               <Globe className="h-4 w-4" />
               المحافظات
@@ -368,6 +372,10 @@ export default function GeographicDataManager() {
             <TabsTrigger value="districts" className="flex items-center gap-2" data-testid="tab-districts">
               <Building className="h-4 w-4" />
               المديريات
+            </TabsTrigger>
+            <TabsTrigger value="map" className="flex items-center gap-2" data-testid="tab-map">
+              <Eye className="h-4 w-4" />
+              معاينة الخريطة
             </TabsTrigger>
           </TabsList>
 
@@ -565,6 +573,20 @@ export default function GeographicDataManager() {
                           </TableCell>
                           <TableCell>
                             <div className="flex gap-2">
+                              {governorate.geometry && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setActiveTab('map');
+                                    setMapSelectedGovernorateId(governorate.id);
+                                    setMapSelectedDistrictId('');
+                                  }}
+                                  data-testid={`button-view-governorate-${governorate.id}`}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              )}
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -830,6 +852,20 @@ export default function GeographicDataManager() {
                           </TableCell>
                           <TableCell>
                             <div className="flex gap-2">
+                              {district.geometry && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setActiveTab('map');
+                                    setMapSelectedGovernorateId(district.governorateId);
+                                    setMapSelectedDistrictId(district.id);
+                                  }}
+                                  data-testid={`button-view-district-${district.id}`}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              )}
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -854,6 +890,120 @@ export default function GeographicDataManager() {
                     </TableBody>
                   </Table>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          {/* Interactive Map Tab */}
+          <TabsContent value="map" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Map className="h-5 w-5" />
+                  معاينة الحدود الجغرافية
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                  {/* Control Panel */}
+                  <div className="space-y-4">
+                    <div>
+                      <Label className="text-sm font-medium">اختيار المحافظة</Label>
+                      <Select 
+                        value={mapSelectedGovernorateId} 
+                        onValueChange={(value) => {
+                          setMapSelectedGovernorateId(value);
+                          setMapSelectedDistrictId(''); // Reset district selection
+                        }}
+                      >
+                        <SelectTrigger data-testid="select-map-governorate">
+                          <SelectValue placeholder="اختر المحافظة" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">جميع المحافظات</SelectItem>
+                          {governorates
+                            .filter(gov => gov.geometry) // Only show governorates with geometry
+                            .map((gov) => (
+                            <SelectItem key={gov.id} value={gov.id}>
+                              {gov.nameAr}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    {mapSelectedGovernorateId && (
+                      <div>
+                        <Label className="text-sm font-medium">اختيار المديرية</Label>
+                        <Select 
+                          value={mapSelectedDistrictId} 
+                          onValueChange={setMapSelectedDistrictId}
+                        >
+                          <SelectTrigger data-testid="select-map-district">
+                            <SelectValue placeholder="اختر المديرية" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="">جميع المديريات</SelectItem>
+                            {districts
+                              .filter(dist => 
+                                dist.governorateId === mapSelectedGovernorateId && 
+                                dist.geometry
+                              )
+                              .map((dist) => (
+                              <SelectItem key={dist.id} value={dist.id}>
+                                {dist.nameAr}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                    
+                    <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
+                      <h4 className="text-sm font-medium mb-2">إحصائيات</h4>
+                      <div className="space-y-1 text-xs text-gray-600 dark:text-gray-400">
+                        <div>إجمالي المحافظات: {governorates.length}</div>
+                        <div>مع بيانات جغرافية: {governorates.filter(g => g.geometry).length}</div>
+                        <div>إجمالي المديريات: {districts.length}</div>
+                        <div>مع بيانات جغرافية: {districts.filter(d => d.geometry).length}</div>
+                      </div>
+                    </div>
+
+                    {(mapSelectedGovernorateId || mapSelectedDistrictId) && (
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          setMapSelectedGovernorateId('');
+                          setMapSelectedDistrictId('');
+                        }}
+                        data-testid="button-clear-map-selection"
+                      >
+                        <X className="h-4 w-4 ml-2" />
+                        مسح الاختيار
+                      </Button>
+                    )}
+                  </div>
+                  
+                  {/* Interactive Map */}
+                  <div className="lg:col-span-3">
+                    <div className="h-[600px] rounded-lg overflow-hidden border">
+                      <InteractiveDrawingMap
+                        selectedGovernorateId={mapSelectedGovernorateId}
+                        selectedDistrictId={mapSelectedDistrictId}
+                        onGovernorateSelect={(govId) => {
+                          setMapSelectedGovernorateId(govId);
+                          setMapSelectedDistrictId('');
+                        }}
+                        onDistrictSelect={(distId) => {
+                          setMapSelectedDistrictId(distId);
+                        }}
+                        showDrawingTools={false}
+                        showBoundaryControls={true}
+                      />
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
