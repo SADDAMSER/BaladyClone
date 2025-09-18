@@ -10,6 +10,7 @@ import request from 'supertest';
 import express from 'express';
 import { registerRoutes } from '../server/routes';
 import jwt from 'jsonwebtoken';
+import { v4 as uuidv4 } from 'uuid';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'test-secret-key-for-mobile-contracts';
 
@@ -54,7 +55,7 @@ describe('🧪 Mobile API Contract Tests - Complete Coverage', () => {
       it('✅ should login successfully with valid credentials', async () => {
         const response = await request(app)
           .post('/api/mobile/v1/auth/login')
-          .set('X-Device-ID', 'contract-test-device')
+          .set('X-Device-ID', testDeviceId)
           .send({
             username: 'surveyor_01',
             password: 'surveyor123',
@@ -1074,10 +1075,11 @@ describe('🧪 Mobile API Contract Tests - Complete Coverage', () => {
   // ================================================================
 
   async function setupTestData() {
-    testUserId = 'contract-test-user-12345';
-    testDeviceId = 'contract-test-device-12345';
-    testSessionId = 'contract-test-session-12345';
-    testAttachmentId = 'contract-test-attachment-12345';
+    // Generate valid UUIDs for all test data
+    testUserId = uuidv4();
+    testDeviceId = uuidv4();
+    testSessionId = uuidv4();
+    testAttachmentId = uuidv4();
 
     // Create valid mobile access token
     validMobileToken = jwt.sign({

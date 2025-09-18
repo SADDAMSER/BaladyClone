@@ -237,8 +237,10 @@ export const basicSecurityProtection = (req: Request, res: Response, next: NextF
 
     return res.status(400).json({
       success: false,
-      error: 'البيانات تحتوي على أحرف غير مسموحة',
-      code: 'INVALID_CHARACTERS_DETECTED'
+      error: {
+        code: 'INVALID_CHARACTERS_DETECTED',
+        message: 'البيانات تحتوي على أحرف غير مسموحة'
+      }
     });
   }
 
@@ -263,8 +265,10 @@ export const validateContentType = (allowedTypes: string[]) => {
 
         return res.status(400).json({
           success: false,
-          error: 'نوع المحتوى غير مدعوم',
-          code: 'INVALID_CONTENT_TYPE'
+          error: {
+            code: 'INVALID_CONTENT_TYPE',
+            message: 'نوع المحتوى غير مدعوم'
+          }
         });
       }
     }

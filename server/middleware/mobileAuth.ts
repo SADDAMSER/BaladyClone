@@ -47,8 +47,10 @@ export const authenticateMobileAccess = async (req: Request, res: Response, next
     if (!authHeader) {
       return res.status(401).json({
         success: false,
-        error: 'رمز المصادقة مطلوب للوصول لهذه الخدمة',
-        code: 'AUTH_TOKEN_MISSING'
+        error: {
+          code: 'AUTH_TOKEN_MISSING',
+          message: 'رمز المصادقة مطلوب للوصول لهذه الخدمة'
+        }
       });
     }
 
@@ -60,8 +62,10 @@ export const authenticateMobileAccess = async (req: Request, res: Response, next
     if (!token) {
       return res.status(401).json({
         success: false,
-        error: 'رمز المصادقة غير صحيح',
-        code: 'AUTH_TOKEN_INVALID'
+        error: {
+          code: 'AUTH_TOKEN_INVALID',
+          message: 'رمز المصادقة غير صحيح'
+        }
       });
     }
 
@@ -71,8 +75,10 @@ export const authenticateMobileAccess = async (req: Request, res: Response, next
       console.error('[SECURITY] JWT_SECRET not configured');
       return res.status(500).json({
         success: false,
-        error: 'خطأ في تكوين النظام',
-        code: 'SERVER_CONFIG_ERROR'
+        error: {
+          code: 'SERVER_CONFIG_ERROR',
+          message: 'خطأ في تكوين النظام'
+        }
       });
     }
 
@@ -93,8 +99,10 @@ export const authenticateMobileAccess = async (req: Request, res: Response, next
 
       return res.status(401).json({
         success: false,
-        error: errorMessage,
-        code: errorCode,
+        error: {
+          code: errorCode,
+          message: errorMessage
+        },
         timestamp: new Date().toISOString()
       });
     }
@@ -105,8 +113,10 @@ export const authenticateMobileAccess = async (req: Request, res: Response, next
     if (!decoded.type || decoded.type !== 'mobile_access') {
       return res.status(403).json({
         success: false,
-        error: 'رمز المصادقة غير مخصص للاستخدام المحمول',
-        code: 'INVALID_TOKEN_TYPE',
+        error: {
+          code: 'INVALID_TOKEN_TYPE',
+          message: 'رمز المصادقة غير مخصص للاستخدام المحمول'
+        },
         timestamp: new Date().toISOString()
       });
     }
@@ -116,8 +126,10 @@ export const authenticateMobileAccess = async (req: Request, res: Response, next
     if (!decoded.deviceId) {
       return res.status(403).json({
         success: false,
-        error: 'الرمز المميز غير مرتبط بجهاز',
-        code: 'DEVICE_ID_MISSING_IN_TOKEN',
+        error: {
+          code: 'DEVICE_ID_MISSING_IN_TOKEN',
+          message: 'الرمز المميز غير مرتبط بجهاز'
+        },
         timestamp: new Date().toISOString()
       });
     }
@@ -161,8 +173,10 @@ export const authenticateMobileAccess = async (req: Request, res: Response, next
     if (userResults.length === 0) {
       return res.status(401).json({
         success: false,
-        error: 'المستخدم غير موجود أو تم حذف حسابه',
-        code: 'USER_NOT_FOUND'
+        error: {
+          code: 'USER_NOT_FOUND',
+          message: 'المستخدم غير موجود أو تم حذف حسابه'
+        }
       });
     }
 
@@ -172,8 +186,10 @@ export const authenticateMobileAccess = async (req: Request, res: Response, next
     if (!user.isActive) {
       return res.status(403).json({
         success: false,
-        error: 'الحساب معطل. راجع الإدارة',
-        code: 'ACCOUNT_DISABLED'
+        error: {
+          code: 'ACCOUNT_DISABLED',
+          message: 'الحساب معطل. راجع الإدارة'
+        }
       });
     }
 
