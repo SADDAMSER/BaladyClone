@@ -7,7 +7,6 @@ import 'package:geolocator/geolocator.dart';
 import 'package:dreamflow_app/models/survey_models.dart';
 import 'package:dreamflow_app/models/updated_survey_models.dart';
 import 'package:dreamflow_app/models/geojson_models.dart';
-import 'package:dreamflow_app/services/database_service.dart';
 import 'package:dreamflow_app/services/updated_database_service.dart';
 import 'package:dreamflow_app/services/location_service.dart';
 import 'package:dreamflow_app/services/sync_service.dart';
@@ -77,18 +76,21 @@ class _FieldSurveyScreenState extends State<FieldSurveyScreen> {
       });
       
       // Start continuous location updates
-      _positionSubscription = LocationService.instance.positionStream.listen((position) {
-        if (mounted) {
-          setState(() {
-            _currentPosition = position;
-            _gnssStatusLabel = _getGnssStatusFromPosition(position);
-            _accuracyLabel = '${position.accuracy.toStringAsFixed(1)}م';
-            // Real HDOP/VDOP would come from GNSS hardware - simulating based on accuracy
-            _hdop = (position.accuracy / 2).toStringAsFixed(1);
-            _vdop = (position.accuracy / 1.5).toStringAsFixed(1);
-          });
-        }
-      });
+      final started = await LocationService.instance.startLocationUpdates();
+      if (started) {
+        _positionSubscription = LocationService.instance.positionStream.listen((position) {
+          if (mounted) {
+            setState(() {
+              _currentPosition = position;
+              _gnssStatusLabel = _getGnssStatusFromPosition(position);
+              _accuracyLabel = '${position.accuracy.toStringAsFixed(1)}م';
+              // Real HDOP/VDOP would come from GNSS hardware - simulating based on accuracy
+              _hdop = (position.accuracy / 2).toStringAsFixed(1);
+              _vdop = (position.accuracy / 1.5).toStringAsFixed(1);
+            });
+          }
+        });
+      }
     }
   }
   
@@ -103,6 +105,84 @@ class _FieldSurveyScreenState extends State<FieldSurveyScreen> {
     } else {
       return 'Low Accuracy';
     }
+  }
+  
+  /// Capture a real GPS point using LocationService
+  Future<void> _captureRealGPSPoint(LatLng? tapLocation) async {
+    try {
+      final locationResult = await LocationService.instance.getCurrentLocation();
+      
+      if (!locationResult.isSuccess) {
+        _showSnack('فشل في الحصول على الموقع: ${locationResult.errorMessage}');
+        return;
+      }
+      
+      final position = locationResult.position!;
+      
+      // Check if accuracy is suitable for surveying
+      if (!LocationService.instance.isSuitableForSurveying(position)) {
+        final proceed = await _showAccuracyWarning(position.accuracy);
+        if (!proceed) return;
+      }
+      
+      final surveyPoint = SurveyPoint(
+        id: 'point_${DateTime.now().millisecondsSinceEpoch}',
+        sessionId: widget.task.id,
+        pointNumber: await _getNextPointNumber(),
+        position: GeoJSONPosition(
+          longitude: position.longitude,
+          latitude: position.latitude,
+          elevation: position.altitude,
+        ),
+        accuracy: position.accuracy,
+        hdop: double.tryParse(_hdop) ?? 999.0,
+        vdop: double.tryParse(_vdop) ?? 999.0,
+        satelliteCount: 12, // Would come from GNSS hardware in real implementation
+        pointType: 'survey',
+        featureCode: _selectedFeatureCode!,
+        description: 'نقطة مسح ميداني - ${_selectedFeatureCode}',
+        capturedAt: DateTime.now(),
+        createdAt: DateTime.now(),
+        isSynced: false,
+        idempotencyKey: 'point_${widget.task.id}_${DateTime.now().millisecondsSinceEpoch}',
+      );
+      
+      UpdatedDatabaseService.savePoint(surveyPoint);
+      _showSnack('تم حفظ النقطة بدقة ${position.accuracy.toStringAsFixed(1)} متر');
+      
+    } catch (e) {
+      _showSnack('خطأ في حفظ النقطة: $e');
+    }
+  }
+  
+  /// Get next point number for the session
+  Future<int> _getNextPointNumber() async {
+    final existingPoints = UpdatedDatabaseService.getPointsBySession(widget.task.id);
+    return existingPoints.length + 1;
+  }
+  
+  /// Show accuracy warning dialog
+  Future<bool> _showAccuracyWarning(double accuracy) async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('تحذير دقة الموقع'),
+        content: Text(
+          'دقة الموقع الحالية ${accuracy.toStringAsFixed(1)} متر.\n'
+          'هذا قد يؤثر على جودة المسح. هل تريد المتابعة؟'
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('إلغاء'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('متابعة'),
+          ),
+        ],
+      ),
+    ) ?? false;
   }
 
   @override
@@ -167,7 +247,7 @@ class _FieldSurveyScreenState extends State<FieldSurveyScreen> {
                 }
                 
                 if (_activeTool == 'Point') {
-                  await _capturePoint(latLng);
+                  await _captureRealGPSPoint(latLng);
                   return;
                 }
 
@@ -338,7 +418,7 @@ class _FieldSurveyScreenState extends State<FieldSurveyScreen> {
         idempotencyKey: 'geom_${widget.task.id}_${DateTime.now().millisecondsSinceEpoch}',
       );
       
-      await UpdatedDatabaseService.saveGeometry(surveyGeometry);
+      UpdatedDatabaseService.saveGeometry(surveyGeometry);
       setState(() => _savedGeometryId = surveyGeometry.id);
       
       _showSnack('تم حفظ المضلع (${_selectedFeatureCode ?? ''}) محلياً');
@@ -375,7 +455,7 @@ class _FieldSurveyScreenState extends State<FieldSurveyScreen> {
         idempotencyKey: 'geom_${widget.task.id}_${DateTime.now().millisecondsSinceEpoch}',
       );
       
-      await UpdatedDatabaseService.saveGeometry(surveyGeometry);
+      UpdatedDatabaseService.saveGeometry(surveyGeometry);
       _showSnack('تم حفظ الخط (${_selectedFeatureCode ?? ''}) محلياً');
       
     } catch (e) {
@@ -423,7 +503,7 @@ class _FieldSurveyScreenState extends State<FieldSurveyScreen> {
         idempotencyKey: 'att_${widget.task.id}_${DateTime.now().millisecondsSinceEpoch}',
       );
       
-      await UpdatedDatabaseService.saveAttachment(attachment);
+      UpdatedDatabaseService.saveAttachment(attachment);
       setState(() => _attachedPhotoUrl = sampleUrl);
       _showSnack('تم إرفاق صورة للشكل الهندسي');
       
@@ -466,7 +546,7 @@ class _FieldSurveyScreenState extends State<FieldSurveyScreen> {
         idempotencyKey: 'note_${widget.task.id}_${DateTime.now().millisecondsSinceEpoch}',
       );
       
-      await UpdatedDatabaseService.saveAttachment(attachment);
+      UpdatedDatabaseService.saveAttachment(attachment);
       _showSnack('تم حفظ الملاحظة');
       
     } catch (e) {
@@ -475,53 +555,95 @@ class _FieldSurveyScreenState extends State<FieldSurveyScreen> {
   }
 
   Future<void> _simulateHappyPath() async {
-    // Fixed geometry for deterministic payload
-    final poly = SurveyPolygon(
-      id: 'poly_${DateTime.now().millisecondsSinceEpoch}',
-      taskId: widget.task.id,
-      featureCode: 'مبنى',
-      points: [
-        PolygonPoint(x: 160, y: 140),
-        PolygonPoint(x: 240, y: 140),
-        PolygonPoint(x: 240, y: 200),
-        PolygonPoint(x: 160, y: 200),
-      ],
-      closed: true,
-      createdAt: DateTime.now(),
-      isSynced: false,
-    );
-    DatabaseService.savePolygon(poly);
+    try {
+      // Simulate building polygon with GeoJSON
+      final buildingCoords = [
+        const GeoJSONPosition(longitude: 44.21987, latitude: 15.34123),
+        const GeoJSONPosition(longitude: 44.21997, latitude: 15.34123), 
+        const GeoJSONPosition(longitude: 44.21997, latitude: 15.34133),
+        const GeoJSONPosition(longitude: 44.21987, latitude: 15.34133),
+        const GeoJSONPosition(longitude: 44.21987, latitude: 15.34123), // Close
+      ];
+      
+      final buildingGeometry = SurveyGeometry(
+        id: 'geom_${DateTime.now().millisecondsSinceEpoch}',
+        sessionId: widget.task.id,
+        geometryType: 'polygon',
+        geometry: GeoJSONPolygon([buildingCoords]),
+        featureCode: 'مبنى',
+        properties: {
+          'simulated': true,
+          'pointCount': buildingCoords.length - 1,
+          'capturedBy': 'simulation',
+        },
+        accuracy: 0.02,
+        capturedAt: DateTime.now(),
+        createdAt: DateTime.now(),
+        isSynced: false,
+        idempotencyKey: 'sim_geom_${widget.task.id}_${DateTime.now().millisecondsSinceEpoch}',
+      );
+      
+      UpdatedDatabaseService.saveGeometry(buildingGeometry);
 
-    // Simulate a Fence line (2 points)
-    final line = SurveyLine(
-      id: 'line_${DateTime.now().millisecondsSinceEpoch}',
-      taskId: widget.task.id,
-      featureCode: 'سياج',
-      points: [
-        PolygonPoint(x: 120, y: 240),
-        PolygonPoint(x: 300, y: 260),
-      ],
-      createdAt: DateTime.now(),
-      isSynced: false,
-    );
-    DatabaseService.saveLine(line);
+      // Simulate fence line
+      final fenceCoords = [
+        const GeoJSONPosition(longitude: 44.21980, latitude: 15.34140),
+        const GeoJSONPosition(longitude: 44.22000, latitude: 15.34145),
+      ];
+      
+      final fenceGeometry = SurveyGeometry(
+        id: 'geom_${DateTime.now().millisecondsSinceEpoch + 1}',
+        sessionId: widget.task.id,
+        geometryType: 'linestring',
+        geometry: GeoJSONLineString(fenceCoords),
+        featureCode: 'سياج',
+        properties: {
+          'simulated': true,
+          'pointCount': fenceCoords.length,
+          'capturedBy': 'simulation',
+        },
+        accuracy: 0.02,
+        capturedAt: DateTime.now(),
+        createdAt: DateTime.now(),
+        isSynced: false,
+        idempotencyKey: 'sim_geom_${widget.task.id}_${DateTime.now().millisecondsSinceEpoch + 1}',
+      );
+      
+      UpdatedDatabaseService.saveGeometry(fenceGeometry);
 
-    // Simulate a Tree point with fixed lat/lng around Sana'a
-    final point = SurveyPoint(
-      id: 'pt_${DateTime.now().millisecondsSinceEpoch}',
-      taskId: widget.task.id,
-      latitude: 15.34123,
-      longitude: 44.21987,
-      accuracy: 0.02,
-      timestamp: DateTime.now(),
-      featureCode: 'شجرة',
-    );
-    DatabaseService.savePoint(point);
+      // Simulate tree point
+      final treePoint = SurveyPoint(
+        id: 'point_${DateTime.now().millisecondsSinceEpoch}',
+        sessionId: widget.task.id,
+        pointNumber: 1,
+        position: const GeoJSONPosition(
+          longitude: 44.21990,
+          latitude: 15.34130,
+          elevation: 2200.0,
+        ),
+        accuracy: 0.02,
+        hdop: 0.8,
+        vdop: 1.1,
+        satelliteCount: 14,
+        pointType: 'survey',
+        featureCode: 'شجرة',
+        description: 'نقطة محاكاة - شجرة',
+        capturedAt: DateTime.now(),
+        createdAt: DateTime.now(),
+        isSynced: false,
+        idempotencyKey: 'sim_point_${widget.task.id}_${DateTime.now().millisecondsSinceEpoch}',
+      );
+      
+      UpdatedDatabaseService.savePoint(treePoint);
 
-    // Trigger sync (prints payload to logs)
-    await SyncService.syncTask(widget.task.id);
-    if (!mounted) return;
-    _showSnack('تمت محاكاة المسار السعيد وتم طباعة الحمولة (JSON) في السجلات');
+      // Trigger sync (prints payload to logs)
+      await SyncService.syncTask(widget.task.id);
+      if (!mounted) return;
+      _showSnack('تمت محاكاة المسار السعيد مع نماذج GeoJSON الجديدة');
+      
+    } catch (e) {
+      _showSnack('خطأ في محاكاة المسار: $e');
+    }
   }
 
   void _showSnack(String msg) {
