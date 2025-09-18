@@ -8,6 +8,19 @@ import 'package:dreamflow_app/services/sync_service.dart';
 import 'package:dreamflow_app/services/real_sync_service.dart';
 import 'package:dreamflow_app/services/secure_auth_service.dart';
 
+// دالة تحويل SurveyTask (محدّث) إلى LegacySurveyTask (للعرض)
+LegacySurveyTask _convertToLegacyTask(SurveyTask updatedTask) {
+  return LegacySurveyTask(
+    id: updatedTask.id,
+    citizenName: updatedTask.citizenName,
+    location: updatedTask.location,
+    status: updatedTask.status,
+    createdAt: updatedTask.createdAt,
+    completedAt: updatedTask.completedAt,
+    isSynced: updatedTask.isSynced,
+  );
+}
+
 class TasksScreen extends StatefulWidget {
   const TasksScreen({super.key});
 
@@ -55,8 +68,13 @@ class _TasksScreenState extends State<TasksScreen> {
       final result = await RealSyncService.fetchTasks();
       
       if (result['success']) {
+        // تحويل المهام من النموذج المحدّث إلى النموذج القديم للعرض
+        final List<LegacySurveyTask> convertedTasks = (result['tasks'] as List<SurveyTask>)
+            .map((task) => _convertToLegacyTask(task))
+            .toList();
+        
         setState(() {
-          _tasks = List<LegacySurveyTask>.from(result['tasks']);
+          _tasks = convertedTasks;
           _isLoading = false;
           _errorMessage = null;
         });

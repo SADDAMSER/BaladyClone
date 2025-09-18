@@ -108,9 +108,9 @@ class LocalStorageService {
 
   // الحصول على الجلسة النشطة لمهمة محددة
   SurveySessionModel? getActiveSessionForTask(String taskId) {
-    return _surveySessionsBox.values
-        .where((session) => session.taskId == taskId && session.isActive)
-        .firstOrNull;
+    final activeSessions = _surveySessionsBox.values
+        .where((session) => session.taskId == taskId && session.isActive);
+    return activeSessions.isNotEmpty ? activeSessions.first : null;
   }
 
   // الحصول على جميع الجلسات غير المتزامنة
