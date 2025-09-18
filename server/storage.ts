@@ -14,6 +14,9 @@ import {
   // Enhanced LBAC Hardening tables - Phase 6
   permissionGeographicConstraints, temporaryPermissionDelegations,
   geographicRoleTemplates, userGeographicAssignmentHistory, lbacAccessAuditLog,
+  // Mobile Survey System - Phase 4
+  mobileDeviceRegistrations, mobileSurveySessions, mobileSurveyPoints,
+  mobileSurveyGeometries, mobileFieldVisits, mobileSurveyAttachments, mobileSyncCursors,
   type User, type InsertUser, type Department, type InsertDepartment,
   type Position, type InsertPosition, type LawRegulation, type InsertLawRegulation,
   type LawSection, type InsertLawSection, type LawArticle, type InsertLawArticle,
@@ -59,7 +62,15 @@ import {
   type PerformanceMetric, type InsertPerformanceMetric,
   type SyncOperationsMetric, type InsertSyncOperationsMetric,
   type ErrorTracking, type InsertErrorTracking,
-  type SloMeasurement, type InsertSloMeasurement
+  type SloMeasurement, type InsertSloMeasurement,
+  // Mobile Survey System types - Phase 4
+  type MobileDeviceRegistration, type InsertMobileDeviceRegistration,
+  type MobileSurveySession, type InsertMobileSurveySession,
+  type MobileSurveyPoint, type InsertMobileSurveyPoint,
+  type MobileSurveyGeometry, type InsertMobileSurveyGeometry,
+  type MobileFieldVisit, type InsertMobileFieldVisit,
+  type MobileSurveyAttachment, type InsertMobileSurveyAttachment,
+  type MobileSyncCursor, type InsertMobileSyncCursor
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, like, ilike, and, or, desc, asc, sql, count, inArray } from "drizzle-orm";
@@ -480,7 +491,7 @@ export interface IStorage {
   // MOBILE SYNC & OFFLINE OPERATIONS
   // ===========================================
 
-  // Device Registration Management
+  // Device Registration Management (Legacy)
   getDeviceRegistrations(userId?: string, isActive?: boolean): Promise<DeviceRegistration[]>;
   getDeviceRegistration(id: string): Promise<DeviceRegistration | undefined>;
   getDeviceByDeviceId(deviceId: string): Promise<DeviceRegistration | undefined>;
@@ -488,6 +499,20 @@ export interface IStorage {
   updateDeviceRegistration(id: string, updates: Partial<InsertDeviceRegistration>): Promise<DeviceRegistration>;
   deactivateDevice(id: string): Promise<DeviceRegistration>;
   updateDeviceLastSync(deviceId: string): Promise<DeviceRegistration>;
+
+  // Mobile Device Registration Management (Phase 4) - For surveyor mobile apps
+  getMobileDeviceRegistrations(userId?: string, status?: string): Promise<any[]>;
+  getMobileDeviceRegistration(id: string): Promise<any | undefined>;
+  getMobileDeviceByDeviceId(deviceId: string): Promise<any | undefined>;
+  registerMobileDevice(device: any): Promise<any>;
+  updateMobileDeviceRegistration(id: string, updates: any): Promise<any>;
+  updateMobileDeviceLastSeen(deviceId: string): Promise<any>;
+  updateMobileDeviceLastSync(deviceId: string): Promise<any>;
+  revokeMobileDevice(deviceId: string, reason?: string): Promise<any>;
+  // JWT and refresh token management for mobile devices
+  updateMobileDeviceRefreshToken(deviceId: string, refreshTokenHash: string, expiresAt: Date): Promise<any>;
+  invalidateMobileDeviceTokens(deviceId: string): Promise<any>;
+  validateMobileDeviceRefreshToken(deviceId: string, refreshTokenHash: string): Promise<boolean>;
 
   // Sync Session Management
   getSyncSessions(filters?: {
@@ -3637,6 +3662,177 @@ export class DatabaseStorage implements IStorage {
       .where(eq(deviceRegistrations.deviceId, deviceId))
       .returning();
     return updated;
+  }
+
+  // =====================================================
+  // MOBILE DEVICE REGISTRATION MANAGEMENT (Phase 4)
+  // =====================================================
+
+  async getMobileDeviceRegistrations(userId?: string, status?: string): Promise<MobileDeviceRegistration[]> {
+    const conditions = [];
+    if (userId) conditions.push(eq(mobileDeviceRegistrations.userId, userId));
+    if (status) conditions.push(eq(mobileDeviceRegistrations.status, status));
+    // Always filter out soft deleted devices
+    conditions.push(eq(mobileDeviceRegistrations.isDeleted, false));
+    
+    return await db.select().from(mobileDeviceRegistrations)
+      .where(and(...conditions))
+      .orderBy(desc(mobileDeviceRegistrations.lastSeenAt));
+  }
+
+  async getMobileDeviceRegistration(id: string): Promise<MobileDeviceRegistration | undefined> {
+    const [device] = await db
+      .select()
+      .from(mobileDeviceRegistrations)
+      .where(and(
+        eq(mobileDeviceRegistrations.id, id),
+        eq(mobileDeviceRegistrations.isDeleted, false)
+      ));
+    return device || undefined;
+  }
+
+  async getMobileDeviceByDeviceId(deviceId: string): Promise<MobileDeviceRegistration | undefined> {
+    const [device] = await db
+      .select()
+      .from(mobileDeviceRegistrations)
+      .where(and(
+        eq(mobileDeviceRegistrations.deviceId, deviceId),
+        eq(mobileDeviceRegistrations.isDeleted, false)
+      ));
+    return device || undefined;
+  }
+
+  async registerMobileDevice(device: InsertMobileDeviceRegistration): Promise<MobileDeviceRegistration> {
+    const [newDevice] = await db
+      .insert(mobileDeviceRegistrations)
+      .values(device)
+      .returning();
+    return newDevice;
+  }
+
+  async updateMobileDeviceRegistration(id: string, updates: Partial<InsertMobileDeviceRegistration>): Promise<MobileDeviceRegistration> {
+    const [updated] = await db
+      .update(mobileDeviceRegistrations)
+      .set({ ...updates, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(and(
+        eq(mobileDeviceRegistrations.id, id),
+        eq(mobileDeviceRegistrations.isDeleted, false)
+      ))
+      .returning();
+    return updated;
+  }
+
+  async updateMobileDeviceLastSeen(deviceId: string): Promise<MobileDeviceRegistration> {
+    const [updated] = await db
+      .update(mobileDeviceRegistrations)
+      .set({ 
+        lastSeenAt: sql`CURRENT_TIMESTAMP`,
+        updatedAt: sql`CURRENT_TIMESTAMP` 
+      })
+      .where(and(
+        eq(mobileDeviceRegistrations.deviceId, deviceId),
+        eq(mobileDeviceRegistrations.isDeleted, false)
+      ))
+      .returning();
+    return updated;
+  }
+
+  async updateMobileDeviceLastSync(deviceId: string): Promise<MobileDeviceRegistration> {
+    const [updated] = await db
+      .update(mobileDeviceRegistrations)
+      .set({ 
+        lastSyncAt: sql`CURRENT_TIMESTAMP`,
+        lastSeenAt: sql`CURRENT_TIMESTAMP`,
+        updatedAt: sql`CURRENT_TIMESTAMP` 
+      })
+      .where(and(
+        eq(mobileDeviceRegistrations.deviceId, deviceId),
+        eq(mobileDeviceRegistrations.isDeleted, false)
+      ))
+      .returning();
+    return updated;
+  }
+
+  async revokeMobileDevice(deviceId: string, reason?: string): Promise<MobileDeviceRegistration> {
+    const [updated] = await db
+      .update(mobileDeviceRegistrations)
+      .set({ 
+        status: 'revoked',
+        tokenVersion: sql`${mobileDeviceRegistrations.tokenVersion} + 1`, // Invalidate all tokens
+        refreshTokenHash: null,
+        refreshTokenExpiresAt: null,
+        updatedAt: sql`CURRENT_TIMESTAMP` 
+      })
+      .where(and(
+        eq(mobileDeviceRegistrations.deviceId, deviceId),
+        eq(mobileDeviceRegistrations.isDeleted, false)
+      ))
+      .returning();
+    return updated;
+  }
+
+  // JWT and refresh token management for mobile devices
+  async updateMobileDeviceRefreshToken(deviceId: string, refreshTokenHash: string, expiresAt: Date): Promise<MobileDeviceRegistration> {
+    const [updated] = await db
+      .update(mobileDeviceRegistrations)
+      .set({ 
+        refreshTokenHash,
+        refreshTokenExpiresAt: expiresAt,
+        lastSeenAt: sql`CURRENT_TIMESTAMP`,
+        updatedAt: sql`CURRENT_TIMESTAMP` 
+      })
+      .where(and(
+        eq(mobileDeviceRegistrations.deviceId, deviceId),
+        eq(mobileDeviceRegistrations.isDeleted, false),
+        eq(mobileDeviceRegistrations.status, 'active')
+      ))
+      .returning();
+    return updated;
+  }
+
+  async invalidateMobileDeviceTokens(deviceId: string): Promise<MobileDeviceRegistration> {
+    const [updated] = await db
+      .update(mobileDeviceRegistrations)
+      .set({ 
+        tokenVersion: sql`${mobileDeviceRegistrations.tokenVersion} + 1`, // Invalidate all tokens
+        refreshTokenHash: null,
+        refreshTokenExpiresAt: null,
+        updatedAt: sql`CURRENT_TIMESTAMP` 
+      })
+      .where(and(
+        eq(mobileDeviceRegistrations.deviceId, deviceId),
+        eq(mobileDeviceRegistrations.isDeleted, false)
+      ))
+      .returning();
+    return updated;
+  }
+
+  async validateMobileDeviceRefreshToken(deviceId: string, refreshTokenHash: string): Promise<boolean> {
+    const [device] = await db
+      .select({
+        id: mobileDeviceRegistrations.id,
+        refreshTokenHash: mobileDeviceRegistrations.refreshTokenHash,
+        refreshTokenExpiresAt: mobileDeviceRegistrations.refreshTokenExpiresAt,
+        status: mobileDeviceRegistrations.status
+      })
+      .from(mobileDeviceRegistrations)
+      .where(and(
+        eq(mobileDeviceRegistrations.deviceId, deviceId),
+        eq(mobileDeviceRegistrations.isDeleted, false),
+        eq(mobileDeviceRegistrations.status, 'active')
+      ));
+
+    if (!device || !device.refreshTokenHash || !device.refreshTokenExpiresAt) {
+      return false;
+    }
+
+    // Check if token has expired
+    if (new Date() > device.refreshTokenExpiresAt) {
+      return false;
+    }
+
+    // Validate the hash
+    return device.refreshTokenHash === refreshTokenHash;
   }
 
   // Sync Session Management

@@ -64,6 +64,7 @@ interface AuthenticatedRequest extends Request {
     field: string;
     userId: string;
   };
+  deviceId?: string; // For mobile device validation
 }
 
 // Middleware to verify JWT token
@@ -5053,6 +5054,462 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching access audit log:', error);
       res.status(500).json({ message: "خطأ في استرجاع سجل المراجعة" });
+    }
+  });
+
+  // ================================================================
+  // MOBILE AUTHENTICATION ENDPOINTS (Phase 4) - For surveyor apps
+  // ================================================================
+
+  // Device validation middleware for mobile endpoints (basic validation only)
+  const validateMobileDevice = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    const deviceId = req.headers['x-device-id'] as string;
+    const apiVersion = req.headers['api-version'] as string;
+
+    if (!deviceId) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'MISSING_DEVICE_ID',
+          message: 'X-Device-ID header is required for mobile endpoints'
+        }
+      });
+    }
+
+    if (!apiVersion || apiVersion !== '1.0') {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'UNSUPPORTED_API_VERSION',
+          message: 'API-Version header must be 1.0'
+        }
+      });
+    }
+
+    req.deviceId = deviceId;
+    next();
+  };
+
+  // Enhanced mobile access middleware for authenticated mobile endpoints
+  const authenticateMobileAccess = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    const deviceId = req.headers['x-device-id'] as string;
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        error: {
+          code: 'MISSING_ACCESS_TOKEN',
+          message: 'Access token required'
+        }
+      });
+    }
+
+    if (!deviceId) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'MISSING_DEVICE_ID',
+          message: 'X-Device-ID header is required for mobile endpoints'
+        }
+      });
+    }
+
+    try {
+      // Verify JWT token
+      const decoded: any = jwt.verify(token, jwtSecret);
+      
+      // Validate token type
+      if (decoded.type !== 'mobile_access') {
+        return res.status(403).json({
+          success: false,
+          error: {
+            code: 'INVALID_TOKEN_TYPE',
+            message: 'Token type must be mobile_access'
+          }
+        });
+      }
+
+      // Enforce device binding: header deviceId MUST match token deviceId
+      if (decoded.deviceId !== deviceId) {
+        return res.status(403).json({
+          success: false,
+          error: {
+            code: 'DEVICE_BINDING_MISMATCH',
+            message: 'Token is not bound to this device'
+          }
+        });
+      }
+
+      // Load device from storage to verify active status and tokenVersion
+      const device = await storage.getMobileDeviceByDeviceId(deviceId);
+      if (!device) {
+        return res.status(403).json({
+          success: false,
+          error: {
+            code: 'DEVICE_NOT_REGISTERED',
+            message: 'Device is not registered'
+          }
+        });
+      }
+
+      // Check device status and ownership
+      if (device.status !== 'active' || device.isDeleted || device.userId !== decoded.id) {
+        return res.status(403).json({
+          success: false,
+          error: {
+            code: 'DEVICE_INACTIVE',
+            message: 'Device is not active or has been revoked'
+          }
+        });
+      }
+
+      // CRITICAL: Enforce tokenVersion to make logout/revocation immediate
+      if ((device.tokenVersion || 1) !== (decoded.tokenVersion || 1)) {
+        return res.status(401).json({
+          success: false,
+          error: {
+            code: 'TOKEN_VERSION_MISMATCH',
+            message: 'Token has been invalidated'
+          }
+        });
+      }
+
+      // Update device last seen
+      await storage.updateMobileDeviceLastSeen(deviceId);
+
+      // Set user info for downstream handlers
+      req.user = {
+        id: decoded.id,
+        username: decoded.username,
+        role: decoded.role,
+        roleCodes: decoded.roleCodes || [],
+        geographicAssignments: []
+      };
+      req.deviceId = deviceId;
+
+      next();
+    } catch (error) {
+      console.error('Mobile access authentication error:', error);
+      return res.status(401).json({
+        success: false,
+        error: {
+          code: 'INVALID_ACCESS_TOKEN',
+          message: 'Access token is invalid or expired'
+        }
+      });
+    }
+  };
+
+  // Helper: Hash refresh token with SHA-256
+  const hashRefreshToken = (token: string): string => {
+    return crypto.createHash('sha256').update(token).digest('hex');
+  };
+
+  // Helper: Generate mobile JWT with device binding
+  const generateMobileJWT = (user: any, deviceId: string, tokenVersion: number): string => {
+    return jwt.sign(
+      {
+        id: user.id,
+        username: user.username,
+        role: user.role, // Legacy compatibility
+        roleCodes: user.roleCodes || [], // RBAC system
+        deviceId, // Device binding
+        tokenVersion, // For token invalidation
+        type: 'mobile_access'
+      },
+      jwtSecret,
+      { expiresIn: '1h' } // Short-lived access tokens
+    );
+  };
+
+  // Helper: Generate refresh token
+  const generateRefreshToken = (): string => {
+    return crypto.randomBytes(32).toString('hex');
+  };
+
+  // Mobile Login - Device registration and authentication
+  app.post("/api/mobile/v1/auth/login", validateMobileDevice, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { username, password, deviceName, deviceModel, osVersion, appVersion } = req.body;
+      const deviceId = req.deviceId!;
+
+      // Validate required fields
+      if (!username || !password || !deviceName) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'MISSING_CREDENTIALS',
+            message: 'Username, password, and deviceName are required'
+          }
+        });
+      }
+
+      // Authenticate user
+      const user = await storage.getUserByUsername(username);
+      if (!user) {
+        return res.status(401).json({
+          success: false,
+          error: {
+            code: 'INVALID_CREDENTIALS',
+            message: 'Invalid username or password'
+          }
+        });
+      }
+
+      const passwordValid = await bcrypt.compare(password, user.password);
+      if (!passwordValid) {
+        return res.status(401).json({
+          success: false,
+          error: {
+            code: 'INVALID_CREDENTIALS',
+            message: 'Invalid username or password'
+          }
+        });
+      }
+
+      // Check if user has mobile access (surveyor, engineer, manager roles)
+      const mobileRoles = ['surveyor', 'engineer', 'manager', 'admin'];
+      const userRoles = await storage.getUserRoles(user.id);
+      // Get user's role codes for mobile access check
+      const userRoleCodes: string[] = [];
+      for (const userRole of userRoles) {
+        const role = await storage.getRole(userRole.roleId);
+        if (role) userRoleCodes.push(role.code);
+      }
+      const hasPermission = userRoleCodes.some(roleCode => mobileRoles.includes(roleCode));
+
+      if (!hasPermission) {
+        return res.status(403).json({
+          success: false,
+          error: {
+            code: 'INSUFFICIENT_PERMISSIONS',
+            message: 'User does not have mobile app access permissions'
+          }
+        });
+      }
+
+      // Check existing device registration
+      let device = await storage.getMobileDeviceByDeviceId(deviceId);
+      
+      if (device) {
+        // Device exists, validate it's for the same user
+        if (device.userId !== user.id) {
+          return res.status(403).json({
+            success: false,
+            error: {
+              code: 'DEVICE_OWNERSHIP_MISMATCH',
+              message: 'Device is registered to a different user'
+            }
+          });
+        }
+
+        // Reactivate device if it was suspended
+        if (device.status !== 'active') {
+          device = await storage.updateMobileDeviceRegistration(device.id, {
+            status: 'active',
+            deviceName,
+            deviceModel,
+            osVersion,
+            appVersion
+          });
+        }
+      } else {
+        // Register new device
+        device = await storage.registerMobileDevice({
+          deviceId,
+          userId: user.id,
+          deviceName,
+          deviceModel,
+          osVersion,
+          appVersion,
+          deviceType: 'mobile',
+          status: 'active'
+        });
+      }
+
+      // Generate tokens
+      const accessToken = generateMobileJWT(user, deviceId, device.tokenVersion || 1);
+      const refreshToken = generateRefreshToken();
+      const refreshTokenHash = hashRefreshToken(refreshToken);
+      const refreshTokenExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+      // Store refresh token hash
+      await storage.updateMobileDeviceRefreshToken(deviceId, refreshTokenHash, refreshTokenExpiresAt);
+
+      res.json({
+        success: true,
+        data: {
+          accessToken,
+          refreshToken,
+          tokenType: 'Bearer',
+          expiresIn: 3600, // 1 hour
+          user: {
+            id: user.id,
+            username: user.username,
+            fullName: user.fullName,
+            role: user.role // Legacy
+          },
+          device: {
+            id: device.id,
+            deviceId: device.deviceId,
+            deviceName: device.deviceName,
+            status: device.status
+          }
+        }
+      });
+
+    } catch (error) {
+      console.error('Mobile login error:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Login failed due to server error'
+        }
+      });
+    }
+  });
+
+  // Mobile Refresh Token
+  app.post("/api/mobile/v1/auth/refresh", validateMobileDevice, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { refreshToken } = req.body;
+      const deviceId = req.deviceId!;
+
+      if (!refreshToken) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'MISSING_REFRESH_TOKEN',
+            message: 'Refresh token is required'
+          }
+        });
+      }
+
+      // Validate refresh token
+      const refreshTokenHash = hashRefreshToken(refreshToken);
+      const isValid = await storage.validateMobileDeviceRefreshToken(deviceId, refreshTokenHash);
+
+      if (!isValid) {
+        return res.status(401).json({
+          success: false,
+          error: {
+            code: 'INVALID_REFRESH_TOKEN',
+            message: 'Refresh token is invalid or expired'
+          }
+        });
+      }
+
+      // Get device and user info
+      const device = await storage.getMobileDeviceByDeviceId(deviceId);
+      if (!device || device.status !== 'active') {
+        return res.status(403).json({
+          success: false,
+          error: {
+            code: 'DEVICE_INACTIVE',
+            message: 'Device is not active or has been revoked'
+          }
+        });
+      }
+
+      const user = await storage.getUser(device.userId);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            code: 'USER_NOT_FOUND',
+            message: 'Associated user not found'
+          }
+        });
+      }
+
+      // Generate new access token
+      const accessToken = generateMobileJWT(user, deviceId, device.tokenVersion || 1);
+
+      // Optionally generate new refresh token (token rotation)
+      const newRefreshToken = generateRefreshToken();
+      const newRefreshTokenHash = hashRefreshToken(newRefreshToken);
+      const refreshTokenExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+      // Update refresh token
+      await storage.updateMobileDeviceRefreshToken(deviceId, newRefreshTokenHash, refreshTokenExpiresAt);
+
+      res.json({
+        success: true,
+        data: {
+          accessToken,
+          refreshToken: newRefreshToken,
+          tokenType: 'Bearer',
+          expiresIn: 3600 // 1 hour
+        }
+      });
+
+    } catch (error) {
+      console.error('Mobile refresh error:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Token refresh failed due to server error'
+        }
+      });
+    }
+  });
+
+  // Mobile Logout - Invalidate refresh token
+  app.post("/api/mobile/v1/auth/logout", validateMobileDevice, async (req: AuthenticatedRequest, res) => {
+    try {
+      const deviceId = req.deviceId!;
+
+      // Invalidate device tokens
+      await storage.invalidateMobileDeviceTokens(deviceId);
+
+      res.json({
+        success: true,
+        data: {
+          message: 'Successfully logged out'
+        }
+      });
+
+    } catch (error) {
+      console.error('Mobile logout error:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Logout failed due to server error'
+        }
+      });
+    }
+  });
+
+  // Mobile Revoke Device - Complete device deactivation
+  app.post("/api/mobile/v1/auth/revoke-device", validateMobileDevice, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { reason } = req.body;
+      const deviceId = req.deviceId!;
+
+      // Revoke device completely
+      await storage.revokeMobileDevice(deviceId, reason);
+
+      res.json({
+        success: true,
+        data: {
+          message: 'Device has been revoked successfully'
+        }
+      });
+
+    } catch (error) {
+      console.error('Mobile device revoke error:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Device revocation failed due to server error'
+        }
+      });
     }
   });
 
