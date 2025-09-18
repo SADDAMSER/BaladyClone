@@ -910,9 +910,10 @@ export default function GeographicDataManager() {
                     <div>
                       <Label className="text-sm font-medium">اختيار المحافظة</Label>
                       <Select 
-                        value={mapSelectedGovernorateId} 
+                        value={mapSelectedGovernorateId || 'all'} 
                         onValueChange={(value) => {
-                          setMapSelectedGovernorateId(value);
+                          const selectedValue = value === 'all' ? '' : value;
+                          setMapSelectedGovernorateId(selectedValue);
                           setMapSelectedDistrictId(''); // Reset district selection
                         }}
                       >
@@ -920,7 +921,7 @@ export default function GeographicDataManager() {
                           <SelectValue placeholder="اختر المحافظة" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">جميع المحافظات</SelectItem>
+                          <SelectItem value="all">جميع المحافظات</SelectItem>
                           {governorates
                             .filter(gov => gov.geometry) // Only show governorates with geometry
                             .map((gov) => (
@@ -936,14 +937,17 @@ export default function GeographicDataManager() {
                       <div>
                         <Label className="text-sm font-medium">اختيار المديرية</Label>
                         <Select 
-                          value={mapSelectedDistrictId} 
-                          onValueChange={setMapSelectedDistrictId}
+                          value={mapSelectedDistrictId || 'all'} 
+                          onValueChange={(value) => {
+                            const selectedValue = value === 'all' ? '' : value;
+                            setMapSelectedDistrictId(selectedValue);
+                          }}
                         >
                           <SelectTrigger data-testid="select-map-district">
                             <SelectValue placeholder="اختر المديرية" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">جميع المديريات</SelectItem>
+                            <SelectItem value="all">جميع المديريات</SelectItem>
                             {districts
                               .filter(dist => 
                                 dist.governorateId === mapSelectedGovernorateId && 
