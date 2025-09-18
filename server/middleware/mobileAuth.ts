@@ -4,7 +4,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { db } from '../db';
-import { users, userRoles, roles, userGeographicAssignments } from '@shared/schema';
+import { users, userRoles, roles, userGeographicAssignments, mobileDeviceRegistrations } from '@shared/schema';
 import { eq, and } from 'drizzle-orm';
 import { accessControlService } from '../accessControlService';
 
@@ -99,10 +99,63 @@ export const authenticateMobileAccess = async (req: Request, res: Response, next
       });
     }
 
+    // CRITICAL SECURITY ENFORCEMENT (strict validation - defense in depth)
+    
+    // STRICT: Validate token type MUST be 'mobile_access' for mobile endpoints
+    if (!decoded.type || decoded.type !== 'mobile_access') {
+      return res.status(403).json({
+        success: false,
+        error: 'رمز المصادقة غير مخصص للاستخدام المحمول',
+        code: 'INVALID_TOKEN_TYPE',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // STRICT: Device ID MUST exist in both token and header for mobile access
+    const requestDeviceId = req.headers['x-device-id'] as string;
+    if (!decoded.deviceId) {
+      return res.status(403).json({
+        success: false,
+        error: 'الرمز المميز غير مرتبط بجهاز',
+        code: 'DEVICE_ID_MISSING_IN_TOKEN',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    if (!requestDeviceId) {
+      return res.status(400).json({
+        success: false,
+        error: 'معرف الجهاز مطلوب في header للوصول المحمول',
+        code: 'DEVICE_ID_HEADER_MISSING',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // CRITICAL: Device binding validation - token MUST be bound to this exact device
+    if (decoded.deviceId !== requestDeviceId) {
+      return res.status(403).json({
+        success: false,
+        error: 'الرمز المميز غير مرتبط بهذا الجهاز',
+        code: 'DEVICE_BINDING_MISMATCH',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Support both decoded.userId (legacy) and decoded.id (new format) for compatibility
+    const userId = decoded.userId || decoded.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'معرف المستخدم مفقود في الرمز المميز',
+        code: 'USER_ID_MISSING',
+        timestamp: new Date().toISOString()
+      });
+    }
+
     // Fetch user details with roles and geographic assignments
     const userResults = await db.select()
       .from(users)
-      .where(eq(users.id, decoded.userId))
+      .where(eq(users.id, userId))
       .limit(1);
 
     if (userResults.length === 0) {
@@ -122,6 +175,68 @@ export const authenticateMobileAccess = async (req: Request, res: Response, next
         error: 'الحساب معطل. راجع الإدارة',
         code: 'ACCOUNT_DISABLED'
       });
+    }
+
+    // CRITICAL: Device validation and tokenVersion enforcement (for immediate revocation)
+    if (decoded.deviceId) {
+      try {
+        const deviceResults = await db.select()
+          .from(mobileDeviceRegistrations)
+          .where(and(
+            eq(mobileDeviceRegistrations.deviceId, decoded.deviceId),
+            eq(mobileDeviceRegistrations.userId, user.id)
+          ))
+          .limit(1);
+
+        if (deviceResults.length === 0) {
+          return res.status(403).json({
+            success: false,
+            error: 'الجهاز غير مسجل أو تم إلغاؤه',
+            code: 'DEVICE_NOT_REGISTERED',
+            timestamp: new Date().toISOString()
+          });
+        }
+
+        const device = deviceResults[0];
+
+        // Check device status and activation
+        if (device.status !== 'active' || device.isDeleted || !device.isActive) {
+          return res.status(403).json({
+            success: false,
+            error: 'الجهاز معطل أو تم إلغاؤه',
+            code: 'DEVICE_INACTIVE',
+            timestamp: new Date().toISOString()
+          });
+        }
+
+        // CRITICAL: Enforce tokenVersion to make logout/revocation immediate
+        const tokenVersion = decoded.tokenVersion || 1;
+        const deviceTokenVersion = device.tokenVersion || 1;
+        
+        if (tokenVersion !== deviceTokenVersion) {
+          return res.status(401).json({
+            success: false,
+            error: 'الرمز المميز تم إلغاؤه',
+            code: 'TOKEN_VERSION_MISMATCH',
+            timestamp: new Date().toISOString()
+          });
+        }
+
+        // Update device last seen timestamp (async, don't wait)
+        db.update(mobileDeviceRegistrations)
+          .set({ lastSeenAt: new Date() })
+          .where(eq(mobileDeviceRegistrations.id, device.id))
+          .catch(error => console.error('[DEVICE] Failed to update lastSeenAt:', error));
+
+      } catch (deviceError) {
+        console.error('[DEVICE VALIDATION ERROR]:', deviceError);
+        return res.status(500).json({
+          success: false,
+          error: 'خطأ في التحقق من الجهاز',
+          code: 'DEVICE_VALIDATION_ERROR',
+          timestamp: new Date().toISOString()
+        });
+      }
     }
 
     // Get user roles and departments
@@ -250,6 +365,81 @@ export const validateLBACAccess = (requiredScope?: {
       });
     }
   };
+};
+
+/**
+ * Device validation middleware for mobile endpoints  
+ * Validates required headers and device information
+ */
+export const validateMobileDevice = (req: Request & { deviceId?: string }, res: Response, next: NextFunction) => {
+  try {
+    const deviceId = req.headers['x-device-id'] as string;
+    const apiVersion = req.headers['api-version'] as string;
+
+    if (!deviceId) {
+      return res.status(400).json({
+        success: false,
+        error: 'معرف الجهاز مطلوب للوصول للخدمات المحمولة',
+        code: 'MISSING_DEVICE_ID',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Validate device ID format (should be UUID or unique identifier)
+    if (deviceId.length < 10 || deviceId.length > 128) {
+      return res.status(400).json({
+        success: false,
+        error: 'معرف الجهاز غير صحيح',
+        code: 'INVALID_DEVICE_ID',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    if (!apiVersion || !apiVersion.match(/^[0-9]+\.[0-9]+$/)) {
+      return res.status(400).json({
+        success: false,
+        error: 'إصدار API مطلوب ويجب أن يكون بصيغة صحيحة (مثال: 1.0)',
+        code: 'INVALID_API_VERSION',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Check supported API versions
+    const supportedVersions = ['1.0'];
+    if (!supportedVersions.includes(apiVersion)) {
+      return res.status(400).json({
+        success: false,
+        error: `إصدار API ${apiVersion} غير مدعوم. الإصدارات المدعومة: ${supportedVersions.join(', ')}`,
+        code: 'UNSUPPORTED_API_VERSION',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Attach validated device ID to request
+    req.deviceId = deviceId;
+    
+    // Log device access for security audit
+    console.log(`[DEVICE] Mobile device validated:`, {
+      deviceId: deviceId.substring(0, 8) + '***', // Partial logging for security
+      apiVersion,
+      ip: req.ip,
+      endpoint: req.path,
+      userAgent: req.get('User-Agent'),
+      timestamp: new Date().toISOString()
+    });
+
+    next();
+
+  } catch (error) {
+    console.error('[DEVICE ERROR] Device validation failed:', error);
+    
+    return res.status(500).json({
+      success: false,
+      error: 'خطأ في نظام التحقق من الجهاز',
+      code: 'DEVICE_VALIDATION_ERROR',
+      timestamp: new Date().toISOString()
+    });
+  }
 };
 
 /**

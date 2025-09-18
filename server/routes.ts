@@ -43,7 +43,7 @@ import {
 // Enhanced Mobile Authentication
 import { 
   authenticateMobileAccess, validateLBACAccess, requireRole as requireMobileRole,
-  AuthenticatedMobileUser 
+  validateMobileDevice, AuthenticatedMobileUser 
 } from './middleware/mobileAuth';
 
 // Enhanced Input Validation
@@ -5083,36 +5083,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // MOBILE AUTHENTICATION ENDPOINTS (Phase 4) - For surveyor apps
   // ================================================================
 
-  // Device validation middleware for mobile endpoints (basic validation only)
-  const validateMobileDevice = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    const deviceId = req.headers['x-device-id'] as string;
-    const apiVersion = req.headers['api-version'] as string;
-
-    if (!deviceId) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'MISSING_DEVICE_ID',
-          message: 'X-Device-ID header is required for mobile endpoints'
-        }
-      });
-    }
-
-    if (!apiVersion || apiVersion !== '1.0') {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'UNSUPPORTED_API_VERSION',
-          message: 'API-Version header must be 1.0'
-        }
-      });
-    }
-
-    req.deviceId = deviceId;
-    next();
-  };
-
-  // Enhanced mobile access middleware for authenticated mobile endpoints
+  // Mobile middleware functions imported from middleware/mobileAuth.ts
+  // All mobile authentication logic centralized in middleware/mobileAuth.ts
   const authenticateMobileAccess = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
