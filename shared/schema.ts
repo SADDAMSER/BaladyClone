@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean, timestamp, jsonb, decimal, uuid } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean, timestamp, jsonb, decimal, uuid, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -3232,4 +3232,862 @@ export const insertLbacAccessAuditLogSchema = createInsertSchema(lbacAccessAudit
 
 export type LbacAccessAuditLog = typeof lbacAccessAuditLog.$inferSelect;
 export type InsertLbacAccessAuditLog = z.infer<typeof insertLbacAccessAuditLogSchema>;
+
+// =============================================
+// MOBILE SURVEY SYSTEM - Phase 7
+// =============================================
+
+// Mobile Device Registration - For LBAC-aware device management
+export const mobileDeviceRegistrations = pgTable("mobile_device_registrations", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  deviceId: text("device_id").notNull().unique(), // Unique device identifier
+  userId: uuid("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  deviceName: text("device_name").notNull(), // Human-readable device name
+  deviceModel: text("device_model"), // Device model info
+  osVersion: text("os_version"), // Operating system version
+  appVersion: text("app_version"), // Mobile app version
+  deviceType: text("device_type").notNull().default("mobile"), // mobile, tablet
+  status: text("status").notNull().default("active"), // active, suspended, revoked
+  
+  // SECURITY: No plaintext tokens stored - tokens managed by JWT service
+  refreshTokenHash: text("refresh_token_hash"), // Hashed refresh token for validation
+  refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
+  tokenVersion: integer("token_version").default(1), // For token invalidation
+  
+  registrationDate: timestamp("registration_date").default(sql`CURRENT_TIMESTAMP`),
+  lastSeenAt: timestamp("last_seen_at"),
+  lastSyncAt: timestamp("last_sync_at"),
+  
+  // For delta sync and conflict resolution
+  isDeleted: boolean("is_deleted").default(false), // Soft delete for tombstones
+  deletedAt: timestamp("deleted_at"),
+  
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  // Device type validation
+  deviceTypeCheck: sql`CONSTRAINT device_type_check CHECK (
+    device_type IN ('mobile', 'tablet')
+  )`,
+  // Status validation
+  statusCheck: sql`CONSTRAINT status_check CHECK (
+    status IN ('active', 'suspended', 'revoked')
+  )`,
+  // Soft delete consistency
+  deletedAtConsistency: sql`CONSTRAINT deleted_at_consistency CHECK (
+    (is_deleted = false AND deleted_at IS NULL) OR 
+    (is_deleted = true AND deleted_at IS NOT NULL)
+  )`,
+  // Refresh token expiry check
+  refreshTokenValidityCheck: sql`CONSTRAINT refresh_token_validity_check CHECK (
+    refresh_token_hash IS NULL OR refresh_token_expires_at IS NOT NULL
+  )`,
+  // Index for sync queries - using proper Drizzle syntax
+  updatedAtIndex: index("idx_mobile_devices_updated_at").on(table.updatedAt),
+  // Index for active device lookup
+  activeDevicesIndex: index("idx_mobile_devices_active")
+    .on(table.userId, table.status, table.isActive)
+    .where(sql`NOT ${table.isDeleted}`),
+  // Partial unique index for one active device per user
+  uniqueActiveDeviceIndex: uniqueIndex("idx_unique_active_device_per_user")
+    .on(table.userId)
+    .where(sql`${table.isActive} = true AND ${table.status} = 'active' AND ${table.isDeleted} = false`)
+}));
+
+// Mobile Survey Sessions - Core survey session tracking
+export const mobileSurveySessions = pgTable("mobile_survey_sessions", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  applicationId: uuid("application_id")
+    .references(() => applications.id, { onDelete: "cascade" })
+    .notNull(),
+  fieldVisitId: uuid("field_visit_id")
+    .references(() => fieldVisits.id, { onDelete: "cascade" }),
+  surveyorId: uuid("surveyor_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  deviceId: uuid("device_id")
+    .references(() => mobileDeviceRegistrations.id, { onDelete: "cascade" })
+    .notNull(),
+  sessionNumber: text("session_number").notNull().unique(), // Human-readable session ID
+  
+  // Idempotency for sync
+  idempotencyKey: text("idempotency_key").notNull().unique(), // Prevents duplicate creation
+  
+  status: text("status").notNull().default("draft"), // draft, active, paused, completed, submitted, synced
+  surveyType: text("survey_type").notNull(), // building_permit, surveying_decision, cadastral_survey
+  startTime: timestamp("start_time").default(sql`CURRENT_TIMESTAMP`),
+  endTime: timestamp("end_time"),
+  pausedDuration: integer("paused_duration").default(0), // Total paused time in seconds
+  
+  // Location and context
+  startLocation: jsonb("start_location"), // {lat, lng, accuracy, timestamp}
+  endLocation: jsonb("end_location"), // {lat, lng, accuracy, timestamp}
+  weatherConditions: text("weather_conditions"),
+  
+  // LBAC enforcement - Must match surveyor's geographic assignment
+  governorateId: uuid("governorate_id")
+    .references(() => governorates.id, { onDelete: "restrict" }),
+  districtId: uuid("district_id")
+    .references(() => districts.id, { onDelete: "restrict" }),
+  subDistrictId: uuid("sub_district_id")
+    .references(() => subDistricts.id, { onDelete: "restrict" }),
+  neighborhoodId: uuid("neighborhood_id")
+    .references(() => neighborhoods.id, { onDelete: "restrict" }),
+  
+  // Quality and sync metadata
+  pointsCount: integer("points_count").default(0),
+  geometriesCount: integer("geometries_count").default(0),
+  attachmentsCount: integer("attachments_count").default(0),
+  qualityScore: decimal("quality_score", { precision: 5, scale: 2 }), // Calculated quality score
+  lastSyncedAt: timestamp("last_synced_at"),
+  syncVersion: integer("sync_version").default(1), // For conflict resolution
+  
+  // Soft delete for tombstones
+  isDeleted: boolean("is_deleted").default(false),
+  deletedAt: timestamp("deleted_at"),
+  
+  // Session notes and metadata
+  notes: text("notes"),
+  clientMetadata: jsonb("client_metadata"), // Device info, app version, etc.
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  // Session duration constraint
+  sessionDurationCheck: sql`CONSTRAINT session_duration_check CHECK (
+    end_time IS NULL OR start_time <= end_time
+  )`,
+  
+  // Status validation
+  statusValidation: sql`CONSTRAINT status_validation CHECK (
+    status IN ('draft', 'active', 'paused', 'completed', 'submitted', 'synced')
+  )`,
+  
+  // Survey type validation
+  surveyTypeValidation: sql`CONSTRAINT survey_type_validation CHECK (
+    survey_type IN ('building_permit', 'surveying_decision', 'cadastral_survey')
+  )`,
+  
+  // LBAC constraint: Must have at least one geographic level
+  sessionGeographicConstraint: sql`CONSTRAINT session_geographic_constraint CHECK (
+    governorate_id IS NOT NULL OR district_id IS NOT NULL OR 
+    sub_district_id IS NOT NULL OR neighborhood_id IS NOT NULL
+  )`,
+  
+  // Completed sessions must have end time
+  completedSessionCheck: sql`CONSTRAINT completed_session_check CHECK (
+    status NOT IN ('completed', 'submitted', 'synced') OR end_time IS NOT NULL
+  )`,
+  
+  // Soft delete consistency
+  deletedAtConsistency: sql`CONSTRAINT deleted_at_consistency CHECK (
+    (is_deleted = false AND deleted_at IS NULL) OR 
+    (is_deleted = true AND deleted_at IS NOT NULL)
+  )`,
+  
+  // Indexes for efficient queries - using proper Drizzle syntax
+  applicationSessionsIndex: index("idx_sessions_application")
+    .on(table.applicationId)
+    .where(sql`NOT ${table.isDeleted}`),
+  surveyorSessionsIndex: index("idx_sessions_surveyor")
+    .on(table.surveyorId, table.status)
+    .where(sql`NOT ${table.isDeleted}`),
+  updatedAtIndex: index("idx_sessions_updated_at").on(table.updatedAt),
+  syncStatusIndex: index("idx_sessions_sync_status")
+    .on(table.lastSyncedAt, table.updatedAt)
+    .where(sql`NOT ${table.isDeleted}`),
+  geographicScopeIndex: index("idx_sessions_geographic")
+    .on(table.governorateId, table.districtId, table.subDistrictId, table.neighborhoodId)
+    .where(sql`NOT ${table.isDeleted}`)
+}));
+
+// Mobile Survey Points - Individual survey points with high-precision GPS
+export const mobileSurveyPoints = pgTable("mobile_survey_points", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: uuid("session_id")
+    .references(() => mobileSurveySessions.id, { onDelete: "cascade" })
+    .notNull(),
+  pointNumber: integer("point_number").notNull(), // Sequential number within session
+  
+  // Idempotency for sync
+  idempotencyKey: text("idempotency_key").notNull().unique(), // Prevents duplicate creation
+  
+  // Geographic coordinates (WGS84 - EPSG:4326)
+  latitude: decimal("latitude", { precision: 10, scale: 8 }).notNull(),
+  longitude: decimal("longitude", { precision: 11, scale: 8 }).notNull(),
+  elevation: decimal("elevation", { precision: 8, scale: 3 }), // Meters above sea level
+  
+  // GPS accuracy and metadata
+  horizontalAccuracy: decimal("horizontal_accuracy", { precision: 6, scale: 2 }), // Meters
+  verticalAccuracy: decimal("vertical_accuracy", { precision: 6, scale: 2 }), // Meters
+  gpsSource: text("gps_source").default("device"), // device, external_receiver, manual
+  
+  // Survey classification
+  pointType: text("point_type").notNull(), // corner, boundary, reference, building, utility
+  featureCode: text("feature_code"), // Standardized feature codes
+  description: text("description"),
+  
+  // Temporal data
+  capturedAt: timestamp("captured_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  
+  // Quality flags
+  isVerified: boolean("is_verified").default(false),
+  needsReview: boolean("needs_review").default(false),
+  qualityFlags: jsonb("quality_flags"), // Array of quality issues
+  
+  // Sync and conflict resolution
+  isSynced: boolean("is_synced").default(false),
+  syncedAt: timestamp("synced_at"),
+  syncVersion: integer("sync_version").default(1),
+  isDeleted: boolean("is_deleted").default(false), // Soft delete for tombstones
+  deletedAt: timestamp("deleted_at"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  // Unique point number within session
+  uniquePointPerSession: sql`CONSTRAINT unique_point_per_session UNIQUE (session_id, point_number)`,
+  
+  // WGS84 coordinate validation (Yemen bounds + buffer for border areas)
+  yemenCoordinateValidation: sql`CONSTRAINT yemen_coordinate_validation CHECK (
+    latitude BETWEEN 11.5 AND 19.5 AND longitude BETWEEN 41.5 AND 55.5
+  )`,
+  
+  // EPSG:4326 precision validation (WGS84 standard)
+  wgs84PrecisionValidation: sql`CONSTRAINT wgs84_precision_validation CHECK (
+    latitude BETWEEN -90.0 AND 90.0 AND longitude BETWEEN -180.0 AND 180.0
+  )`,
+  
+  // Accuracy validation
+  accuracyValidation: sql`CONSTRAINT accuracy_validation CHECK (
+    horizontal_accuracy IS NULL OR horizontal_accuracy >= 0
+  )`,
+  
+  // GPS source validation
+  gpsSourceValidation: sql`CONSTRAINT gps_source_validation CHECK (
+    gps_source IN ('device', 'external_receiver', 'manual')
+  )`,
+  
+  // Point type validation
+  pointTypeValidation: sql`CONSTRAINT point_type_validation CHECK (
+    point_type IN ('corner', 'boundary', 'reference', 'building', 'utility')
+  )`,
+  
+  // Soft delete consistency
+  deletedAtConsistency: sql`CONSTRAINT deleted_at_consistency CHECK (
+    (is_deleted = false AND deleted_at IS NULL) OR 
+    (is_deleted = true AND deleted_at IS NOT NULL)
+  )`,
+  
+  // Indexes for efficient queries - using proper Drizzle syntax
+  sessionPointsIndex: index("idx_points_session")
+    .on(table.sessionId, table.pointNumber)
+    .where(sql`NOT ${table.isDeleted}`),
+  updatedAtIndex: index("idx_points_updated_at").on(table.updatedAt),
+  syncStatusIndex: index("idx_points_sync_status")
+    .on(table.isSynced, table.updatedAt)
+    .where(sql`NOT ${table.isDeleted}`),
+  geospatialIndex: index("idx_points_geospatial")
+    .on(table.latitude, table.longitude)
+    .where(sql`NOT ${table.isDeleted}`)
+}));
+
+// Mobile Survey Geometries - Complex geometries in GeoJSON format
+export const mobileSurveyGeometries = pgTable("mobile_survey_geometries", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: uuid("session_id")
+    .references(() => mobileSurveySessions.id, { onDelete: "cascade" })
+    .notNull(),
+  geometryNumber: integer("geometry_number").notNull(), // Sequential number within session
+  
+  // Idempotency for sync
+  idempotencyKey: text("idempotency_key").notNull().unique(), // Prevents duplicate creation
+  
+  // Geometry data in GeoJSON format (EPSG:4326)
+  geometryType: text("geometry_type").notNull(), // Point, LineString, Polygon, MultiPolygon
+  coordinates: jsonb("coordinates").notNull(), // GeoJSON coordinates array
+  properties: jsonb("properties"), // Additional GeoJSON properties
+  crs: text("crs").default("EPSG:4326"), // Coordinate Reference System
+  
+  // Survey classification
+  featureType: text("feature_type").notNull(), // building, boundary, road, utility, structure
+  featureCode: text("feature_code"), // Standardized feature codes
+  description: text("description"),
+  
+  // Geometric properties (calculated from coordinates)
+  area: decimal("area", { precision: 12, scale: 3 }), // Square meters (for polygons)
+  perimeter: decimal("perimeter", { precision: 10, scale: 3 }), // Meters (for polygons)
+  length: decimal("length", { precision: 10, scale: 3 }), // Meters (for lines)
+  centroid: jsonb("centroid"), // {lat, lng} center point for indexing
+  
+  // Quality and validation
+  isComplete: boolean("is_complete").default(false), // For partial/work-in-progress geometries
+  isClosed: boolean("is_closed").default(false), // For polygons
+  qualityScore: decimal("quality_score", { precision: 5, scale: 2 }),
+  validationFlags: jsonb("validation_flags"), // Array of validation issues
+  
+  // Temporal data
+  startedAt: timestamp("started_at").default(sql`CURRENT_TIMESTAMP`),
+  completedAt: timestamp("completed_at"),
+  
+  // Sync and conflict resolution
+  isSynced: boolean("is_synced").default(false),
+  syncedAt: timestamp("synced_at"),
+  syncVersion: integer("sync_version").default(1),
+  isDeleted: boolean("is_deleted").default(false), // Soft delete for tombstones
+  deletedAt: timestamp("deleted_at"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  // Unique geometry number within session
+  uniqueGeometryPerSession: sql`CONSTRAINT unique_geometry_per_session UNIQUE (session_id, geometry_number)`,
+  
+  // GeoJSON geometry type validation
+  geometryTypeValidation: sql`CONSTRAINT geometry_type_validation CHECK (
+    geometry_type IN ('Point', 'LineString', 'Polygon', 'MultiPolygon')
+  )`,
+  
+  // Feature type validation
+  featureTypeValidation: sql`CONSTRAINT feature_type_validation CHECK (
+    feature_type IN ('building', 'boundary', 'road', 'utility', 'structure')
+  )`,
+  
+  // CRS validation (only WGS84 supported)
+  crsValidation: sql`CONSTRAINT crs_validation CHECK (
+    crs = 'EPSG:4326'
+  )`,
+  
+  // Completed geometries must have completion time
+  completedGeometryCheck: sql`CONSTRAINT completed_geometry_check CHECK (
+    NOT is_complete OR completed_at IS NOT NULL
+  )`,
+  
+  // Polygon closure check
+  polygonClosureCheck: sql`CONSTRAINT polygon_closure_check CHECK (
+    geometry_type != 'Polygon' OR is_closed = true
+  )`,
+  
+  // Area must be positive for polygons
+  areaValidation: sql`CONSTRAINT area_validation CHECK (
+    area IS NULL OR area >= 0
+  )`,
+  
+  // Length/perimeter must be positive
+  lengthValidation: sql`CONSTRAINT length_validation CHECK (
+    length IS NULL OR length >= 0
+  )`,
+  
+  // Perimeter must be positive
+  perimeterValidation: sql`CONSTRAINT perimeter_validation CHECK (
+    perimeter IS NULL OR perimeter >= 0
+  )`,
+  
+  // Soft delete consistency
+  deletedAtConsistency: sql`CONSTRAINT deleted_at_consistency CHECK (
+    (is_deleted = false AND deleted_at IS NULL) OR 
+    (is_deleted = true AND deleted_at IS NOT NULL)
+  )`,
+  
+  // Indexes for efficient queries - using proper Drizzle syntax
+  sessionGeometriesIndex: index("idx_geometries_session")
+    .on(table.sessionId, table.geometryNumber)
+    .where(sql`NOT ${table.isDeleted}`),
+  updatedAtIndex: index("idx_geometries_updated_at").on(table.updatedAt),
+  syncStatusIndex: index("idx_geometries_sync_status")
+    .on(table.isSynced, table.updatedAt)
+    .where(sql`NOT ${table.isDeleted}`),
+  featureTypeIndex: index("idx_geometries_feature_type")
+    .on(table.featureType)
+    .where(sql`NOT ${table.isDeleted}`)
+}));
+
+// Mobile Field Visits - Track surveyor movement and field coverage
+export const mobileFieldVisits = pgTable("mobile_field_visits", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: uuid("session_id")
+    .references(() => mobileSurveySessions.id, { onDelete: "cascade" })
+    .notNull(),
+  surveyorId: uuid("surveyor_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  deviceId: uuid("device_id")
+    .references(() => mobileDeviceRegistrations.id, { onDelete: "cascade" })
+    .notNull(),
+  
+  // Idempotency for sync
+  idempotencyKey: text("idempotency_key").notNull().unique(),
+  
+  // Visit tracking
+  startTime: timestamp("start_time").notNull().default(sql`CURRENT_TIMESTAMP`),
+  endTime: timestamp("end_time"),
+  duration: integer("duration"), // Total duration in seconds
+  
+  // Movement path as GeoJSON LineString
+  movementPath: jsonb("movement_path"), // GeoJSON LineString with timestamps
+  startLocation: jsonb("start_location"), // {lat, lng, accuracy, timestamp}
+  endLocation: jsonb("end_location"), // {lat, lng, accuracy, timestamp}
+  
+  // Coverage and quality metrics
+  totalDistance: decimal("total_distance", { precision: 10, scale: 3 }), // Meters traveled
+  coverageArea: decimal("coverage_area", { precision: 12, scale: 3 }), // Square meters covered
+  visitPurpose: text("visit_purpose").notNull(), // survey, inspection, verification, maintenance
+  visitStatus: text("visit_status").notNull().default("active"), // active, completed, interrupted
+  
+  // Quality and notes
+  qualityScore: decimal("quality_score", { precision: 5, scale: 2 }),
+  notes: text("notes"),
+  weatherConditions: text("weather_conditions"),
+  
+  // Sync and conflict resolution
+  isSynced: boolean("is_synced").default(false),
+  syncedAt: timestamp("synced_at"),
+  syncVersion: integer("sync_version").default(1),
+  isDeleted: boolean("is_deleted").default(false),
+  deletedAt: timestamp("deleted_at"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  // Visit duration constraint
+  visitDurationCheck: sql`CONSTRAINT visit_duration_check CHECK (
+    end_time IS NULL OR start_time <= end_time
+  )`,
+  
+  // Visit purpose validation
+  visitPurposeValidation: sql`CONSTRAINT visit_purpose_validation CHECK (
+    visit_purpose IN ('survey', 'inspection', 'verification', 'maintenance')
+  )`,
+  
+  // Visit status validation
+  visitStatusValidation: sql`CONSTRAINT visit_status_validation CHECK (
+    visit_status IN ('active', 'completed', 'interrupted')
+  )`,
+  
+  // Completed visits must have end time
+  completedVisitCheck: sql`CONSTRAINT completed_visit_check CHECK (
+    visit_status != 'completed' OR end_time IS NOT NULL
+  )`,
+  
+  // Distance must be positive
+  distanceValidation: sql`CONSTRAINT distance_validation CHECK (
+    total_distance IS NULL OR total_distance >= 0
+  )`,
+  
+  // Coverage area must be positive
+  coverageValidation: sql`CONSTRAINT coverage_validation CHECK (
+    coverage_area IS NULL OR coverage_area >= 0
+  )`,
+  
+  // Soft delete consistency
+  deletedAtConsistency: sql`CONSTRAINT deleted_at_consistency CHECK (
+    (is_deleted = false AND deleted_at IS NULL) OR 
+    (is_deleted = true AND deleted_at IS NOT NULL)
+  )`,
+  
+  // Indexes for efficient queries
+  sessionVisitsIndex: index("idx_field_visits_session")
+    .on(table.sessionId)
+    .where(sql`NOT ${table.isDeleted}`),
+  surveyorVisitsIndex: index("idx_field_visits_surveyor")
+    .on(table.surveyorId, table.visitStatus)
+    .where(sql`NOT ${table.isDeleted}`),
+  updatedAtIndex: index("idx_field_visits_updated_at").on(table.updatedAt),
+  syncStatusIndex: index("idx_field_visits_sync_status")
+    .on(table.isSynced, table.updatedAt)
+    .where(sql`NOT ${table.isDeleted}`)
+}));
+
+// Mobile Survey Attachments - Photos and files with geographic context
+export const mobileSurveyAttachments = pgTable("mobile_survey_attachments", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: uuid("session_id")
+    .references(() => mobileSurveySessions.id, { onDelete: "cascade" })
+    .notNull(),
+  relatedPointId: uuid("related_point_id")
+    .references(() => mobileSurveyPoints.id, { onDelete: "set null" }),
+  relatedGeometryId: uuid("related_geometry_id")
+    .references(() => mobileSurveyGeometries.id, { onDelete: "set null" }),
+  
+  // File metadata
+  fileName: text("file_name").notNull(),
+  originalFileName: text("original_file_name").notNull(),
+  fileType: text("file_type").notNull(), // image, video, audio, document
+  mimeType: text("mime_type").notNull(),
+  fileSize: integer("file_size").notNull(), // Bytes
+  filePath: text("file_path"), // Local device path
+  storageUrl: text("storage_url"), // Cloud storage URL after upload
+  
+  // Geographic context
+  captureLocation: jsonb("capture_location"), // {lat, lng, accuracy} at time of capture
+  captureDirection: decimal("capture_direction", { precision: 6, scale: 2 }), // Compass bearing
+  
+  // Image-specific metadata
+  imageWidth: integer("image_width"),
+  imageHeight: integer("image_height"),
+  exifData: jsonb("exif_data"), // Camera EXIF metadata
+  
+  // Content classification
+  attachmentType: text("attachment_type").notNull(), // photo, sketch, document, audio_note
+  description: text("description"),
+  tags: jsonb("tags"), // Array of tags for categorization
+  
+  // Temporal data
+  capturedAt: timestamp("captured_at").notNull(),
+  
+  // Upload and sync status
+  isUploaded: boolean("is_uploaded").default(false),
+  uploadedAt: timestamp("uploaded_at"),
+  isSynced: boolean("is_synced").default(false),
+  syncedAt: timestamp("synced_at"),
+  uploadRetryCount: integer("upload_retry_count").default(0),
+  
+  // Validation and security
+  isValidated: boolean("is_validated").default(false),
+  validationResults: jsonb("validation_results"), // AV scan, content validation results
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  // File size validation (max 50MB)
+  fileSizeValidation: sql`CONSTRAINT file_size_validation CHECK (
+    file_size > 0 AND file_size <= 52428800
+  )`,
+  // Upload retry limit
+  uploadRetryLimit: sql`CONSTRAINT upload_retry_limit CHECK (
+    upload_retry_count >= 0 AND upload_retry_count <= 5
+  )`,
+  // Either point or geometry reference (not both)
+  exclusiveReference: sql`CONSTRAINT exclusive_reference CHECK (
+    (related_point_id IS NULL) != (related_geometry_id IS NULL)
+  )`
+}));
+
+// Mobile Sync Cursors - For delta sync and conflict resolution
+export const mobileSyncCursors = pgTable("mobile_sync_cursors", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  deviceId: uuid("device_id")
+    .references(() => mobileDeviceRegistrations.id, { onDelete: "cascade" })
+    .notNull(),
+  entityType: text("entity_type").notNull(), // sessions, points, geometries, attachments
+  lastSyncTimestamp: timestamp("last_sync_timestamp").notNull(),
+  lastSyncCursor: text("last_sync_cursor").notNull(), // Watermark for pagination
+  
+  // Sync metadata
+  syncDirection: text("sync_direction").notNull(), // up, down, bidirectional
+  recordsCount: integer("records_count").default(0),
+  conflictsCount: integer("conflicts_count").default(0),
+  errorsCount: integer("errors_count").default(0),
+  
+  // Status tracking
+  isActive: boolean("is_active").default(true),
+  lastSuccessfulSync: timestamp("last_successful_sync"),
+  nextScheduledSync: timestamp("next_scheduled_sync"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  // Unique cursor per device per entity type
+  uniqueCursorPerDevice: sql`CONSTRAINT unique_cursor_per_device UNIQUE (device_id, entity_type)`,
+  // Valid entity types
+  validEntityType: sql`CONSTRAINT valid_entity_type CHECK (
+    entity_type IN ('sessions', 'points', 'geometries', 'attachments', 'all')
+  )`,
+  // Valid sync direction
+  validSyncDirection: sql`CONSTRAINT valid_sync_direction CHECK (
+    sync_direction IN ('up', 'down', 'bidirectional')
+  )`
+}));
+
+// =============================================
+// MOBILE SURVEY SYSTEM - RELATIONS
+// =============================================
+
+// Mobile Device Registration Relations
+export const mobileDeviceRegistrationsRelations = relations(mobileDeviceRegistrations, ({ one, many }) => ({
+  user: one(users, {
+    fields: [mobileDeviceRegistrations.userId],
+    references: [users.id],
+  }),
+  surveySessions: many(mobileSurveySessions),
+  syncCursors: many(mobileSyncCursors),
+}));
+
+// Mobile Survey Sessions Relations
+export const mobileSurveySessionsRelations = relations(mobileSurveySessions, ({ one, many }) => ({
+  application: one(applications, {
+    fields: [mobileSurveySessions.applicationId],
+    references: [applications.id],
+  }),
+  fieldVisit: one(fieldVisits, {
+    fields: [mobileSurveySessions.fieldVisitId],
+    references: [fieldVisits.id],
+  }),
+  surveyor: one(users, {
+    fields: [mobileSurveySessions.surveyorId],
+    references: [users.id],
+  }),
+  device: one(mobileDeviceRegistrations, {
+    fields: [mobileSurveySessions.deviceId],
+    references: [mobileDeviceRegistrations.id],
+  }),
+  governorate: one(governorates, {
+    fields: [mobileSurveySessions.governorateId],
+    references: [governorates.id],
+  }),
+  district: one(districts, {
+    fields: [mobileSurveySessions.districtId],
+    references: [districts.id],
+  }),
+  subDistrict: one(subDistricts, {
+    fields: [mobileSurveySessions.subDistrictId],
+    references: [subDistricts.id],
+  }),
+  neighborhood: one(neighborhoods, {
+    fields: [mobileSurveySessions.neighborhoodId],
+    references: [neighborhoods.id],
+  }),
+  surveyPoints: many(mobileSurveyPoints),
+  surveyGeometries: many(mobileSurveyGeometries),
+  fieldVisits: many(mobileFieldVisits),
+  attachments: many(mobileSurveyAttachments),
+}));
+
+// Mobile Survey Points Relations
+export const mobileSurveyPointsRelations = relations(mobileSurveyPoints, ({ one, many }) => ({
+  session: one(mobileSurveySessions, {
+    fields: [mobileSurveyPoints.sessionId],
+    references: [mobileSurveySessions.id],
+  }),
+  attachments: many(mobileSurveyAttachments),
+}));
+
+// Mobile Survey Geometries Relations
+export const mobileSurveyGeometriesRelations = relations(mobileSurveyGeometries, ({ one, many }) => ({
+  session: one(mobileSurveySessions, {
+    fields: [mobileSurveyGeometries.sessionId],
+    references: [mobileSurveySessions.id],
+  }),
+  attachments: many(mobileSurveyAttachments),
+}));
+
+// Mobile Field Visits Relations
+export const mobileFieldVisitsRelations = relations(mobileFieldVisits, ({ one }) => ({
+  session: one(mobileSurveySessions, {
+    fields: [mobileFieldVisits.sessionId],
+    references: [mobileSurveySessions.id],
+  }),
+  surveyor: one(users, {
+    fields: [mobileFieldVisits.surveyorId],
+    references: [users.id],
+  }),
+  device: one(mobileDeviceRegistrations, {
+    fields: [mobileFieldVisits.deviceId],
+    references: [mobileDeviceRegistrations.id],
+  }),
+}));
+
+// Mobile Survey Attachments Relations
+export const mobileSurveyAttachmentsRelations = relations(mobileSurveyAttachments, ({ one }) => ({
+  session: one(mobileSurveySessions, {
+    fields: [mobileSurveyAttachments.sessionId],
+    references: [mobileSurveySessions.id],
+  }),
+  relatedPoint: one(mobileSurveyPoints, {
+    fields: [mobileSurveyAttachments.relatedPointId],
+    references: [mobileSurveyPoints.id],
+  }),
+  relatedGeometry: one(mobileSurveyGeometries, {
+    fields: [mobileSurveyAttachments.relatedGeometryId],
+    references: [mobileSurveyGeometries.id],
+  }),
+}));
+
+// Mobile Sync Cursors Relations
+export const mobileSyncCursorsRelations = relations(mobileSyncCursors, ({ one }) => ({
+  device: one(mobileDeviceRegistrations, {
+    fields: [mobileSyncCursors.deviceId],
+    references: [mobileDeviceRegistrations.id],
+  }),
+}));
+
+// =============================================
+// MOBILE SURVEY SYSTEM - ZOD SCHEMAS
+// =============================================
+
+// Mobile Device Registration Schemas
+export const insertMobileDeviceRegistrationSchema = createInsertSchema(mobileDeviceRegistrations).omit({
+  id: true,
+  registrationDate: true,
+  lastSeenAt: true,
+  lastSyncAt: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  deviceId: z.string().min(1, "Device ID is required"),
+  deviceName: z.string().min(1, "Device name is required"),
+  deviceType: z.enum(["mobile", "tablet"]),
+  status: z.enum(["active", "suspended", "revoked"]).default("active"),
+});
+
+export type MobileDeviceRegistration = typeof mobileDeviceRegistrations.$inferSelect;
+export type InsertMobileDeviceRegistration = z.infer<typeof insertMobileDeviceRegistrationSchema>;
+
+// Mobile Field Visit Schemas
+export const insertMobileFieldVisitSchema = createInsertSchema(mobileFieldVisits).omit({
+  id: true,
+  duration: true,
+  totalDistance: true,
+  coverageArea: true,
+  qualityScore: true,
+  isSynced: true,
+  syncedAt: true,
+  isDeleted: true,
+  deletedAt: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  visitPurpose: z.enum(["survey", "inspection", "verification", "maintenance"]),
+  visitStatus: z.enum(["active", "completed", "interrupted"]).default("active"),
+  startLocation: z.object({
+    lat: z.number().min(12).max(19),
+    lng: z.number().min(42).max(55),
+    accuracy: z.number().min(0),
+    timestamp: z.string(),
+  }).optional(),
+  endLocation: z.object({
+    lat: z.number().min(12).max(19),
+    lng: z.number().min(42).max(55),
+    accuracy: z.number().min(0),
+    timestamp: z.string(),
+  }).optional(),
+  movementPath: z.object({
+    type: z.literal("LineString"),
+    coordinates: z.array(z.array(z.number())),
+    properties: z.record(z.any()).optional(),
+  }).optional(),
+});
+
+export type MobileFieldVisit = typeof mobileFieldVisits.$inferSelect;
+export type InsertMobileFieldVisit = z.infer<typeof insertMobileFieldVisitSchema>;
+
+// Mobile Survey Session Schemas
+export const insertMobileSurveySessionSchema = createInsertSchema(mobileSurveySessions).omit({
+  id: true,
+  sessionNumber: true,
+  startTime: true,
+  lastSyncedAt: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  status: z.enum(["draft", "active", "paused", "completed", "submitted", "synced"]).default("draft"),
+  surveyType: z.enum(["building_permit", "surveying_decision", "cadastral_survey"]),
+  startLocation: z.object({
+    lat: z.number().min(12).max(19),
+    lng: z.number().min(42).max(55),
+    accuracy: z.number().min(0),
+    timestamp: z.string(),
+  }).optional(),
+  endLocation: z.object({
+    lat: z.number().min(12).max(19),
+    lng: z.number().min(42).max(55),
+    accuracy: z.number().min(0),
+    timestamp: z.string(),
+  }).optional(),
+  clientMetadata: z.object({
+    appVersion: z.string(),
+    deviceModel: z.string(),
+    osVersion: z.string(),
+  }).optional(),
+});
+
+export type MobileSurveySession = typeof mobileSurveySessions.$inferSelect;
+export type InsertMobileSurveySession = z.infer<typeof insertMobileSurveySessionSchema>;
+
+// Mobile Survey Point Schemas
+export const insertMobileSurveyPointSchema = createInsertSchema(mobileSurveyPoints).omit({
+  id: true,
+  capturedAt: true,
+  syncedAt: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  latitude: z.number().min(12).max(19),
+  longitude: z.number().min(42).max(55),
+  elevation: z.number().optional(),
+  horizontalAccuracy: z.number().min(0).optional(),
+  verticalAccuracy: z.number().min(0).optional(),
+  gpsSource: z.enum(["device", "external_receiver", "manual"]).default("device"),
+  pointType: z.enum(["corner", "boundary", "reference", "building", "utility"]),
+  qualityFlags: z.array(z.string()).optional(),
+});
+
+export type MobileSurveyPoint = typeof mobileSurveyPoints.$inferSelect;
+export type InsertMobileSurveyPoint = z.infer<typeof insertMobileSurveyPointSchema>;
+
+// Mobile Survey Geometry Schemas
+export const insertMobileSurveyGeometrySchema = createInsertSchema(mobileSurveyGeometries).omit({
+  id: true,
+  startedAt: true,
+  completedAt: true,
+  syncedAt: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  geometryType: z.enum(["Point", "LineString", "Polygon", "MultiPolygon"]),
+  coordinates: z.array(z.any()), // GeoJSON coordinates (flexible validation)
+  properties: z.record(z.any()).optional(),
+  featureType: z.enum(["building", "boundary", "road", "utility", "structure"]),
+  area: z.number().min(0).optional(),
+  perimeter: z.number().min(0).optional(),
+  length: z.number().min(0).optional(),
+  validationFlags: z.array(z.string()).optional(),
+});
+
+export type MobileSurveyGeometry = typeof mobileSurveyGeometries.$inferSelect;
+export type InsertMobileSurveyGeometry = z.infer<typeof insertMobileSurveyGeometrySchema>;
+
+// Mobile Survey Attachment Schemas
+export const insertMobileSurveyAttachmentSchema = createInsertSchema(mobileSurveyAttachments).omit({
+  id: true,
+  fileName: true,
+  uploadedAt: true,
+  syncedAt: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  originalFileName: z.string().min(1, "Original file name is required"),
+  fileType: z.enum(["image", "video", "audio", "document"]),
+  mimeType: z.string().min(1, "MIME type is required"),
+  fileSize: z.number().min(1).max(52428800), // 50MB max
+  attachmentType: z.enum(["photo", "sketch", "document", "audio_note"]),
+  captureLocation: z.object({
+    lat: z.number().min(12).max(19),
+    lng: z.number().min(42).max(55),
+    accuracy: z.number().min(0),
+  }).optional(),
+  captureDirection: z.number().min(0).max(360).optional(),
+  tags: z.array(z.string()).optional(),
+  exifData: z.record(z.any()).optional(),
+});
+
+export type MobileSurveyAttachment = typeof mobileSurveyAttachments.$inferSelect;
+export type InsertMobileSurveyAttachment = z.infer<typeof insertMobileSurveyAttachmentSchema>;
+
+// Mobile Sync Cursor Schemas
+export const insertMobileSyncCursorSchema = createInsertSchema(mobileSyncCursors).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  entityType: z.enum(["sessions", "points", "geometries", "attachments", "all"]),
+  syncDirection: z.enum(["up", "down", "bidirectional"]),
+  lastSyncCursor: z.string().min(1, "Sync cursor is required"),
+});
+
+export type MobileSyncCursor = typeof mobileSyncCursors.$inferSelect;
+export type InsertMobileSyncCursor = z.infer<typeof insertMobileSyncCursorSchema>;
 
