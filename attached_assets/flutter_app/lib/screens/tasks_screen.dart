@@ -3,6 +3,7 @@ import 'package:dreamflow_app/services/database_service.dart';
 import 'package:dreamflow_app/models/survey_models.dart';
 import 'package:dreamflow_app/models/updated_survey_models.dart';
 import 'package:dreamflow_app/screens/task_details_screen.dart';
+import 'package:dreamflow_app/screens/login_screen.dart';
 import 'package:dreamflow_app/services/sync_service.dart';
 import 'package:dreamflow_app/services/real_sync_service.dart';
 import 'package:dreamflow_app/services/secure_auth_service.dart';
@@ -122,7 +123,9 @@ class _TasksScreenState extends State<TasksScreen> {
           TextButton(
             onPressed: () {
               Navigator.of(context).pop();
-              Navigator.of(context).pushReplacementNamed('/login');
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (context) => const LoginScreen()),
+              );
             },
             child: const Text('تسجيل الدخول'),
           ),

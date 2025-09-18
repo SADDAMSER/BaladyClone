@@ -20,7 +20,11 @@ void main() {
     await DatabaseService.init();
     await SyncService.init();
     await SecureAuthService.init();
-    await RealSyncService.init();
+    
+    // Only initialize RealSyncService if authenticated
+    if (SecureAuthService.isLoggedIn) {
+      await RealSyncService.init();
+    }
     // ignore: avoid_print
     print('App starting...');
     runApp(const BinaaSurveyorApp());
@@ -84,7 +88,7 @@ class _SplashScreenState extends State<SplashScreen> {
     
     if (mounted) {
       // Check if user is already authenticated
-      if (AuthService.isLoggedIn) {
+      if (SecureAuthService.isLoggedIn) {
         // Navigate to main app
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => const MainNavigation()),

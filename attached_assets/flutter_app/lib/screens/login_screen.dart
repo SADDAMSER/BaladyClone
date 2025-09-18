@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:dreamflow_app/screens/main_navigation.dart';
 import 'package:dreamflow_app/services/auth_service.dart';
+import 'package:dreamflow_app/services/secure_auth_service.dart';
+import 'package:dreamflow_app/services/real_sync_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -35,15 +37,22 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      // Real authentication with server
-      final authResponse = await AuthService.login(
+      // Real authentication with secure server connection
+      final authResponse = await SecureAuthService.login(
         _usernameController.text.trim(),
         _passwordController.text,
       );
 
       if (mounted) {
         if (authResponse.success) {
-          // Login successful - navigate to main app
+          // Login successful - initialize sync service and navigate to main app
+          try {
+            await RealSyncService.init();
+            print('🔄 RealSyncService initialized after successful login');
+          } catch (e) {
+            print('⚠️ Failed to initialize RealSyncService: $e');
+          }
+          
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (context) => const MainNavigation()),
           );
