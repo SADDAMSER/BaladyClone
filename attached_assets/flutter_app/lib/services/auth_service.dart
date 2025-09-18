@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dreamflow_app/config/app_config.dart';
 
 /// Authentication response from server
@@ -44,12 +45,24 @@ class AuthResponse {
 
 /// Main authentication service for mobile app
 class AuthService {
-  // SharedPreferences keys for secure token storage
+  // Secure storage for sensitive data (tokens, user info)
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
+    aOptions: AndroidOptions(
+      encryptedSharedPreferences: true,
+    ),
+    iOptions: IOSOptions(
+      accessibility: KeychainAccessibility.first_unlock_this_device,
+    ),
+  );
+  
+  // Keys for secure storage (sensitive data)
   static const String _accessTokenKey = 'access_token';
   static const String _refreshTokenKey = 'refresh_token'; 
   static const String _userDataKey = 'user_data';
-  static const String _deviceIdKey = 'device_id';
   static const String _tokenExpiryKey = 'token_expiry';
+  
+  // Device ID stored in SharedPreferences (not sensitive)
+  static const String _deviceIdKey = 'device_id';
 
   // Current authentication state
   static bool _isLoggedIn = false;
