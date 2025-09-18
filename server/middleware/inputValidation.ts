@@ -121,6 +121,19 @@ export const mobileValidationSchemas = {
       .min(-180, 'خط الطول يجب أن يكون بين -180 و 180')
       .max(180, 'خط الطول يجب أن يكون بين -180 و 180'),
     accuracy: z.number().min(0).max(1000).optional()
+  }),
+
+  // UUID parameter validation
+  uuidParamSchema: z.object({
+    id: z.string().uuid('المعرف يجب أن يكون UUID صحيح')
+  }),
+
+  sessionIdParamSchema: z.object({
+    sessionId: z.string().uuid('معرف الجلسة يجب أن يكون UUID صحيح')
+  }),
+
+  attachmentIdParamSchema: z.object({
+    attachmentId: z.string().uuid('معرف المرفق يجب أن يكون UUID صحيح')
   })
 };
 
@@ -280,6 +293,11 @@ export const validateMobileLogin = createValidationMiddleware(mobileValidationSc
 export const validateSessionCreation = createValidationMiddleware(mobileValidationSchemas.sessionSchema);
 export const validateAttachmentUpload = createValidationMiddleware(mobileValidationSchemas.attachmentUploadSchema);
 export const validateSyncChanges = createValidationMiddleware(mobileValidationSchemas.syncChangesSchema, 'query');
+
+// Parameter validation middleware
+export const validateUUIDParam = createValidationMiddleware(mobileValidationSchemas.uuidParamSchema, 'params');
+export const validateSessionIdParam = createValidationMiddleware(mobileValidationSchemas.sessionIdParamSchema, 'params');
+export const validateAttachmentIdParam = createValidationMiddleware(mobileValidationSchemas.attachmentIdParamSchema, 'params');
 
 // Content type validators
 export const requireJSON = validateContentType(['application/json']);
