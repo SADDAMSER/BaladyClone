@@ -459,7 +459,7 @@ export default function SurveyingDecisionForm() {
                         <SelectItem value="no-districts" disabled>لا توجد مديريات متاحة</SelectItem>
                       ) : (
                         districts.map((district) => (
-                          <SelectItem key={district.id} value={district.code || district.id} data-testid={`option-district-${district.code || district.id}`}>
+                          <SelectItem key={district.id} value={district.id} data-testid={`option-district-${district.id}`}>
                             {district.nameAr}
                           </SelectItem>
                         ))

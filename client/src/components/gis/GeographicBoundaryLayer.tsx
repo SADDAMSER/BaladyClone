@@ -140,57 +140,83 @@ export default function GeographicBoundaryLayer({
     select: (data: any[]) => data.filter(dist => dist.geometry) // Only include districts with geometry data
   });
 
-  // Auto-fit map to selected boundary
+  // Auto-fit map to selected boundary with priority: District > Governorate
   useEffect(() => {
-    if (selectedDistrictId && districts.length > 0) {
-      const selectedDistrict = districts.find(d => d.id === selectedDistrictId);
-      if (selectedDistrict && selectedDistrict.geometry) {
-        try {
-          // Create a feature group to calculate bounds
-          const featureGroup = L.featureGroup();
-          
-          if (selectedDistrict.geometry.type === 'MultiPolygon') {
-            selectedDistrict.geometry.coordinates.forEach((polygon: any) => {
-              const coords = polygon[0].map((coord: any) => [coord[1], coord[0]] as [number, number]);
+    let timeoutId: NodeJS.Timeout;
+    
+    const fitMapToBoundary = () => {
+      // Priority 1: District (most specific)
+      if (selectedDistrictId && districts.length > 0) {
+        const selectedDistrict = districts.find(d => d.id === selectedDistrictId);
+        if (selectedDistrict && selectedDistrict.geometry) {
+          try {
+            const featureGroup = L.featureGroup();
+            
+            if (selectedDistrict.geometry.type === 'MultiPolygon') {
+              selectedDistrict.geometry.coordinates.forEach((polygon: any) => {
+                const coords = polygon[0].map((coord: any) => [coord[1], coord[0]] as [number, number]);
+                L.polygon(coords).addTo(featureGroup);
+              });
+            } else if (selectedDistrict.geometry.type === 'Polygon') {
+              const coords = selectedDistrict.geometry.coordinates[0].map((coord: any) => [coord[1], coord[0]] as [number, number]);
               L.polygon(coords).addTo(featureGroup);
-            });
-          } else if (selectedDistrict.geometry.type === 'Polygon') {
-            const coords = selectedDistrict.geometry.coordinates[0].map((coord: any) => [coord[1], coord[0]] as [number, number]);
-            L.polygon(coords).addTo(featureGroup);
+            }
+            
+            if (featureGroup.getLayers().length > 0) {
+              // For districts, use more focused padding for better zoom
+              map.fitBounds(featureGroup.getBounds(), { 
+                padding: [30, 30],
+                maxZoom: 12 // Prevent excessive zoom-in
+              });
+              console.log(`🎯 Focused map on district: ${selectedDistrict.nameAr}`);
+            }
+            return;
+          } catch (error) {
+            console.error('Error fitting bounds for district:', error);
           }
-          
-          if (featureGroup.getLayers().length > 0) {
-            map.fitBounds(featureGroup.getBounds(), { padding: [20, 20] });
-          }
-        } catch (error) {
-          console.error('Error fitting bounds for district:', error);
         }
       }
-    } else if (selectedGovernorateId && governorates.length > 0) {
-      const selectedGov = governorates.find(g => g.id === selectedGovernorateId);
-      if (selectedGov && selectedGov.geometry) {
-        try {
-          // Create a feature group to calculate bounds
-          const featureGroup = L.featureGroup();
-          
-          if (selectedGov.geometry.type === 'MultiPolygon') {
-            selectedGov.geometry.coordinates.forEach((polygon: any) => {
-              const coords = polygon[0].map((coord: any) => [coord[1], coord[0]] as [number, number]);
+      
+      // Priority 2: Governorate (fallback when no district selected)
+      if (selectedGovernorateId && governorates.length > 0) {
+        const selectedGov = governorates.find(g => g.id === selectedGovernorateId);
+        if (selectedGov && selectedGov.geometry) {
+          try {
+            const featureGroup = L.featureGroup();
+            
+            if (selectedGov.geometry.type === 'MultiPolygon') {
+              selectedGov.geometry.coordinates.forEach((polygon: any) => {
+                const coords = polygon[0].map((coord: any) => [coord[1], coord[0]] as [number, number]);
+                L.polygon(coords).addTo(featureGroup);
+              });
+            } else if (selectedGov.geometry.type === 'Polygon') {
+              const coords = selectedGov.geometry.coordinates[0].map((coord: any) => [coord[1], coord[0]] as [number, number]);
               L.polygon(coords).addTo(featureGroup);
-            });
-          } else if (selectedGov.geometry.type === 'Polygon') {
-            const coords = selectedGov.geometry.coordinates[0].map((coord: any) => [coord[1], coord[0]] as [number, number]);
-            L.polygon(coords).addTo(featureGroup);
+            }
+            
+            if (featureGroup.getLayers().length > 0) {
+              // For governorates, use moderate padding
+              map.fitBounds(featureGroup.getBounds(), { 
+                padding: [40, 40],
+                maxZoom: 10 // Prevent excessive zoom-in for large areas
+              });
+              console.log(`🗺️ Focused map on governorate: ${selectedGov.nameAr}`);
+            }
+          } catch (error) {
+            console.error('Error fitting bounds for governorate:', error);
           }
-          
-          if (featureGroup.getLayers().length > 0) {
-            map.fitBounds(featureGroup.getBounds(), { padding: [20, 20] });
-          }
-        } catch (error) {
-          console.error('Error fitting bounds for governorate:', error);
         }
       }
-    }
+    };
+    
+    // Use timeout to avoid rapid successive calls during quick selections
+    timeoutId = setTimeout(fitMapToBoundary, 100);
+    
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, [selectedGovernorateId, selectedDistrictId, governorates, districts, map]);
 
   return (
