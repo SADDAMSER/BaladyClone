@@ -34,6 +34,18 @@ import crypto from "crypto";
 import { ObjectStorageService, ObjectNotFoundError } from './objectStorage';
 import { ObjectPermission, ObjectAccessGroupType } from './objectAcl';
 
+// Security Rate Limiting imports
+import { 
+  authRateLimit, syncRateLimit, uploadRateLimit, generalRateLimit, surveyRateLimit,
+  authSlowDown, syncSlowDown, uploadSlowDown, globalSecurityMonitor 
+} from './security/rateLimiter';
+
+// Enhanced Mobile Authentication
+import { 
+  authenticateMobileAccess, validateLBACAccess, requireRole as requireMobileRole,
+  AuthenticatedMobileUser 
+} from './middleware/mobileAuth';
+
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
   throw new Error("JWT_SECRET environment variable is required");
@@ -5233,7 +5245,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // Mobile Login - Device registration and authentication
-  app.post("/api/mobile/v1/auth/login", validateMobileDevice, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/mobile/v1/auth/login", globalSecurityMonitor, authRateLimit, authSlowDown, validateMobileDevice, async (req: AuthenticatedRequest, res) => {
     try {
       const { username, password, deviceName, deviceModel, osVersion, appVersion } = req.body;
       const deviceId = req.deviceId!;
@@ -5376,7 +5388,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Mobile Refresh Token
-  app.post("/api/mobile/v1/auth/refresh", validateMobileDevice, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/mobile/v1/auth/refresh", globalSecurityMonitor, authRateLimit, authSlowDown, validateMobileDevice, async (req: AuthenticatedRequest, res) => {
     try {
       const { refreshToken } = req.body;
       const deviceId = req.deviceId!;
@@ -5462,7 +5474,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Mobile Logout - Invalidate refresh token
-  app.post("/api/mobile/v1/auth/logout", validateMobileDevice, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/mobile/v1/auth/logout", globalSecurityMonitor, authRateLimit, validateMobileDevice, async (req: AuthenticatedRequest, res) => {
     try {
       const deviceId = req.deviceId!;
 
@@ -5489,7 +5501,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Mobile Revoke Device - Complete device deactivation
-  app.post("/api/mobile/v1/auth/revoke-device", validateMobileDevice, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/mobile/v1/auth/revoke-device", globalSecurityMonitor, authRateLimit, validateMobileDevice, async (req: AuthenticatedRequest, res) => {
     try {
       const { reason } = req.body;
       const deviceId = req.deviceId!;
@@ -5521,7 +5533,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ================================================================
 
   // GET /api/mobile/v1/tasks - Get assigned tasks for surveyor
-  app.get("/api/mobile/v1/tasks", authenticateMobileAccess, async (req: AuthenticatedRequest, res) => {
+  app.get("/api/mobile/v1/tasks", globalSecurityMonitor, surveyRateLimit, authenticateMobileAccess, async (req: AuthenticatedRequest, res) => {
     try {
       const user = req.user!;
       const deviceId = req.deviceId!;
@@ -5654,7 +5666,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // POST /api/mobile/v1/sessions - Create new survey session
-  app.post("/api/mobile/v1/sessions", authenticateMobileAccess, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/mobile/v1/sessions", globalSecurityMonitor, surveyRateLimit, authenticateMobileAccess, async (req: AuthenticatedRequest, res) => {
     try {
       const user = req.user!;
       const deviceId = req.deviceId!;
@@ -5801,7 +5813,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // PUT /api/mobile/v1/sessions/:sessionId/submit - Submit survey session
-  app.put("/api/mobile/v1/sessions/:sessionId/submit", authenticateMobileAccess, async (req: AuthenticatedRequest, res) => {
+  app.put("/api/mobile/v1/sessions/:sessionId/submit", globalSecurityMonitor, surveyRateLimit, authenticateMobileAccess, async (req: AuthenticatedRequest, res) => {
     try {
       const user = req.user!;
       const deviceId = req.deviceId!;
@@ -6097,7 +6109,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // =============================================
 
   // GET /api/mobile/v1/sync/changes - Get changes from server (downward sync)
-  app.get('/api/mobile/v1/sync/changes', authenticateMobileAccess, async (req: AuthenticatedRequest, res: Response) => {
+  app.get('/api/mobile/v1/sync/changes', globalSecurityMonitor, syncRateLimit, syncSlowDown, authenticateMobileAccess, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const user = req.user!;
       const deviceId = req.deviceId!;
@@ -6282,7 +6294,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // POST /api/mobile/v1/sync/apply - Apply changes from client (upward sync)
-  app.post('/api/mobile/v1/sync/apply', authenticateMobileAccess, async (req: AuthenticatedRequest, res: Response) => {
+  app.post('/api/mobile/v1/sync/apply', globalSecurityMonitor, syncRateLimit, syncSlowDown, authenticateMobileAccess, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const user = req.user!;
       const deviceId = req.deviceId!;
@@ -6455,7 +6467,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Secure file management endpoints using imported services
 
   // Serve protected mobile survey attachments
-  app.get('/mobile-attachments/:attachmentId(*)', authenticateMobileAccess, async (req: AuthenticatedRequest, res: Response) => {
+  app.get('/mobile-attachments/:attachmentId(*)', globalSecurityMonitor, generalRateLimit, authenticateMobileAccess, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const user = req.user!;
       const attachmentId = req.params.attachmentId;
@@ -6511,7 +6523,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get upload URL for mobile survey attachment
-  app.post('/api/mobile/v1/attachments/upload-url', authenticateMobileAccess, async (req: AuthenticatedRequest, res: Response) => {
+  app.post('/api/mobile/v1/attachments/upload-url', globalSecurityMonitor, uploadRateLimit, uploadSlowDown, authenticateMobileAccess, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const user = req.user!;
       const { sessionId, fileName, fileSize, mimeType, attachmentType } = req.body;
@@ -6594,7 +6606,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Confirm attachment upload and set ACL policy
-  app.post('/api/mobile/v1/attachments/:attachmentId/confirm', authenticateMobileAccess, async (req: AuthenticatedRequest, res: Response) => {
+  app.post('/api/mobile/v1/attachments/:attachmentId/confirm', globalSecurityMonitor, uploadRateLimit, uploadSlowDown, authenticateMobileAccess, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const user = req.user!;
       const attachmentId = req.params.attachmentId;
@@ -6725,7 +6737,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get attachments for a mobile survey session
-  app.get('/api/mobile/v1/sessions/:sessionId/attachments', authenticateMobileAccess, async (req: AuthenticatedRequest, res: Response) => {
+  app.get('/api/mobile/v1/sessions/:sessionId/attachments', globalSecurityMonitor, generalRateLimit, authenticateMobileAccess, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const user = req.user!;
       const sessionId = req.params.sessionId;
