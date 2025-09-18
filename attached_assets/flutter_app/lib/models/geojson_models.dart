@@ -192,12 +192,28 @@ class GeoJSONPolygon extends GeoJSONGeometry {
     return GeoJSONLineString(exteriorRing).lengthInMeters;
   }
 
-  /// Check if polygon is closed (first point equals last point)
+  /// Check if polygon is closed (first point equals last point with tolerance)
   bool get isClosed {
     if (exteriorRing.length < 4) return false; // Minimum for closed polygon
     final first = exteriorRing.first;
     final last = exteriorRing.last;
-    return first.longitude == last.longitude && first.latitude == last.latitude;
+    return _isPositionsEqual(first, last);
+  }
+
+  /// Ensure polygon is closed by adding first point as last if needed
+  GeoJSONPolygon ensureClosed() {
+    if (isClosed) return this;
+    
+    final newRings = rings.map((ring) {
+      if (ring.length < 3) return ring;
+      final newRing = List<GeoJSONPosition>.from(ring);
+      if (!_isPositionsEqual(newRing.first, newRing.last)) {
+        newRing.add(newRing.first); // Close the ring
+      }
+      return newRing;
+    }).toList();
+    
+    return GeoJSONPolygon(newRings);
   }
 }
 
@@ -321,6 +337,13 @@ double _calculatePolygonArea(List<GeoJSONPosition> ring) {
   return (area / 2).abs();
 }
 
+/// Check if two positions are equal within tolerance
+bool _isPositionsEqual(GeoJSONPosition p1, GeoJSONPosition p2) {
+  return (p1.longitude - p2.longitude).abs() < _COORDINATE_TOLERANCE &&
+         (p1.latitude - p2.latitude).abs() < _COORDINATE_TOLERANCE &&
+         ((p1.elevation ?? 0.0) - (p2.elevation ?? 0.0)).abs() < _COORDINATE_TOLERANCE;
+}
+
 /// Extension methods for mathematical operations
 extension NumExtensions on num {
   double sin() => math.sin(this.toDouble());
@@ -331,3 +354,6 @@ extension NumExtensions on num {
 
 // Import math library
 import 'dart:math' as math;
+
+// Constants for geometric calculations  
+const double _COORDINATE_TOLERANCE = 1e-7; // ~1cm precision (appropriate for GPS)
