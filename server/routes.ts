@@ -3,8 +3,11 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
 import { z } from "zod";
-import { sql, eq, desc } from "drizzle-orm";
-import { applications } from "@shared/schema";
+import { sql, eq, desc, and, or, isNull, lte, gte, gt, inArray, asc } from "drizzle-orm";
+import { 
+  applications, userGeographicAssignments, mobileSurveyPoints, mobileSurveyGeometries,
+  mobileSurveyAttachments, mobileSurveySessions, changeTracking, deletionTombstones
+} from "@shared/schema";
 import {
   insertUserSchema, insertDepartmentSchema, insertPositionSchema,
   insertLawRegulationSchema, insertLawSectionSchema, insertLawArticleSchema,
@@ -33,6 +36,7 @@ import crypto from "crypto";
 // Object Storage imports for secure file management
 import { ObjectStorageService, ObjectNotFoundError } from './objectStorage';
 import { ObjectPermission, ObjectAccessGroupType } from './objectAcl';
+import { randomUUID } from "crypto";
 
 // Security Rate Limiting imports
 import { 
