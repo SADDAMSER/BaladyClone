@@ -517,15 +517,34 @@ export default function SurveyingDecisionForm() {
               <div className="mt-6">
                 <Label className="text-base font-semibold mb-3 block">تحديد الموقع على الخريطة</Label>
                 <div className="border rounded-lg overflow-hidden">
-                  <InteractiveMap
+                  <InteractiveDrawingMap
                     center={[15.3694, 44.1910]} // إحداثيات صنعاء، اليمن
-                    zoom={13}
-                    height="400px"
-                    onLocationSelect={handleLocationSelect}
+                    zoom={7}
+                    height="500px"
+                    isEnabled={false} // تعطيل أدوات الرسم في هذه الخطوة
+                    selectedGovernorateId={formData.governorate}
+                    selectedDistrictId={formData.district}
+                    onBoundaryClick={(type, id, name) => {
+                      if (type === 'governorate') {
+                        handleGovernorateChange(id);
+                        toast({
+                          title: "تم اختيار المحافظة",
+                          description: `تم اختيار محافظة ${name}`,
+                          variant: "default",
+                        });
+                      } else if (type === 'district') {
+                        setFormData(prev => ({ ...prev, district: id }));
+                        toast({
+                          title: "تم اختيار المديرية", 
+                          description: `تم اختيار مديرية ${name}`,
+                          variant: "default",
+                        });
+                      }
+                    }}
                   />
                 </div>
                 <p className="text-sm text-muted-foreground mt-2">
-                  انقر على الخريطة لتحديد موقع الأرض أو العقار. سيتم تحديث حقل الإحداثيات تلقائياً.
+                  اختر المحافظة والمديرية من القوائم أعلاه أو انقر على الحدود الجغرافية في الخريطة.
                 </p>
               </div>
             </div>
@@ -629,28 +648,7 @@ export default function SurveyingDecisionForm() {
                 features={formData.drawnFeatures}
                 height="600px"
                 isEnabled={true}
-                selectedGovernorateId={formData.governorate}
-                selectedDistrictId={formData.district}
-                onBoundaryClick={(type, id, name) => {
-                  if (type === 'governorate') {
-                    const selectedGov = governorates.find(g => g.id === id);
-                    if (selectedGov) {
-                      handleGovernorateChange(id);
-                      toast({
-                        title: "تم اختيار المحافظة",
-                        description: `تم اختيار محافظة ${name}`,
-                        variant: "default",
-                      });
-                    }
-                  } else if (type === 'district') {
-                    setFormData(prev => ({ ...prev, district: id }));
-                    toast({
-                      title: "تم اختيار المديرية",
-                      description: `تم اختيار مديرية ${name}`,
-                      variant: "default",
-                    });
-                  }
-                }}
+                // لا نعرض الحدود في الخطوة الرابعة - فقط أدوات الرسم
               />
               
               {formData.drawnFeatures.length === 0 && (
