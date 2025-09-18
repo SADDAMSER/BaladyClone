@@ -14,26 +14,26 @@ export const mobileValidationSchemas = {
       .min(3, 'اسم المستخدم يجب أن يكون 3 أحرف على الأقل')
       .max(50, 'اسم المستخدم طويل جداً')
       .regex(/^[a-zA-Z0-9_.-]+$/, 'اسم المستخدم يحتوي على أحرف غير مسموحة')
-      .transform(val => validator.escape(val)), // XSS protection
+      .trim(), // Clean whitespace only
     password: z.string()
       .min(8, 'كلمة المرور قصيرة جداً')
-      .max(128, 'كلمة المرور طويلة جداً')
-      .regex(/^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+$/, 'كلمة المرور تحتوي على أحرف غير مسموحة'),
+      .max(128, 'كلمة المرور طويلة جداً'),
     deviceName: z.string()
       .min(1, 'اسم الجهاز مطلوب')
       .max(100, 'اسم الجهاز طويل جداً')
-      .transform(val => validator.escape(val)),
+      .trim(),
     deviceModel: z.string()
       .max(100, 'موديل الجهاز طويل جداً')
       .optional()
-      .transform(val => val ? validator.escape(val) : val),
+      .transform(val => val?.trim()),
     osVersion: z.string()
       .max(50, 'إصدار النظام طويل جداً')
       .optional()
-      .transform(val => val ? validator.escape(val) : val),
+      .transform(val => val?.trim()),
     appVersion: z.string()
       .regex(/^\d+\.\d+\.\d+$/, 'إصدار التطبيق يجب أن يكون بصيغة x.y.z')
       .max(20, 'إصدار التطبيق طويل جداً')
+      .trim()
   }),
 
   // Survey session schemas
@@ -66,7 +66,7 @@ export const mobileValidationSchemas = {
     notes: z.string()
       .max(2000, 'الملاحظات طويلة جداً')
       .optional()
-      .transform(val => val ? validator.escape(val) : val)
+      .transform(val => val?.trim())
   }),
 
   // Attachment upload schemas
@@ -148,27 +148,20 @@ export const createValidationMiddleware = (schema: z.ZodSchema, validationType: 
                             validationType === 'query' ? req.query :
                             req.params;
 
-      // Additional security: limit request size
-      if (validationType === 'body' && JSON.stringify(req.body).length > 1024 * 1024) { // 1MB limit
-        return res.status(400).json({
-          success: false,
-          error: 'حجم البيانات المرسلة كبير جداً',
-          code: 'PAYLOAD_TOO_LARGE'
-        });
-      }
-
       // Validate with enhanced error messages
       const result = schema.safeParse(dataToValidate);
 
       if (!result.success) {
         const validationError = fromZodError(result.error);
         
+        // Safe logging without exposing sensitive data
         console.warn('[INPUT VALIDATION] Validation failed:', {
           endpoint: req.path,
           method: req.method,
           userId: (req as any).user?.id || (req as any).mobileUser?.id,
           ip: req.ip,
-          errors: result.error.issues,
+          errorCount: result.error.issues.length,
+          fieldPaths: result.error.issues.map(issue => issue.path.join('.')),
           timestamp: new Date().toISOString()
         });
 
@@ -184,7 +177,7 @@ export const createValidationMiddleware = (schema: z.ZodSchema, validationType: 
         });
       }
 
-      // Replace original data with validated/sanitized data
+      // Replace original data with validated/cleaned data
       if (validationType === 'body') {
         req.body = result.data;
       } else if (validationType === 'query') {
@@ -208,52 +201,44 @@ export const createValidationMiddleware = (schema: z.ZodSchema, validationType: 
 };
 
 /**
- * SQL Injection Prevention Middleware
+ * Basic Security Protection Middleware (Lightweight)
+ * Only blocks obvious malicious patterns - relies on ORM parameterization for SQL injection protection
  */
-export const sqlInjectionProtection = (req: Request, res: Response, next: NextFunction) => {
-  const suspiciousPatterns = [
-    /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|UNION|SCRIPT)\b)/gi,
-    /('|(\\x27)|(\\x2D\\x2D)|(%27)|(%2D%2D))/gi,
-    /((\%3C)|<)((\%2F)|\/)*[a-z0-9\%]+((\%3E)|>)/gi, // HTML/XML tags
-    /(\b(javascript|vbscript|onload|onerror|onclick)\b)/gi // XSS patterns
+export const basicSecurityProtection = (req: Request, res: Response, next: NextFunction) => {
+  // Only check for truly dangerous patterns that shouldn't appear in normal input
+  const dangerousPatterns = [
+    /\x00/g, // Null bytes
+    /[\x01-\x08\x0B\x0C\x0E-\x1F\x7F]/g, // Control characters (except tab, newline, carriage return)
   ];
 
-  const checkForInjection = (obj: any, path = ''): string | null => {
+  const checkForDangerous = (obj: any): boolean => {
     if (typeof obj === 'string') {
-      for (const pattern of suspiciousPatterns) {
-        if (pattern.test(obj)) {
-          return `${path}: ${obj}`;
-        }
-      }
+      return dangerousPatterns.some(pattern => pattern.test(obj));
     } else if (typeof obj === 'object' && obj !== null) {
-      for (const key in obj) {
-        const result = checkForInjection(obj[key], path ? `${path}.${key}` : key);
-        if (result) return result;
-      }
+      return Object.values(obj).some(value => checkForDangerous(value));
     }
-    return null;
+    return false;
   };
 
-  // Check all input sources
-  const suspicious = checkForInjection(req.body) || 
-                    checkForInjection(req.query) || 
-                    checkForInjection(req.params);
+  // Check all input sources for dangerous characters only
+  const hasDangerousContent = checkForDangerous(req.body) || 
+                             checkForDangerous(req.query) || 
+                             checkForDangerous(req.params);
 
-  if (suspicious) {
-    console.error('[SECURITY ALERT] Potential injection attack detected:', {
-      suspicious,
+  if (hasDangerousContent) {
+    // Safe logging without exposing content
+    console.warn('[SECURITY] Dangerous characters detected:', {
       endpoint: req.path,
       method: req.method,
       userId: (req as any).user?.id || (req as any).mobileUser?.id,
       ip: req.ip,
-      userAgent: req.get('User-Agent'),
       timestamp: new Date().toISOString()
     });
 
     return res.status(400).json({
       success: false,
-      error: 'البيانات المرسلة تحتوي على محتوى غير آمن',
-      code: 'MALICIOUS_INPUT_DETECTED'
+      error: 'البيانات تحتوي على أحرف غير مسموحة',
+      code: 'INVALID_CHARACTERS_DETECTED'
     });
   }
 

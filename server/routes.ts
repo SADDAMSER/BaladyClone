@@ -49,7 +49,7 @@ import {
 // Enhanced Input Validation
 import {
   validateMobileLogin, validateSessionCreation, validateAttachmentUpload, 
-  validateSyncChanges, requireJSON, requireMultipart, sqlInjectionProtection,
+  validateSyncChanges, requireJSON, requireMultipart, basicSecurityProtection,
   validateSessionIdParam, validateAttachmentIdParam
 } from './middleware/inputValidation';
 
@@ -5252,7 +5252,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // Mobile Login - Device registration and authentication
-  app.post("/api/mobile/v1/auth/login", globalSecurityMonitor, authRateLimit, authSlowDown, requireJSON, sqlInjectionProtection, validateMobileLogin, validateMobileDevice, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/mobile/v1/auth/login", globalSecurityMonitor, authRateLimit, authSlowDown, requireJSON, basicSecurityProtection, validateMobileLogin, validateMobileDevice, async (req: AuthenticatedRequest, res) => {
     try {
       const { username, password, deviceName, deviceModel, osVersion, appVersion } = req.body;
       const deviceId = req.deviceId!;
@@ -5673,7 +5673,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // POST /api/mobile/v1/sessions - Create new survey session
-  app.post("/api/mobile/v1/sessions", globalSecurityMonitor, surveyRateLimit, requireJSON, sqlInjectionProtection, validateSessionCreation, authenticateMobileAccess, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/mobile/v1/sessions", globalSecurityMonitor, surveyRateLimit, requireJSON, basicSecurityProtection, validateSessionCreation, authenticateMobileAccess, async (req: AuthenticatedRequest, res) => {
     try {
       const user = req.user!;
       const deviceId = req.deviceId!;
@@ -5820,7 +5820,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // PUT /api/mobile/v1/sessions/:sessionId/submit - Submit survey session
-  app.put("/api/mobile/v1/sessions/:sessionId/submit", globalSecurityMonitor, surveyRateLimit, requireJSON, sqlInjectionProtection, validateSessionIdParam, authenticateMobileAccess, async (req: AuthenticatedRequest, res) => {
+  app.put("/api/mobile/v1/sessions/:sessionId/submit", globalSecurityMonitor, surveyRateLimit, requireJSON, basicSecurityProtection, validateSessionIdParam, authenticateMobileAccess, async (req: AuthenticatedRequest, res) => {
     try {
       const user = req.user!;
       const deviceId = req.deviceId!;
@@ -6116,7 +6116,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // =============================================
 
   // GET /api/mobile/v1/sync/changes - Get changes from server (downward sync)
-  app.get('/api/mobile/v1/sync/changes', globalSecurityMonitor, syncRateLimit, syncSlowDown, sqlInjectionProtection, validateSyncChanges, authenticateMobileAccess, async (req: AuthenticatedRequest, res: Response) => {
+  app.get('/api/mobile/v1/sync/changes', globalSecurityMonitor, syncRateLimit, syncSlowDown, basicSecurityProtection, validateSyncChanges, authenticateMobileAccess, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const user = req.user!;
       const deviceId = req.deviceId!;
@@ -6301,7 +6301,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // POST /api/mobile/v1/sync/apply - Apply changes from client (upward sync)
-  app.post('/api/mobile/v1/sync/apply', globalSecurityMonitor, syncRateLimit, syncSlowDown, requireJSON, sqlInjectionProtection, authenticateMobileAccess, async (req: AuthenticatedRequest, res: Response) => {
+  app.post('/api/mobile/v1/sync/apply', globalSecurityMonitor, syncRateLimit, syncSlowDown, requireJSON, basicSecurityProtection, authenticateMobileAccess, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const user = req.user!;
       const deviceId = req.deviceId!;
@@ -6530,7 +6530,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get upload URL for mobile survey attachment
-  app.post('/api/mobile/v1/attachments/upload-url', globalSecurityMonitor, uploadRateLimit, uploadSlowDown, requireJSON, sqlInjectionProtection, validateAttachmentUpload, authenticateMobileAccess, async (req: AuthenticatedRequest, res: Response) => {
+  app.post('/api/mobile/v1/attachments/upload-url', globalSecurityMonitor, uploadRateLimit, uploadSlowDown, requireJSON, basicSecurityProtection, validateAttachmentUpload, authenticateMobileAccess, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const user = req.user!;
       const { sessionId, fileName, fileSize, mimeType, attachmentType } = req.body;
@@ -6613,7 +6613,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Confirm attachment upload and set ACL policy
-  app.post('/api/mobile/v1/attachments/:attachmentId/confirm', globalSecurityMonitor, uploadRateLimit, uploadSlowDown, requireJSON, sqlInjectionProtection, validateAttachmentIdParam, authenticateMobileAccess, async (req: AuthenticatedRequest, res: Response) => {
+  app.post('/api/mobile/v1/attachments/:attachmentId/confirm', globalSecurityMonitor, uploadRateLimit, uploadSlowDown, requireJSON, basicSecurityProtection, validateAttachmentIdParam, authenticateMobileAccess, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const user = req.user!;
       const attachmentId = req.params.attachmentId;
@@ -6744,7 +6744,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get attachments for a mobile survey session
-  app.get('/api/mobile/v1/sessions/:sessionId/attachments', globalSecurityMonitor, generalRateLimit, sqlInjectionProtection, validateSessionIdParam, authenticateMobileAccess, async (req: AuthenticatedRequest, res: Response) => {
+  app.get('/api/mobile/v1/sessions/:sessionId/attachments', globalSecurityMonitor, generalRateLimit, basicSecurityProtection, validateSessionIdParam, authenticateMobileAccess, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const user = req.user!;
       const sessionId = req.params.sessionId;
