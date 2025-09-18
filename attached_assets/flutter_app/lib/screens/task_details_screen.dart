@@ -4,8 +4,12 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:dreamflow_app/models/survey_models.dart';
 import 'dart:async';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 import 'package:dreamflow_app/screens/field_survey_screen.dart';
 import 'package:dreamflow_app/services/location_service.dart';
+import 'package:dreamflow_app/services/local_storage_service.dart';
+import 'package:dreamflow_app/models/local_storage_models.dart';
 
 class TaskDetailsScreen extends StatefulWidget {
   final SurveyTask task;
@@ -23,12 +27,17 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
   String? _locationError;
   LatLng? _taskLocation;
   StreamSubscription<Position>? _positionSubscription;
+  final ImagePicker _imagePicker = ImagePicker();
+  List<AttachmentModel> _taskAttachments = [];
+  bool _isLoadingAttachments = false;
 
   @override
   void initState() {
     super.initState();
+    _taskLocation = _parseTaskLocation();
     _initializeMap();
     _startLocationUpdates();
+    _loadTaskAttachments();
   }
 
   void _startLocationUpdates() {
@@ -110,6 +119,224 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
     // If no coordinates found in text, show warning but don't default to Sana'a
     debugPrint('⚠️ لا يمكن استخراج إحداثيات صحيحة من موقع المهمة: $locationStr');
     return null; // Return null to indicate no task location available
+  }
+
+  // تحميل المرفقات المرتبطة بالمهمة
+  Future<void> _loadTaskAttachments() async {
+    setState(() {
+      _isLoadingAttachments = true;
+    });
+    
+    try {
+      final attachments = LocalStorageService().getTaskAttachments(widget.task.id);
+      setState(() {
+        _taskAttachments = attachments;
+      });
+    } catch (e) {
+      print('خطأ في تحميل المرفقات: $e');
+    } finally {
+      setState(() {
+        _isLoadingAttachments = false;
+      });
+    }
+  }
+
+  // التقاط صورة من الكاميرا أو المعرض
+  Future<void> _captureImage(ImageSource source) async {
+    try {
+      final XFile? pickedFile = await _imagePicker.pickImage(
+        source: source,
+        maxWidth: 1920,
+        maxHeight: 1920,
+        imageQuality: 85,
+      );
+
+      if (pickedFile != null) {
+        await _saveAttachment(pickedFile);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('خطأ في التقاط الصورة: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // حفظ المرفق في قاعدة البيانات المحلية
+  Future<void> _saveAttachment(XFile imageFile) async {
+    try {
+      final String fileName = 'IMG_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final int fileSize = await imageFile.length();
+      
+      final attachment = AttachmentModel(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        taskId: widget.task.id,
+        filePath: imageFile.path,
+        fileName: fileName,
+        fileType: 'image/jpeg',
+        fileSizeBytes: fileSize,
+        capturedAt: DateTime.now(),
+        latitude: _currentPosition?.latitude,
+        longitude: _currentPosition?.longitude,
+        accuracy: _currentPosition?.accuracy,
+        description: 'صورة ميدانية للمهمة ${widget.task.id}',
+      );
+
+      await LocalStorageService().saveAttachment(attachment);
+      await _loadTaskAttachments(); // إعادة تحميل القائمة
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم حفظ الصورة بنجاح'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('خطأ في حفظ الصورة: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // إظهار خيارات التقاط الصورة
+  void _showImageCaptureOptions() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'التقاط صورة جديدة',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _captureImage(ImageSource.camera);
+                    },
+                    icon: const Icon(Icons.camera_alt),
+                    label: const Text('الكاميرا'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _captureImage(ImageSource.gallery);
+                    },
+                    icon: const Icon(Icons.photo_library),
+                    label: const Text('المعرض'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('إلغاء'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // بدء جلسة مسح جديدة
+  Future<void> _startSurveySession() async {
+    try {
+      // التحقق من وجود جلسة نشطة
+      final existingSession = LocalStorageService().getActiveSessionForTask(widget.task.id);
+      if (existingSession != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('توجد جلسة مسح نشطة بالفعل لهذه المهمة'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      final session = SurveySessionModel(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        taskId: widget.task.id,
+        startTime: DateTime.now(),
+        startLatitude: _currentPosition?.latitude,
+        startLongitude: _currentPosition?.longitude,
+        attachmentIds: [],
+        surveyData: {
+          'initialLocation': {
+            'latitude': _currentPosition?.latitude,
+            'longitude': _currentPosition?.longitude,
+            'accuracy': _currentPosition?.accuracy,
+          }
+        },
+      );
+
+      await LocalStorageService().saveSurveySession(session);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم بدء جلسة المسح بنجاح'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        
+        // الانتقال إلى شاشة المسح الميداني
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => FieldSurveyScreen(task: widget.task),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('خطأ في بدء جلسة المسح: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.year}/${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}';
   }
 
   @override
@@ -300,11 +527,158 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 32),
-            if (widget.task.status != 'مكتمل')
+            const SizedBox(height: 24),
+            
+            // قسم المرفقات
+            Card(
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'المرفقات الميدانية',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: _showImageCaptureOptions,
+                          icon: const Icon(Icons.add_a_photo),
+                          style: IconButton.styleFrom(
+                            backgroundColor: theme.primaryColor.withOpacity(0.1),
+                            foregroundColor: theme.primaryColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    
+                    // عرض المرفقات
+                    if (_isLoadingAttachments)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(16),
+                          child: CircularProgressIndicator(),
+                        ),
+                      )
+                    else if (_taskAttachments.isEmpty)
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.photo_library_outlined, 
+                                 color: Colors.grey.shade600),
+                            const SizedBox(width: 12),
+                            Text(
+                              'لا توجد مرفقات حتى الآن',
+                              style: TextStyle(color: Colors.grey.shade600),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      SizedBox(
+                        height: 100,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _taskAttachments.length,
+                          itemBuilder: (context, index) {
+                            final attachment = _taskAttachments[index];
+                            return Container(
+                              width: 80,
+                              margin: const EdgeInsets.only(right: 8),
+                              child: Column(
+                                children: [
+                                  Expanded(
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(8),
+                                        color: Colors.grey.shade200,
+                                      ),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.file(
+                                          File(attachment.filePath),
+                                          fit: BoxFit.cover,
+                                          width: double.infinity,
+                                          errorBuilder: (context, error, stackTrace) {
+                                            return Icon(
+                                              Icons.broken_image,
+                                              color: Colors.grey.shade400,
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _formatDate(attachment.capturedAt),
+                                    style: theme.textTheme.labelSmall,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // أزرار العمليات
+            if (widget.task.status != 'مكتمل') ...[
+              // زر التقاط صورة سريعة
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
+                  onPressed: _showImageCaptureOptions,
+                  icon: const Icon(Icons.camera_alt),
+                  label: const Text('التقاط صورة'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+              
+              const SizedBox(height: 12),
+              
+              // زر بدء جلسة المسح
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _startSurveySession,
+                  icon: const Icon(Icons.play_arrow),
+                  label: const Text('بدء جلسة المسح'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: theme.primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+              
+              // زر الانتقال للمسح الميداني
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
                   onPressed: () {
                     Navigator.push(
                       context,
@@ -314,16 +688,15 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
                     );
                   },
                   icon: const Icon(Icons.location_on),
-                  label: const Text('بدء الرفع الميداني'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.all(16),
-                    textStyle: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  label: const Text('الانتقال للمسح الميداني'),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: theme.primaryColor),
+                    foregroundColor: theme.primaryColor,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                 ),
               ),
+            ],
           ],
         ),
       ),
