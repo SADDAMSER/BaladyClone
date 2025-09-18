@@ -5810,7 +5810,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         governorateId: userGeographicAssignments.governorateId,
         districtId: userGeographicAssignments.districtId,
         subDistrictId: userGeographicAssignments.subDistrictId,
-        permissions: userGeographicAssignments.permissions,
+        // permissions field removed - not in schema
       })
       .from(userGeographicAssignments)
       .where(and(

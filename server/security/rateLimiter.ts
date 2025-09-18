@@ -12,7 +12,7 @@ export const RATE_LIMIT_CONFIG = {
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 5, // 5 attempts per window
     standardHeaders: true,
-    legacyHeaders: false,
+    legacyHeaders: true, // Enable for test compatibility
     message: {
       error: 'عدد محاولات تسجيل الدخول كثيرة. حاول مرة أخرى بعد 15 دقيقة',
       retryAfter: '15 minutes'
@@ -25,7 +25,7 @@ export const RATE_LIMIT_CONFIG = {
     windowMs: 1 * 60 * 1000, // 1 minute
     max: 30, // 30 sync requests per minute
     standardHeaders: true,
-    legacyHeaders: false,
+    legacyHeaders: true, // Enable for test compatibility
     message: {
       error: 'معدل المزامنة سريع جداً. حاول مرة أخرى خلال دقيقة',
       retryAfter: '1 minute'
@@ -37,7 +37,7 @@ export const RATE_LIMIT_CONFIG = {
     windowMs: 5 * 60 * 1000, // 5 minutes
     max: 10, // 10 uploads per 5 minutes
     standardHeaders: true,
-    legacyHeaders: false,
+    legacyHeaders: true, // Enable for test compatibility
     message: {
       error: 'عدد رفع الملفات كثير. حاول مرة أخرى خلال 5 دقائق',
       retryAfter: '5 minutes'
@@ -49,7 +49,7 @@ export const RATE_LIMIT_CONFIG = {
     windowMs: 1 * 60 * 1000, // 1 minute
     max: 100, // 100 requests per minute
     standardHeaders: true,
-    legacyHeaders: false,
+    legacyHeaders: true, // Enable for test compatibility
     message: {
       error: 'طلبات كثيرة. حاول مرة أخرى خلال دقيقة',
       retryAfter: '1 minute'
@@ -61,7 +61,7 @@ export const RATE_LIMIT_CONFIG = {
     windowMs: 1 * 60 * 1000, // 1 minute
     max: 50, // 50 survey operations per minute
     standardHeaders: true,
-    legacyHeaders: false,
+    legacyHeaders: true, // Enable for test compatibility
     message: {
       error: 'عمليات المسح كثيرة. حاول مرة أخرى خلال دقيقة',
       retryAfter: '1 minute'
