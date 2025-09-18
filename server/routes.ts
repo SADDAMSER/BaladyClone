@@ -5909,6 +5909,542 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // =============================================
+  // DELTA SYNC HELPER FUNCTIONS
+  // =============================================
+
+  // Validate LBAC access for specific entity and operation - STRICT ENFORCEMENT
+  async function validateLBACAccess(userId: string, entity: string, entityId: string, operation: string): Promise<boolean> {
+    try {
+      // Get user's active geographic assignments  
+      const userAssignments = await db.select({
+        id: userGeographicAssignments.id,
+        governorateId: userGeographicAssignments.governorateId,
+        districtId: userGeographicAssignments.districtId,
+        subDistrictId: userGeographicAssignments.subDistrictId,
+        permissions: userGeographicAssignments.permissions,
+      })
+      .from(userGeographicAssignments)
+      .where(and(
+        eq(userGeographicAssignments.userId, userId),
+        eq(userGeographicAssignments.isActive, true),
+        // Assignment is currently valid (FIXED: use correct column names)
+        or(
+          isNull(userGeographicAssignments.startDate),
+          lte(userGeographicAssignments.startDate, new Date())
+        ),
+        or(
+          isNull(userGeographicAssignments.endDate),
+          gte(userGeographicAssignments.endDate, new Date())
+        )
+      ));
+      
+      if (userAssignments.length === 0) {
+        console.warn(`LBAC: No geographic assignments for user ${userId}`);
+        return false;
+      }
+      
+      // Check if operation is allowed
+      const allowedOperations = ['created', 'updated', 'deleted', 'read'];
+      if (!allowedOperations.includes(operation)) {
+        console.warn(`LBAC: Operation ${operation} not allowed`);
+        return false;
+      }
+      
+      // Get entity's geographic context for validation
+      if (entityId && entity !== 'sessions') {
+        let entityGeoContext: any = null;
+        
+        try {
+          switch (entity) {
+            case 'points':
+              const pointData = await db.select({
+                governorateId: mobileSurveyPoints.governorateId,
+                districtId: mobileSurveyPoints.districtId,
+              })
+              .from(mobileSurveyPoints)
+              .where(eq(mobileSurveyPoints.id, entityId))
+              .limit(1);
+              entityGeoContext = pointData[0];
+              break;
+              
+            case 'geometries':
+              const geomData = await db.select({
+                governorateId: mobileSurveyGeometries.governorateId,
+                districtId: mobileSurveyGeometries.districtId,
+              })
+              .from(mobileSurveyGeometries)
+              .where(eq(mobileSurveyGeometries.id, entityId))
+              .limit(1);
+              entityGeoContext = geomData[0];
+              break;
+          }
+          
+          // Validate geographic scope
+          if (entityGeoContext) {
+            const hasAccess = userAssignments.some(assignment => {
+              // Hierarchical geographic access control
+              if (assignment.governorateId !== entityGeoContext.governorateId) return false;
+              if (assignment.districtId && assignment.districtId !== entityGeoContext.districtId) return false;
+              return true;
+            });
+            
+            if (!hasAccess) {
+              console.warn(`LBAC: User ${userId} lacks geographic access to ${entity} ${entityId}`);
+              return false;
+            }
+          }
+        } catch (error) {
+          console.error(`LBAC: Failed to validate geographic context for ${entity} ${entityId}:`, error);
+          return false;
+        }
+      }
+      
+      return true;
+      
+    } catch (error) {
+      console.error('LBAC validation error:', error);
+      return false;
+    }
+  }
+
+  // Get user's geographic assignments for LBAC filtering - STRICT IMPLEMENTATION
+  async function getUserGeographicAssignments(userId: string) {
+    try {
+      // Get user's active geographic assignments from userGeographicAssignments table
+      const userAssignments = await db.select({
+        id: userGeographicAssignments.id,
+        governorateId: userGeographicAssignments.governorateId,
+        districtId: userGeographicAssignments.districtId,
+        subDistrictId: userGeographicAssignments.subDistrictId,
+        neighborhoodId: userGeographicAssignments.neighborhoodId,
+        assignmentType: userGeographicAssignments.assignmentType,
+      })
+      .from(userGeographicAssignments)
+      .where(and(
+        eq(userGeographicAssignments.userId, userId),
+        eq(userGeographicAssignments.isActive, true),
+        // Check temporal validity (FIXED: use correct column names)
+        or(
+          isNull(userGeographicAssignments.startDate),
+          lte(userGeographicAssignments.startDate, new Date())
+        ),
+        or(
+          isNull(userGeographicAssignments.endDate),
+          gte(userGeographicAssignments.endDate, new Date())
+        )
+      ));
+      
+      if (userAssignments.length === 0) {
+        console.warn(`LBAC: No active geographic assignments for user ${userId}`);
+        return []; // Empty array means NO ACCESS
+      }
+      
+      // Extract unique geographic assignments with hierarchical expansion
+      const assignments: Array<{
+        governorateId?: string, 
+        districtId?: string, 
+        subDistrictId?: string,
+        neighborhoodId?: string
+      }> = [];
+      
+      for (const assignment of userAssignments) {
+        const geoScope: any = {};
+        
+        // Build hierarchical scope based on assignment level
+        if (assignment.governorateId) {
+          geoScope.governorateId = assignment.governorateId;
+          // Governorate-level access includes all districts within it
+        }
+        if (assignment.districtId) {
+          geoScope.districtId = assignment.districtId;
+          // District-level access includes all sub-districts within it
+        }
+        if (assignment.subDistrictId) {
+          geoScope.subDistrictId = assignment.subDistrictId;
+          // Sub-district-level access includes all neighborhoods within it
+        }
+        if (assignment.neighborhoodId) {
+          geoScope.neighborhoodId = assignment.neighborhoodId;
+        }
+        
+        // Avoid duplicate assignments
+        const exists = assignments.some(a => 
+          a.governorateId === geoScope.governorateId && 
+          a.districtId === geoScope.districtId &&
+          a.subDistrictId === geoScope.subDistrictId &&
+          a.neighborhoodId === geoScope.neighborhoodId
+        );
+        
+        if (!exists) {
+          assignments.push(geoScope);
+        }
+      }
+      
+      return assignments; // Never return empty object - must have explicit assignments
+      
+    } catch (error) {
+      console.error('Geographic assignments error:', error);
+      return []; // Return empty array for NO ACCESS on error
+    }
+  }
+
+  // =============================================
+  // DELTA SYNC ENDPOINTS
+  // =============================================
+
+  // GET /api/mobile/v1/sync/changes - Get changes from server (downward sync)
+  app.get('/api/mobile/v1/sync/changes', authenticateMobileAccess, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const user = req.user!;
+      const deviceId = req.deviceId!;
+      
+      // Parse query parameters
+      const entityTypes = req.query.entity as string[] || ['sessions', 'points', 'geometries', 'attachments'];
+      const cursor = req.query.cursor as string;
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+      
+      // Validate entity types
+      const validEntityTypes = ['sessions', 'points', 'geometries', 'attachments'];
+      const requestedEntities = Array.isArray(entityTypes) ? entityTypes : [entityTypes];
+      const validEntities = requestedEntities.filter(e => validEntityTypes.includes(e));
+      
+      if (validEntities.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid entity types specified'
+          }
+        });
+      }
+      
+      let startCursor: any = null;
+      if (cursor) {
+        try {
+          startCursor = JSON.parse(Buffer.from(cursor, 'base64').toString());
+        } catch (e) {
+          return res.status(400).json({
+            success: false,
+            error: {
+              code: 'INVALID_CURSOR',
+              message: 'Invalid cursor format'
+            }
+          });
+        }
+      }
+      
+      // LBAC: Get user's geographic assignments for filtering
+      const userAssignments = await getUserGeographicAssignments(user.id);
+      if (userAssignments.length === 0) {
+        return res.status(403).json({
+          success: false,
+          error: {
+            code: 'LBAC_VIOLATION',
+            message: 'No geographic access assignments found'
+          }
+        });
+      }
+      
+      // Query changes from change tracking table
+      const changeConditions = [];
+      changeConditions.push(inArray(changeTracking.tableName, validEntities.map(e => `mobile_survey_${e}`)));
+      
+      // Apply LBAC geographic filtering
+      const geoConditions = userAssignments.map(assignment => {
+        const conditions = [];
+        if (assignment.governorateId) conditions.push(eq(changeTracking.governorateId, assignment.governorateId));
+        if (assignment.districtId) conditions.push(eq(changeTracking.districtId, assignment.districtId));
+        if (assignment.subDistrictId) conditions.push(eq(changeTracking.subDistrictId, assignment.subDistrictId));
+        return and(...conditions);
+      });
+      changeConditions.push(or(...geoConditions));
+      
+      // Add cursor filtering
+      if (startCursor && startCursor.timestamp) {
+        changeConditions.push(gt(changeTracking.changedAt, new Date(startCursor.timestamp)));
+      }
+      
+      // Query changes with pagination
+      const changes = await db.select()
+        .from(changeTracking)
+        .where(and(...changeConditions))
+        .orderBy(asc(changeTracking.changedAt), asc(changeTracking.changeSequence))
+        .limit(limit + 1); // +1 to check for more results
+      
+      // Query deletion tombstones with same filters
+      const tombstoneConditions = [];
+      tombstoneConditions.push(inArray(deletionTombstones.tableName, validEntities.map(e => `mobile_survey_${e}`)));
+      
+      // Apply same LBAC filtering to tombstones
+      const tombstoneGeoConditions = userAssignments.map(assignment => {
+        const conditions = [];
+        if (assignment.governorateId) conditions.push(eq(deletionTombstones.governorateId, assignment.governorateId));
+        if (assignment.districtId) conditions.push(eq(deletionTombstones.districtId, assignment.districtId));
+        return and(...conditions);
+      });
+      tombstoneConditions.push(or(...tombstoneGeoConditions));
+      
+      // Add cursor filtering for tombstones
+      if (startCursor && startCursor.timestamp) {
+        tombstoneConditions.push(gt(deletionTombstones.deletedAt, new Date(startCursor.timestamp)));
+      }
+      
+      // Query active tombstones
+      const tombstones = await db.select()
+        .from(deletionTombstones)
+        .where(and(
+          ...tombstoneConditions,
+          eq(deletionTombstones.isActive, true),
+          gt(deletionTombstones.expiresAt, new Date()) // Not expired
+        ))
+        .orderBy(asc(deletionTombstones.deletedAt))
+        .limit(limit + 1);
+      
+      // Process results and check for more data
+      const hasMoreChanges = changes.length > limit;
+      if (hasMoreChanges) changes.pop();
+      
+      const hasMoreTombstones = tombstones.length > limit;
+      if (hasMoreTombstones) tombstones.pop();
+      
+      // Combine and sort changes and deletions by timestamp
+      const formattedChanges = changes.map(change => ({
+        entity: change.tableName.replace('mobile_survey_', ''),
+        entityId: change.recordId,
+        operation: change.operationType,
+        data: change.recordSnapshot || change.fieldChanges,
+        version: parseInt(change.changeVersion),
+        timestamp: change.changedAt?.toISOString(),
+        changeId: change.id,
+        type: 'change' as const
+      }));
+      
+      const formattedDeletions = tombstones.map(tombstone => ({
+        entity: tombstone.tableName.replace('mobile_survey_', ''),
+        entityId: tombstone.recordId,
+        operation: 'deleted' as const,
+        data: tombstone.originalData,
+        version: parseInt(tombstone.syncVersion),
+        timestamp: tombstone.deletedAt?.toISOString(),
+        changeId: tombstone.id,
+        type: 'deletion' as const,
+        deletionReason: tombstone.deletionReason
+      }));
+      
+      // Combine and sort all changes
+      const allChanges = [...formattedChanges, ...formattedDeletions]
+        .sort((a, b) => new Date(a.timestamp || 0).getTime() - new Date(b.timestamp || 0).getTime())
+        .slice(0, limit);
+      
+      // Generate next cursor based on latest change
+      let nextCursor: string | null = null;
+      const hasMore = hasMoreChanges || hasMoreTombstones;
+      if (hasMore && allChanges.length > 0) {
+        const lastChange = allChanges[allChanges.length - 1];
+        nextCursor = Buffer.from(JSON.stringify({
+          timestamp: lastChange.timestamp,
+          type: lastChange.type
+        })).toString('base64');
+      }
+      
+      res.json({
+        success: true,
+        data: {
+          changes: allChanges,
+          pagination: {
+            hasMore,
+            nextCursor
+          },
+          syncMetadata: {
+            serverTimestamp: new Date().toISOString(),
+            syncCursor: nextCursor || cursor,
+            totalChanges: formattedChanges.length,
+            totalDeletions: formattedDeletions.length,
+            userScope: userAssignments.length
+          }
+        }
+      });
+      
+    } catch (error) {
+      console.error('Delta sync changes error:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to fetch sync changes'
+        }
+      });
+    }
+  });
+
+  // POST /api/mobile/v1/sync/apply - Apply changes from client (upward sync)
+  app.post('/api/mobile/v1/sync/apply', authenticateMobileAccess, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const user = req.user!;
+      const deviceId = req.deviceId!;
+      const idempotencyKey = req.headers['x-idempotency-key'] as string;
+      
+      if (!idempotencyKey) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'IDEMPOTENCY_KEY_REQUIRED',
+            message: 'X-Idempotency-Key header is required'
+          }
+        });
+      }
+      
+      // Validate request body
+      const { changes, syncCursor } = req.body;
+      
+      if (!Array.isArray(changes)) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Changes must be an array'
+          }
+        });
+      }
+      
+      const accepted: any[] = [];
+      const conflicts: any[] = [];
+      
+      // Process each change
+      for (const change of changes) {
+        try {
+          const { entity, entityId, operation, data, clientVersion, clientTimestamp, idempotencyKey: itemKey } = change;
+          
+          // LBAC validation for the specific entity
+          const hasAccess = await validateLBACAccess(user.id, entity, entityId, operation);
+          if (!hasAccess) {
+            conflicts.push({
+              changeId: itemKey,
+              reason: 'lbac_violation',
+              serverVersion: null,
+              serverData: null
+            });
+            continue;
+          }
+          
+          // Check for existing change with same idempotency key
+          const existingChange = await db.select()
+            .from(changeTracking)
+            .where(and(
+              eq(changeTracking.deviceId, deviceId),
+              eq(changeTracking.clientChangeId, itemKey)
+            ))
+            .limit(1);
+          
+          if (existingChange.length > 0) {
+            // Already processed - return success
+            accepted.push({
+              changeId: itemKey,
+              serverVersion: parseInt(existingChange[0].changeVersion),
+              serverTimestamp: existingChange[0].changedAt?.toISOString()
+            });
+            continue;
+          }
+          
+          // Apply the change based on operation
+          let result: any;
+          const metadata = {
+            userId: user.id,
+            deviceId,
+            clientChangeId: itemKey,
+            geographic: {
+              governorateId: data.governorateId,
+              districtId: data.districtId
+            }
+          };
+          
+          switch (operation) {
+            case 'created':
+              if (entity === 'sessions') {
+                result = await storage.createMobileSurveySession(data, metadata);
+              } else if (entity === 'points') {
+                result = await storage.createMobileSurveyPoint(data, metadata);
+              } else if (entity === 'geometries') {
+                result = await storage.createMobileSurveyGeometry(data, metadata);
+              }
+              break;
+              
+            case 'updated':
+              if (entity === 'sessions') {
+                result = await storage.updateMobileSurveySession(entityId, data, metadata);
+              } else if (entity === 'points') {
+                result = await storage.updateMobileSurveyPoint(entityId, data, metadata);
+              } else if (entity === 'geometries') {
+                result = await storage.updateMobileSurveyGeometry(entityId, data, metadata);
+              }
+              break;
+              
+            case 'deleted':
+              if (entity === 'sessions') {
+                result = await storage.deleteMobileSurveySession(entityId, metadata);
+              } else if (entity === 'points') {
+                result = await storage.deleteMobileSurveyPoint(entityId, metadata);
+              } else if (entity === 'geometries') {
+                result = await storage.deleteMobileSurveyGeometry(entityId, metadata);
+              }
+              break;
+          }
+          
+          if (result) {
+            accepted.push({
+              changeId: itemKey,
+              serverVersion: 1, // TODO: Get actual version from change tracking
+              serverTimestamp: new Date().toISOString()
+            });
+          } else {
+            conflicts.push({
+              changeId: itemKey,
+              reason: 'operation_failed',
+              serverVersion: null,
+              serverData: null
+            });
+          }
+          
+        } catch (error) {
+          console.error(`Change application error for ${change.idempotencyKey}:`, error);
+          conflicts.push({
+            changeId: change.idempotencyKey,
+            reason: 'validation_error',
+            serverVersion: null,
+            serverData: null
+          });
+        }
+      }
+      
+      // Generate updated sync cursor
+      const updatedCursor = Buffer.from(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        deviceId,
+        changeCount: accepted.length
+      })).toString('base64');
+      
+      res.json({
+        success: true,
+        data: {
+          accepted,
+          conflicts,
+          syncCursor: updatedCursor
+        }
+      });
+      
+    } catch (error) {
+      console.error('Delta sync apply error:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to apply sync changes'
+        }
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

@@ -2736,6 +2736,9 @@ export const deletionTombstones = pgTable("deletion_tombstones", {
   tombstoneDeletedAtIndex: sql`CREATE INDEX IF NOT EXISTS idx_tombstone_deleted_at ON deletion_tombstones (deleted_at, propagation_status)`,
   tombstoneSyncStatusIndex: sql`CREATE INDEX IF NOT EXISTS idx_tombstone_sync_status ON deletion_tombstones (sync_version, propagation_status)`,
   tombstoneDeviceIndex: sql`CREATE INDEX IF NOT EXISTS idx_tombstone_device ON deletion_tombstones (device_id, session_id)`,
+  // PERFORMANCE: Additional indexes for delta sync tombstone queries
+  tombstoneEntityTimestampIndex: sql`CREATE INDEX IF NOT EXISTS idx_tombstone_entity_time ON deletion_tombstones (table_name, deleted_at) WHERE is_active = true AND expires_at > CURRENT_TIMESTAMP`,
+  tombstoneGeoIndex: sql`CREATE INDEX IF NOT EXISTS idx_tombstone_geo ON deletion_tombstones (governorate_id, district_id, deleted_at)`,
   // Unique constraint to prevent duplicate tombstones
   uniqueTombstoneEntry: sql`CONSTRAINT unique_tombstone_entry UNIQUE (table_name, record_id, sync_version)`,
 }));
@@ -2785,6 +2788,9 @@ export const changeTracking = pgTable("change_tracking", {
   changeTrackingTimestampIndex: sql`CREATE INDEX IF NOT EXISTS idx_change_tracking_timestamp ON change_tracking (table_name, changed_at, sync_status)`,
   changeTrackingSessionIndex: sql`CREATE INDEX IF NOT EXISTS idx_change_tracking_session ON change_tracking (session_id, device_id, client_change_id)`,
   changeTrackingRecordIndex: sql`CREATE INDEX IF NOT EXISTS idx_change_tracking_record ON change_tracking (table_name, record_id, changed_at)`,
+  // PERFORMANCE: Additional composite indexes for delta sync queries
+  changeTrackingEntityTimestampIndex: sql`CREATE INDEX IF NOT EXISTS idx_change_tracking_entity_time ON change_tracking (table_name, changed_at) WHERE sync_status = 'pending'`,
+  changeTrackingGeoIndex: sql`CREATE INDEX IF NOT EXISTS idx_change_tracking_geo ON change_tracking (governorate_id, district_id, changed_at)`,
   // Idempotency constraint
   uniqueClientChange: sql`CONSTRAINT unique_client_change UNIQUE (device_id, client_change_id)`,
 }));
@@ -3802,6 +3808,7 @@ export const mobileSyncCursors = pgTable("mobile_sync_cursors", {
   )`
 }));
 
+
 // =============================================
 // MOBILE SURVEY SYSTEM - RELATIONS
 // =============================================
@@ -4090,4 +4097,5 @@ export const insertMobileSyncCursorSchema = createInsertSchema(mobileSyncCursors
 
 export type MobileSyncCursor = typeof mobileSyncCursors.$inferSelect;
 export type InsertMobileSyncCursor = z.infer<typeof insertMobileSyncCursorSchema>;
+
 
