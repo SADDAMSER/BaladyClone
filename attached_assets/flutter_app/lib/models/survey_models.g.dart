@@ -1,0 +1,1 @@
+// Placeholder file - not used in simplified version
