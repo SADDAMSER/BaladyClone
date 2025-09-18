@@ -48,6 +48,10 @@ class _FieldSurveyScreenState extends State<FieldSurveyScreen> {
   // Attachment and notes
   final TextEditingController _noteController = TextEditingController();
   String? _attachedPhotoUrl;
+  
+  // Submission state
+  bool _isSubmitting = false;
+  bool _isSubmitted = false;
 
   @override
   void initState() {
@@ -184,6 +188,84 @@ class _FieldSurveyScreenState extends State<FieldSurveyScreen> {
       ),
     ) ?? false;
   }
+  
+  /// إرسال المهمة المكتملة للخادم
+  Future<void> _submitCompletedSurvey() async {
+    if (_isSubmitting || _isSubmitted) return;
+    
+    setState(() {
+      _isSubmitting = true;
+    });
+    
+    try {
+      // تحقق من وجود بيانات للإرسال
+      if (!SyncService.hasUnsubmittedData(widget.task.id)) {
+        _showSnack('لا توجد بيانات للإرسال');
+        return;
+      }
+      
+      // تأكيد الإرسال
+      final shouldSubmit = await _showSubmissionConfirmation();
+      if (!shouldSubmit) return;
+      
+      // إرسال البيانات
+      final result = await SyncService.submitCompletedSurvey(widget.task.id);
+      
+      if (result.isSuccess) {
+        setState(() {
+          _isSubmitted = true;
+        });
+        _showSnack('تم إرسال المهمة بنجاح! تم إرسال ${result.submittedOperations} عملية');
+        
+        // تحديث حالة المهمة محلياً
+        final updatedTask = widget.task.copyWith(
+          status: 'submitted',
+          isSynced: true,
+          lastSyncedAt: DateTime.now(),
+        );
+        UpdatedDatabaseService.updateTask(updatedTask);
+        
+      } else {
+        _showSnack('فشل في إرسال المهمة: ${result.errorMessage}');
+      }
+    } catch (e) {
+      _showSnack('خطأ غير متوقع: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
+  }
+  
+  /// إظهار تأكيد الإرسال
+  Future<bool> _showSubmissionConfirmation() async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('تأكيد إرسال المهمة'),
+        content: const Text(
+          'هل أنت متأكد من إرسال هذه المهمة للخادم؟\n'
+          'لا يمكن التراجع عن هذا الإجراء بعد الإرسال.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('إلغاء'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('إرسال'),
+          ),
+        ],
+      ),
+    ) ?? false;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -305,7 +387,15 @@ class _FieldSurveyScreenState extends State<FieldSurveyScreen> {
           ]),
         ),
         if (_savedGeometryId != null)
-          _AttachmentSection(noteController: _noteController, attachedUrl: _attachedPhotoUrl, onAttachPhoto: _attachSamplePhoto, onSaveNote: _saveNote),
+          _AttachmentSection(
+            noteController: _noteController, 
+            attachedUrl: _attachedPhotoUrl, 
+            onAttachPhoto: _attachSamplePhoto, 
+            onSaveNote: _saveNote,
+            onSubmitSurvey: _submitCompletedSurvey,
+            isSubmitting: _isSubmitting,
+            isSubmitted: _isSubmitted,
+          ),
       ]),
     );
   }
@@ -938,7 +1028,19 @@ class _AttachmentSection extends StatelessWidget {
   final String? attachedUrl;
   final VoidCallback onAttachPhoto;
   final VoidCallback onSaveNote;
-  const _AttachmentSection({required this.noteController, required this.attachedUrl, required this.onAttachPhoto, required this.onSaveNote});
+  final VoidCallback? onSubmitSurvey;
+  final bool isSubmitting;
+  final bool isSubmitted;
+  
+  const _AttachmentSection({
+    required this.noteController, 
+    required this.attachedUrl, 
+    required this.onAttachPhoto, 
+    required this.onSaveNote,
+    this.onSubmitSurvey,
+    this.isSubmitting = false,
+    this.isSubmitted = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -965,10 +1067,43 @@ class _AttachmentSection extends StatelessWidget {
           ElevatedButton.icon(onPressed: onSaveNote, icon: const Icon(Icons.note_add), label: const Text('حفظ ملاحظة')),
         ]),
         const SizedBox(height: 8),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: OutlinedButton.icon(onPressed: onAttachPhoto, icon: const Icon(Icons.photo_camera), label: const Text('إرفاق صورة')),
-        )
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: onAttachPhoto, 
+                icon: const Icon(Icons.photo_camera), 
+                label: const Text('إرفاق صورة'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            // زر إرسال المهمة المكتملة
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: isSubmitted || isSubmitting ? null : onSubmitSurvey,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isSubmitted ? Colors.green : Theme.of(context).primaryColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                icon: isSubmitting 
+                  ? const SizedBox(
+                      width: 16, 
+                      height: 16, 
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                    )
+                  : Icon(isSubmitted ? Icons.check_circle : Icons.cloud_upload),
+                label: Text(
+                  isSubmitting 
+                    ? 'جاري الإرسال...' 
+                    : isSubmitted 
+                      ? 'تم الإرسال' 
+                      : 'إرسال المهمة المكتملة'
+                ),
+              ),
+            ),
+          ],
+        ),
       ]),
     );
   }
