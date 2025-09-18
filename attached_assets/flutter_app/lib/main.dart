@@ -5,6 +5,7 @@ import 'package:dreamflow_app/screens/login_screen.dart';
 import 'package:dreamflow_app/screens/main_navigation.dart';
 import 'package:dreamflow_app/services/database_service.dart';
 import 'package:dreamflow_app/services/sync_service.dart';
+import 'package:dreamflow_app/services/auth_service.dart';
 
 void main() {
   runZonedGuarded(() async {
@@ -16,6 +17,7 @@ void main() {
     };
     await DatabaseService.init();
     await SyncService.init();
+    await AuthService.init();
     // ignore: avoid_print
     print('App starting...');
     runApp(const BinaaSurveyorApp());
@@ -34,11 +36,7 @@ class BinaaSurveyorApp extends StatelessWidget {
       title: 'بنّاء المساحي',
       debugShowCheckedModeBanner: false,
       theme: lightTheme,
-      initialRoute: '/',
-      routes: {
-        '/': (context) => const LoginScreen(),
-        '/home': (context) => const MainNavigation(),
-      },
+      home: const SplashScreen(),
       builder: (context, child) {
         ErrorWidget.builder = (FlutterErrorDetails details) {
           return Scaffold(
@@ -58,6 +56,105 @@ class BinaaSurveyorApp extends StatelessWidget {
         };
         return child ?? const SizedBox.shrink();
       },
+    );
+  }
+}
+
+/// Splash screen that checks authentication state
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _checkAuthStatus();
+  }
+
+  Future<void> _checkAuthStatus() async {
+    // Wait a moment for splash effect
+    await Future.delayed(const Duration(seconds: 1));
+    
+    if (mounted) {
+      // Check if user is already authenticated
+      if (AuthService.isLoggedIn) {
+        // Navigate to main app
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const MainNavigation()),
+        );
+      } else {
+        // Navigate to login
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
+    return Scaffold(
+      backgroundColor: theme.colorScheme.primary,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // App icon
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Icon(
+                Icons.map,
+                size: 60,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+            
+            const SizedBox(height: 24),
+            
+            Text(
+              'بنّاء المساحي',
+              style: theme.textTheme.headlineMedium?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            
+            const SizedBox(height: 8),
+            
+            Text(
+              'Yemen Construction Platform',
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: Colors.white.withValues(alpha: 0.9),
+              ),
+            ),
+            
+            const SizedBox(height: 40),
+            
+            // Loading indicator
+            const CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

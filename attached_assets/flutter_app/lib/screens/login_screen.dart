@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:dreamflow_app/screens/main_navigation.dart';
+import 'package:dreamflow_app/services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -33,13 +34,34 @@ class _LoginScreenState extends State<LoginScreen> {
       _errorMessage = null;
     });
 
-    // Simulate login - for now just navigate
-    await Future.delayed(const Duration(seconds: 1));
-    
-    if (mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const MainNavigation()),
+    try {
+      // Real authentication with server
+      final authResponse = await AuthService.login(
+        _usernameController.text.trim(),
+        _passwordController.text,
       );
+
+      if (mounted) {
+        if (authResponse.success) {
+          // Login successful - navigate to main app
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const MainNavigation()),
+          );
+        } else {
+          // Login failed - show error message
+          setState(() {
+            _errorMessage = authResponse.error ?? 'فشل تسجيل الدخول';
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'خطأ غير متوقع. يرجى المحاولة مرة أخرى.';
+          _isLoading = false;
+        });
+      }
     }
   }
 

@@ -1,5 +1,5 @@
 class AppConfig {
-  static const String backendUrl = 'https://api.yemeni-land-survey.gov.ye';
+  static const String backendUrl = 'http://localhost:5000';
   static const String appName = 'بنّاء المساحي - Bina\'a Al-Yaman Surveyor';
   static const String version = '1.0.0';
   static const int requestTimeoutSeconds = 30;
