@@ -776,6 +776,363 @@ export interface IStorage {
       recentErrors: ErrorTracking[];
     };
   }>;
+
+  // ===========================================
+  // MOBILE SURVEY SYSTEM STORAGE INTERFACE
+  // ===========================================
+
+  // Mobile Survey Session Management - LBAC Enabled
+  getMobileSurveySessions(filters?: {
+    surveyorId?: string;
+    deviceId?: string;
+    applicationId?: string;
+    status?: 'draft' | 'in_progress' | 'submitted' | 'approved' | 'rejected';
+    // plotId not available in mobileSurveySessions schema
+    // Geographic LBAC constraints
+    governorateId?: string;
+    districtId?: string;
+    subDistrictId?: string;
+    neighborhoodId?: string;
+    // Date range filters
+    startDate?: Date;
+    endDate?: Date;
+    // Pagination
+    limit?: number;
+    offset?: number;
+  }, lbacFilter?: {
+    userId: string;
+    userGeographicScope: {
+      governorateIds: string[];
+      districtIds: string[];
+      subDistrictIds: string[];
+      neighborhoodIds: string[];
+    };
+  }): Promise<MobileSurveySession[]>;
+  
+  getMobileSurveySession(id: string, lbacFilter?: {
+    userId: string;
+    userGeographicScope: any;
+  }): Promise<MobileSurveySession | undefined>;
+  
+  createMobileSurveySession(
+    session: InsertMobileSurveySession,
+    metadata: {
+      surveyorId: string;
+      deviceId: string;
+      clientChangeId?: string;
+      geographic: { governorateId?: string; districtId?: string; };
+    }
+  ): Promise<{ session: MobileSurveySession; changeEntry: ChangeTracking }>;
+  
+  updateMobileSurveySession(
+    id: string,
+    updates: Partial<InsertMobileSurveySession>,
+    metadata: {
+      surveyorId: string;
+      deviceId: string;
+      clientChangeId?: string;
+      geographic?: { governorateId?: string; districtId?: string };
+    }
+  ): Promise<{ session: MobileSurveySession; changeEntry: ChangeTracking }>;
+  
+  submitMobileSurveySession(id: string, metadata: {
+    surveyorId: string;
+    deviceId: string;
+    clientChangeId?: string;
+  }): Promise<MobileSurveySession>;
+
+  // Mobile Survey Points Management - Geographic Constraints
+  getMobileSurveyPoints(filters?: {
+    sessionId?: string;
+    // plotId not available in mobileSurveyPoints schema
+    featureCode?: string;
+    pointType?: 'boundary' | 'detail' | 'reference' | 'control';
+    // Geographic constraints (WGS84)
+    bounds?: {
+      minLat: number;
+      maxLat: number;
+      minLng: number;
+      maxLng: number;
+    };
+    // Data integrity
+    hasValidCoordinates?: boolean;
+    isDeleted?: boolean;
+  }, lbacFilter?: {
+    userId: string;
+    userGeographicScope: any;
+  }): Promise<MobileSurveyPoint[]>;
+  
+  getMobileSurveyPoint(id: string, lbacFilter?: {
+    userId: string;
+    userGeographicScope: any;
+  }): Promise<MobileSurveyPoint | undefined>;
+  
+  createMobileSurveyPoint(
+    point: InsertMobileSurveyPoint,
+    metadata: {
+      surveyorId: string;
+      deviceId: string;
+      sessionId: string;
+      clientChangeId?: string;
+      geographic: { governorateId?: string; };
+    }
+  ): Promise<{ point: MobileSurveyPoint; changeEntry: ChangeTracking }>;
+  
+  updateMobileSurveyPoint(
+    id: string,
+    updates: Partial<InsertMobileSurveyPoint>,
+    metadata: {
+      surveyorId: string;
+      deviceId: string;
+      clientChangeId?: string;
+    }
+  ): Promise<{ point: MobileSurveyPoint; changeEntry: ChangeTracking }>;
+  
+  deleteMobileSurveyPoint(
+    id: string,
+    metadata: {
+      surveyorId: string;
+      deviceId: string;
+      deletionReason?: string;
+      clientChangeId?: string;
+    }
+  ): Promise<{ tombstone: DeletionTombstone; changeEntry: ChangeTracking }>;
+  
+  validateSurveyPointCoordinates(
+    // plotId not used for validation in current schema
+    coordinates: { latitude: number; longitude: number },
+    tolerance: number
+  ): Promise<{ isValid: boolean; warnings?: string[] }>;
+
+  // Mobile Survey Geometries Management - GeoJSON Support
+  getMobileSurveyGeometries(filters?: {
+    sessionId?: string;
+    // pointId not available in mobileSurveyGeometries schema
+    geometryType?: 'Point' | 'LineString' | 'Polygon' | 'MultiPoint' | 'MultiLineString' | 'MultiPolygon';
+    featureCode?: string;
+    // EPSG:4326 Geographic bounds validation
+    isWithinBounds?: boolean;
+    isDeleted?: boolean;
+  }, lbacFilter?: {
+    userId: string;
+    userGeographicScope: any;
+  }): Promise<MobileSurveyGeometry[]>;
+  
+  getMobileSurveyGeometry(id: string, lbacFilter?: {
+    userId: string;
+    userGeographicScope: any;
+  }): Promise<MobileSurveyGeometry | undefined>;
+  
+  createMobileSurveyGeometry(
+    geometry: InsertMobileSurveyGeometry,
+    metadata: {
+      userId: string;
+      deviceId: string;
+      sessionId: string;
+      clientChangeId?: string;
+      geographic: { plotId?: string };
+    }
+  ): Promise<{ geometry: MobileSurveyGeometry; changeEntry: ChangeTracking }>;
+  
+  updateMobileSurveyGeometry(
+    id: string,
+    updates: Partial<InsertMobileSurveyGeometry>,
+    metadata: {
+      userId: string;
+      deviceId: string;
+      clientChangeId?: string;
+    }
+  ): Promise<{ geometry: MobileSurveyGeometry; changeEntry: ChangeTracking }>;
+  
+  validateGeoJSONGeometry(geoJsonData: any): Promise<{
+    isValid: boolean;
+    geometryType?: string;
+    coordinateSystem?: string;
+    errors?: string[];
+    warnings?: string[];
+  }>;
+
+  // Mobile Field Visits Management - Lifecycle Tracking
+  getMobileFieldVisits(filters?: {
+    userId?: string;
+    deviceId?: string;
+    sessionId?: string;
+    plotId?: string;
+    visitStatus?: 'started' | 'in_progress' | 'completed' | 'cancelled';
+    // Geographic filtering
+    governorateId?: string;
+    districtId?: string;
+    // Date range
+    visitDate?: Date;
+    startDate?: Date;
+    endDate?: Date;
+  }, lbacFilter?: {
+    userId: string;
+    userGeographicScope: any;
+  }): Promise<MobileFieldVisit[]>;
+  
+  getMobileFieldVisit(id: string, lbacFilter?: {
+    userId: string;
+    userGeographicScope: any;
+  }): Promise<MobileFieldVisit | undefined>;
+  
+  startMobileFieldVisit(
+    visit: InsertMobileFieldVisit,
+    metadata: {
+      userId: string;
+      deviceId: string;
+      clientChangeId?: string;
+      geographic: { plotId?: string; governorateId?: string; districtId?: string };
+    }
+  ): Promise<{ visit: MobileFieldVisit; changeEntry: ChangeTracking }>;
+  
+  updateMobileFieldVisit(
+    id: string,
+    updates: Partial<InsertMobileFieldVisit>,
+    metadata: {
+      userId: string;
+      deviceId: string;
+      clientChangeId?: string;
+    }
+  ): Promise<{ visit: MobileFieldVisit; changeEntry: ChangeTracking }>;
+  
+  completeMobileFieldVisit(
+    id: string,
+    completionData: {
+      endTime: Date;
+      notes?: string;
+      weatherConditions?: string;
+      totalPointsCaptured?: number;
+      qualityScore?: number;
+    },
+    metadata: {
+      userId: string;
+      deviceId: string;
+    }
+  ): Promise<MobileFieldVisit>;
+
+  // Mobile Survey Attachments Management - Secure File Handling
+  getMobileSurveyAttachments(filters?: {
+    sessionId?: string;
+    pointId?: string;
+    attachmentType?: 'photo' | 'document' | 'audio' | 'video' | 'signature';
+    isUploaded?: boolean;
+    isDeleted?: boolean;
+  }, lbacFilter?: {
+    userId: string;
+    userGeographicScope: any;
+  }): Promise<MobileSurveyAttachment[]>;
+  
+  getMobileSurveyAttachment(id: string, lbacFilter?: {
+    userId: string;
+    userGeographicScope: any;
+  }): Promise<MobileSurveyAttachment | undefined>;
+  
+  createMobileSurveyAttachment(
+    attachment: InsertMobileSurveyAttachment,
+    metadata: {
+      userId: string;
+      deviceId: string;
+      sessionId: string;
+      clientChangeId?: string;
+    }
+  ): Promise<{ attachment: MobileSurveyAttachment; changeEntry: ChangeTracking }>;
+  
+  updateMobileSurveyAttachment(
+    id: string,
+    updates: Partial<InsertMobileSurveyAttachment>,
+    metadata: {
+      userId: string;
+      deviceId: string;
+      clientChangeId?: string;
+    }
+  ): Promise<{ attachment: MobileSurveyAttachment; changeEntry: ChangeTracking }>;
+  
+  markAttachmentAsUploaded(
+    id: string,
+    uploadMetadata: {
+      storageUrl: string;
+      uploadedAt: Date;
+      fileHash?: string;
+      compressionRatio?: number;
+    }
+  ): Promise<MobileSurveyAttachment>;
+
+  // Mobile Sync Cursors Management - Delta Sync Support
+  getMobileSyncCursors(filters?: {
+    deviceId?: string;
+    // userId not available in mobileSyncCursors schema
+    tableName?: string;
+    isActive?: boolean;
+  }): Promise<MobileSyncCursor[]>;
+  
+  getMobileSyncCursor(id: string): Promise<MobileSyncCursor | undefined>;
+  
+  updateMobileSyncCursor(
+    deviceId: string,
+    tableName: string,
+    cursor: {
+      lastSyncTimestamp: Date;
+      watermarkHigh: string;
+      recordCount: number;
+      syncStatus: 'pending' | 'in_progress' | 'completed' | 'failed';
+    }
+  ): Promise<MobileSyncCursor>;
+  
+  getMobileDeltaChanges(
+    deviceId: string,
+    tableName: string,
+    watermarkLow?: string,
+    limit?: number,
+    lbacFilter?: {
+      userId: string;
+      userGeographicScope: any;
+    }
+  ): Promise<{
+    changes: any[];
+    nextWatermark: string;
+    hasMore: boolean;
+    tombstones: DeletionTombstone[];
+  }>;
+  
+  processMobileBatchUpload(
+    deviceId: string,
+    operations: Array<{
+      operation: 'create' | 'update' | 'delete';
+      tableName: string;
+      recordId?: string;
+      data?: any;
+      clientChangeId: string;
+      timestamp: Date;
+    }>,
+    metadata: {
+      userId: string;
+      sessionId: string;
+      geographic?: { governorateId?: string; districtId?: string };
+    }
+  ): Promise<{
+    processed: number;
+    conflicts: Array<{ operation: any; reason: string; suggested: any }>;
+    errors: Array<{ operation: any; error: string }>;
+    changeEntries: ChangeTracking[];
+  }>;
+
+  // Mobile LBAC Geographic Validation
+  validateMobileUserGeographicAccess(
+    userId: string,
+    requiredAccess: {
+      plotId?: string;
+      neighborhoodId?: string;
+      subDistrictId?: string;
+      districtId?: string;
+      governorateId?: string;
+    }
+  ): Promise<{
+    hasAccess: boolean;
+    accessLevel: 'full' | 'partial' | 'none';
+    allowedOperations: ('read' | 'create' | 'update' | 'delete')[];
+    reason?: string;
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -5840,6 +6197,1348 @@ export class DatabaseStorage implements IStorage {
           warningAlerts: 0,
           recentErrors: []
         }
+      };
+    }
+  }
+
+  // ===========================================
+  // MOBILE SURVEY SYSTEM STORAGE IMPLEMENTATIONS 
+  // ===========================================
+
+  // Mobile Survey Session Management - LBAC Enabled
+  async getMobileSurveySessions(
+    filters?: {
+      userId?: string;
+      deviceId?: string;
+      taskId?: string;
+      status?: 'draft' | 'in_progress' | 'submitted' | 'approved' | 'rejected';
+      plotId?: string;
+      governorateId?: string;
+      districtId?: string;
+      subDistrictId?: string;
+      neighborhoodId?: string;
+      startDate?: Date;
+      endDate?: Date;
+      limit?: number;
+      offset?: number;
+    },
+    lbacFilter?: {
+      userId: string;
+      userGeographicScope: {
+        governorateIds: string[];
+        districtIds: string[];
+        subDistrictIds: string[];
+        neighborhoodIds: string[];
+      };
+    }
+  ): Promise<MobileSurveySession[]> {
+    try {
+      const conditions = [];
+      
+      // Apply filters
+      if (filters?.userId) conditions.push(eq(mobileSurveySessions.surveyorId, filters.userId));
+      if (filters?.deviceId) conditions.push(eq(mobileSurveySessions.deviceId, filters.deviceId));
+      if (filters?.taskId) conditions.push(eq(mobileSurveySessions.applicationId, filters.taskId));
+      if (filters?.status) conditions.push(eq(mobileSurveySessions.status, filters.status));
+      // Remove plotId filter as it doesn't exist in mobileSurveySessions
+      if (filters?.startDate) conditions.push(sql`${mobileSurveySessions.createdAt} >= ${filters.startDate}`);
+      if (filters?.endDate) conditions.push(sql`${mobileSurveySessions.createdAt} <= ${filters.endDate}`);
+      
+      // Apply LBAC geographic constraints
+      if (lbacFilter) {
+        const geoConditions = [];
+        if (lbacFilter.userGeographicScope.governorateIds.length > 0) {
+          geoConditions.push(inArray(mobileSurveySessions.governorateId, lbacFilter.userGeographicScope.governorateIds));
+        }
+        if (lbacFilter.userGeographicScope.districtIds.length > 0) {
+          geoConditions.push(inArray(mobileSurveySessions.districtId, lbacFilter.userGeographicScope.districtIds));
+        }
+        if (geoConditions.length > 0) {
+          conditions.push(or(...geoConditions));
+        }
+      }
+
+      // Apply additional geographic filters
+      if (filters?.governorateId) conditions.push(eq(mobileSurveySessions.governorateId, filters.governorateId));
+      if (filters?.districtId) conditions.push(eq(mobileSurveySessions.districtId, filters.districtId));
+
+      let query = db.select().from(mobileSurveySessions);
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+      
+      query = query.orderBy(desc(mobileSurveySessions.createdAt));
+      
+      if (filters?.limit) {
+        query = query.limit(filters.limit);
+        if (filters?.offset) {
+          query = query.offset(filters.offset);
+        }
+      }
+      
+      return await query;
+    } catch (error) {
+      console.error('Failed to get mobile survey sessions:', error);
+      throw error;
+    }
+  }
+
+  async getMobileSurveySession(
+    id: string,
+    lbacFilter?: { userId: string; userGeographicScope: any }
+  ): Promise<MobileSurveySession | undefined> {
+    try {
+      const conditions = [eq(mobileSurveySessions.id, id)];
+      
+      // Apply LBAC constraints
+      if (lbacFilter) {
+        const geoConditions = [];
+        if (lbacFilter.userGeographicScope.governorateIds?.length > 0) {
+          geoConditions.push(inArray(mobileSurveySessions.governorateId, lbacFilter.userGeographicScope.governorateIds));
+        }
+        if (lbacFilter.userGeographicScope.districtIds?.length > 0) {
+          geoConditions.push(inArray(mobileSurveySessions.districtId, lbacFilter.userGeographicScope.districtIds));
+        }
+        if (geoConditions.length > 0) {
+          conditions.push(or(...geoConditions));
+        }
+      }
+      
+      const [session] = await db.select()
+        .from(mobileSurveySessions)
+        .where(and(...conditions));
+      
+      return session || undefined;
+    } catch (error) {
+      console.error('Failed to get mobile survey session:', error);
+      throw error;
+    }
+  }
+
+  async createMobileSurveySession(
+    session: InsertMobileSurveySession,
+    metadata: {
+      userId: string;
+      deviceId: string;
+      clientChangeId?: string;
+      geographic: { governorateId?: string; districtId?: string; plotId?: string };
+    }
+  ): Promise<{ session: MobileSurveySession; changeEntry: ChangeTracking }> {
+    try {
+      // Use safeCreate wrapper for automatic change tracking
+      const result = await this.safeCreate<MobileSurveySession>(
+        'mobile_survey_sessions',
+        session,
+        {
+          userId: metadata.userId,
+          deviceId: metadata.deviceId,
+          sessionId: randomUUID(),
+          clientChangeId: metadata.clientChangeId,
+          changeSource: 'mobile_app',
+          geographic: metadata.geographic
+        }
+      );
+      
+      return {
+        session: result.record,
+        changeEntry: result.changeEntry
+      };
+    } catch (error) {
+      console.error('Failed to create mobile survey session:', error);
+      throw error;
+    }
+  }
+
+  async updateMobileSurveySession(
+    id: string,
+    updates: Partial<InsertMobileSurveySession>,
+    metadata: {
+      userId: string;
+      deviceId: string;
+      clientChangeId?: string;
+      geographic?: { governorateId?: string; districtId?: string };
+    }
+  ): Promise<{ session: MobileSurveySession; changeEntry: ChangeTracking }> {
+    try {
+      const result = await this.safeUpdate<MobileSurveySession>(
+        'mobile_survey_sessions',
+        id,
+        updates,
+        {
+          userId: metadata.userId,
+          deviceId: metadata.deviceId,
+          clientChangeId: metadata.clientChangeId,
+          changeSource: 'mobile_app',
+          geographic: metadata.geographic
+        }
+      );
+      
+      return {
+        session: result.record,
+        changeEntry: result.changeEntry
+      };
+    } catch (error) {
+      console.error('Failed to update mobile survey session:', error);
+      throw error;
+    }
+  }
+
+  async submitMobileSurveySession(
+    id: string,
+    metadata: { userId: string; deviceId: string; clientChangeId?: string }
+  ): Promise<MobileSurveySession> {
+    try {
+      const [session] = await db
+        .update(mobileSurveySessions)
+        .set({
+          status: 'submitted',
+          updatedAt: sql`CURRENT_TIMESTAMP`
+        })
+        .where(eq(mobileSurveySessions.id, id))
+        .returning();
+      
+      // Create change tracking entry
+      await this.createChangeTrackingEntry({
+        tableName: 'mobile_survey_sessions',
+        recordId: id,
+        operationType: 'update',
+        changedById: metadata.userId,
+        changeSource: 'mobile_app',
+        deviceId: metadata.deviceId,
+        clientChangeId: metadata.clientChangeId,
+        fieldChanges: ['status', 'submittedAt'],
+        changeMetadata: { status: 'submitted', updatedAt: new Date() }
+      });
+      
+      return session;
+    } catch (error) {
+      console.error('Failed to submit mobile survey session:', error);
+      throw error;
+    }
+  }
+
+  // Mobile Survey Points Management - Geographic Constraints
+  async getMobileSurveyPoints(
+    filters?: {
+      sessionId?: string;
+      plotId?: string;
+      featureCode?: string;
+      pointType?: 'boundary' | 'detail' | 'reference' | 'control';
+      bounds?: { minLat: number; maxLat: number; minLng: number; maxLng: number };
+      hasValidCoordinates?: boolean;
+      isDeleted?: boolean;
+    },
+    lbacFilter?: { userId: string; userGeographicScope: any }
+  ): Promise<MobileSurveyPoint[]> {
+    try {
+      const conditions = [];
+      
+      if (filters?.sessionId) conditions.push(eq(mobileSurveyPoints.sessionId, filters.sessionId));
+      // Remove plotId filter as it doesn't exist in mobileSurveyPoints
+      if (filters?.featureCode) conditions.push(eq(mobileSurveyPoints.featureCode, filters.featureCode));
+      if (filters?.pointType) conditions.push(eq(mobileSurveyPoints.pointType, filters.pointType));
+      if (filters?.isDeleted !== undefined) conditions.push(eq(mobileSurveyPoints.isDeleted, filters.isDeleted));
+      
+      // Geographic bounds filtering (WGS84)
+      if (filters?.bounds) {
+        conditions.push(sql`${mobileSurveyPoints.latitude} >= ${filters.bounds.minLat}`);
+        conditions.push(sql`${mobileSurveyPoints.latitude} <= ${filters.bounds.maxLat}`);
+        conditions.push(sql`${mobileSurveyPoints.longitude} >= ${filters.bounds.minLng}`);
+        conditions.push(sql`${mobileSurveyPoints.longitude} <= ${filters.bounds.maxLng}`);
+      }
+      
+      // Coordinate validation
+      if (filters?.hasValidCoordinates === true) {
+        conditions.push(sql`${mobileSurveyPoints.latitude} IS NOT NULL`);
+        conditions.push(sql`${mobileSurveyPoints.longitude} IS NOT NULL`);
+        conditions.push(sql`${mobileSurveyPoints.latitude} BETWEEN -90 AND 90`);
+        conditions.push(sql`${mobileSurveyPoints.longitude} BETWEEN -180 AND 180`);
+      }
+
+      let query = db.select().from(mobileSurveyPoints);
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+      
+      return await query.orderBy(desc(mobileSurveyPoints.createdAt));
+    } catch (error) {
+      console.error('Failed to get mobile survey points:', error);
+      throw error;
+    }
+  }
+
+  async getMobileSurveyPoint(
+    id: string,
+    lbacFilter?: { userId: string; userGeographicScope: any }
+  ): Promise<MobileSurveyPoint | undefined> {
+    try {
+      const [point] = await db.select()
+        .from(mobileSurveyPoints)
+        .where(eq(mobileSurveyPoints.id, id));
+      
+      return point || undefined;
+    } catch (error) {
+      console.error('Failed to get mobile survey point:', error);
+      throw error;
+    }
+  }
+
+  async createMobileSurveyPoint(
+    point: InsertMobileSurveyPoint,
+    metadata: {
+      userId: string;
+      deviceId: string;
+      sessionId: string;
+      clientChangeId?: string;
+      geographic: { plotId?: string; governorateId?: string };
+    }
+  ): Promise<{ point: MobileSurveyPoint; changeEntry: ChangeTracking }> {
+    try {
+      const result = await this.safeCreate<MobileSurveyPoint>(
+        'mobile_survey_points',
+        point,
+        {
+          userId: metadata.userId,
+          deviceId: metadata.deviceId,
+          sessionId: metadata.sessionId,
+          clientChangeId: metadata.clientChangeId,
+          changeSource: 'mobile_app',
+          geographic: metadata.geographic
+        }
+      );
+      
+      return {
+        point: result.record,
+        changeEntry: result.changeEntry
+      };
+    } catch (error) {
+      console.error('Failed to create mobile survey point:', error);
+      throw error;
+    }
+  }
+
+  async updateMobileSurveyPoint(
+    id: string,
+    updates: Partial<InsertMobileSurveyPoint>,
+    metadata: {
+      userId: string;
+      deviceId: string;
+      clientChangeId?: string;
+    }
+  ): Promise<{ point: MobileSurveyPoint; changeEntry: ChangeTracking }> {
+    try {
+      const result = await this.safeUpdate<MobileSurveyPoint>(
+        'mobile_survey_points',
+        id,
+        updates,
+        {
+          userId: metadata.userId,
+          deviceId: metadata.deviceId,
+          clientChangeId: metadata.clientChangeId,
+          changeSource: 'mobile_app'
+        }
+      );
+      
+      return {
+        point: result.record,
+        changeEntry: result.changeEntry
+      };
+    } catch (error) {
+      console.error('Failed to update mobile survey point:', error);
+      throw error;
+    }
+  }
+
+  async deleteMobileSurveyPoint(
+    id: string,
+    metadata: {
+      userId: string;
+      deviceId: string;
+      deletionReason?: string;
+      clientChangeId?: string;
+    }
+  ): Promise<{ tombstone: DeletionTombstone; changeEntry: ChangeTracking }> {
+    try {
+      const result = await this.safeDelete(
+        'mobile_survey_points',
+        id,
+        {
+          userId: metadata.userId,
+          deviceId: metadata.deviceId,
+          clientChangeId: metadata.clientChangeId,
+          changeSource: 'mobile_app',
+          deletionReason: metadata.deletionReason || 'User deleted from mobile app',
+          deletionType: 'soft'
+        }
+      );
+      
+      return result;
+    } catch (error) {
+      console.error('Failed to delete mobile survey point:', error);
+      throw error;
+    }
+  }
+
+  async validateSurveyPointCoordinates(
+    plotId: string,
+    coordinates: { latitude: number; longitude: number },
+    tolerance: number
+  ): Promise<{ isValid: boolean; distanceFromPlot?: number; warnings?: string[] }> {
+    try {
+      // Basic coordinate validation
+      const warnings: string[] = [];
+      
+      if (coordinates.latitude < -90 || coordinates.latitude > 90) {
+        return { isValid: false, warnings: ['Latitude must be between -90 and 90 degrees'] };
+      }
+      
+      if (coordinates.longitude < -180 || coordinates.longitude > 180) {
+        return { isValid: false, warnings: ['Longitude must be between -180 and 180 degrees'] };
+      }
+      
+      // Get plot boundaries for validation (if available)
+      const [plot] = await db.select()
+        .from(plots)
+        .where(eq(plots.id, plotId))
+        .limit(1);
+      
+      if (!plot) {
+        warnings.push('Plot not found for coordinate validation');
+        return { isValid: true, warnings };
+      }
+      
+      // TODO: Implement spatial distance calculation if plot boundaries are available
+      // For now, return basic validation
+      return { isValid: true, warnings: warnings.length > 0 ? warnings : undefined };
+      
+    } catch (error) {
+      console.error('Failed to validate survey point coordinates:', error);
+      return { isValid: false, warnings: ['Coordinate validation failed'] };
+    }
+  }
+
+  // Mobile Survey Geometries Management - GeoJSON Support
+  async getMobileSurveyGeometries(
+    filters?: {
+      sessionId?: string;
+      pointId?: string;
+      geometryType?: 'Point' | 'LineString' | 'Polygon' | 'MultiPoint' | 'MultiLineString' | 'MultiPolygon';
+      featureCode?: string;
+      isWithinBounds?: boolean;
+      isDeleted?: boolean;
+    },
+    lbacFilter?: { userId: string; userGeographicScope: any }
+  ): Promise<MobileSurveyGeometry[]> {
+    try {
+      const conditions = [];
+      
+      if (filters?.sessionId) conditions.push(eq(mobileSurveyGeometries.sessionId, filters.sessionId));
+      // Remove pointId filter as mobileSurveyGeometries doesn't have pointId column
+      if (filters?.geometryType) conditions.push(eq(mobileSurveyGeometries.geometryType, filters.geometryType));
+      if (filters?.featureCode) conditions.push(eq(mobileSurveyGeometries.featureCode, filters.featureCode));
+      if (filters?.isDeleted !== undefined) conditions.push(eq(mobileSurveyGeometries.isDeleted, filters.isDeleted));
+
+      let query = db.select().from(mobileSurveyGeometries);
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+      
+      return await query.orderBy(desc(mobileSurveyGeometries.createdAt));
+    } catch (error) {
+      console.error('Failed to get mobile survey geometries:', error);
+      throw error;
+    }
+  }
+
+  async getMobileSurveyGeometry(
+    id: string,
+    lbacFilter?: { userId: string; userGeographicScope: any }
+  ): Promise<MobileSurveyGeometry | undefined> {
+    try {
+      const [geometry] = await db.select()
+        .from(mobileSurveyGeometries)
+        .where(eq(mobileSurveyGeometries.id, id));
+      
+      return geometry || undefined;
+    } catch (error) {
+      console.error('Failed to get mobile survey geometry:', error);
+      throw error;
+    }
+  }
+
+  async createMobileSurveyGeometry(
+    geometry: InsertMobileSurveyGeometry,
+    metadata: {
+      userId: string;
+      deviceId: string;
+      sessionId: string;
+      clientChangeId?: string;
+      geographic: { plotId?: string };
+    }
+  ): Promise<{ geometry: MobileSurveyGeometry; changeEntry: ChangeTracking }> {
+    try {
+      const result = await this.safeCreate<MobileSurveyGeometry>(
+        'mobile_survey_geometries',
+        geometry,
+        {
+          userId: metadata.userId,
+          deviceId: metadata.deviceId,
+          sessionId: metadata.sessionId,
+          clientChangeId: metadata.clientChangeId,
+          changeSource: 'mobile_app',
+          geographic: metadata.geographic
+        }
+      );
+      
+      return {
+        geometry: result.record,
+        changeEntry: result.changeEntry
+      };
+    } catch (error) {
+      console.error('Failed to create mobile survey geometry:', error);
+      throw error;
+    }
+  }
+
+  async updateMobileSurveyGeometry(
+    id: string,
+    updates: Partial<InsertMobileSurveyGeometry>,
+    metadata: {
+      userId: string;
+      deviceId: string;
+      clientChangeId?: string;
+    }
+  ): Promise<{ geometry: MobileSurveyGeometry; changeEntry: ChangeTracking }> {
+    try {
+      const result = await this.safeUpdate<MobileSurveyGeometry>(
+        'mobile_survey_geometries',
+        id,
+        updates,
+        {
+          userId: metadata.userId,
+          deviceId: metadata.deviceId,
+          clientChangeId: metadata.clientChangeId,
+          changeSource: 'mobile_app'
+        }
+      );
+      
+      return {
+        geometry: result.record,
+        changeEntry: result.changeEntry
+      };
+    } catch (error) {
+      console.error('Failed to update mobile survey geometry:', error);
+      throw error;
+    }
+  }
+
+  async validateGeoJSONGeometry(geoJsonData: any): Promise<{
+    isValid: boolean;
+    geometryType?: string;
+    coordinateSystem?: string;
+    errors?: string[];
+    warnings?: string[];
+  }> {
+    try {
+      const errors: string[] = [];
+      const warnings: string[] = [];
+      
+      // Basic GeoJSON structure validation
+      if (!geoJsonData || typeof geoJsonData !== 'object') {
+        errors.push('GeoJSON data must be a valid object');
+        return { isValid: false, errors };
+      }
+      
+      if (!geoJsonData.type) {
+        errors.push('GeoJSON must have a type property');
+        return { isValid: false, errors };
+      }
+      
+      const validTypes = ['Point', 'LineString', 'Polygon', 'MultiPoint', 'MultiLineString', 'MultiPolygon', 'GeometryCollection'];
+      if (!validTypes.includes(geoJsonData.type)) {
+        errors.push(`Invalid geometry type: ${geoJsonData.type}`);
+        return { isValid: false, errors };
+      }
+      
+      if (!geoJsonData.coordinates && geoJsonData.type !== 'GeometryCollection') {
+        errors.push('GeoJSON geometry must have coordinates property');
+        return { isValid: false, errors };
+      }
+      
+      // Basic coordinate validation for WGS84 (EPSG:4326)
+      const validateCoordinate = (coord: any[]): boolean => {
+        if (!Array.isArray(coord) || coord.length < 2) return false;
+        const [lng, lat] = coord;
+        return lng >= -180 && lng <= 180 && lat >= -90 && lat <= 90;
+      };
+      
+      // Recursive coordinate validation (simplified)
+      const validateCoordinates = (coords: any, depth: number): boolean => {
+        if (depth === 0) {
+          return validateCoordinate(coords);
+        }
+        if (!Array.isArray(coords)) return false;
+        return coords.every((c: any) => validateCoordinates(c, depth - 1));
+      };
+      
+      // Validate coordinates based on geometry type
+      let coordDepth = 0;
+      switch (geoJsonData.type) {
+        case 'Point':
+          coordDepth = 0;
+          break;
+        case 'LineString':
+        case 'MultiPoint':
+          coordDepth = 1;
+          break;
+        case 'Polygon':
+        case 'MultiLineString':
+          coordDepth = 2;
+          break;
+        case 'MultiPolygon':
+          coordDepth = 3;
+          break;
+      }
+      
+      if (geoJsonData.type !== 'GeometryCollection' && !validateCoordinates(geoJsonData.coordinates, coordDepth)) {
+        errors.push('Invalid coordinates for geometry type');
+        return { isValid: false, errors };
+      }
+      
+      return {
+        isValid: true,
+        geometryType: geoJsonData.type,
+        coordinateSystem: 'EPSG:4326',
+        warnings: warnings.length > 0 ? warnings : undefined
+      };
+      
+    } catch (error) {
+      console.error('Failed to validate GeoJSON geometry:', error);
+      return { isValid: false, errors: ['GeoJSON validation failed'] };
+    }
+  }
+
+  // Mobile Field Visits Management - Lifecycle Tracking  
+  async getMobileFieldVisits(
+    filters?: {
+      userId?: string;
+      deviceId?: string;
+      sessionId?: string;
+      plotId?: string;
+      visitStatus?: 'started' | 'in_progress' | 'completed' | 'cancelled';
+      governorateId?: string;
+      districtId?: string;
+      visitDate?: Date;
+      startDate?: Date;
+      endDate?: Date;
+    },
+    lbacFilter?: { userId: string; userGeographicScope: any }
+  ): Promise<MobileFieldVisit[]> {
+    try {
+      const conditions = [];
+      
+      if (filters?.userId) conditions.push(eq(mobileFieldVisits.surveyorId, filters.userId));
+      if (filters?.deviceId) conditions.push(eq(mobileFieldVisits.deviceId, filters.deviceId));
+      if (filters?.sessionId) conditions.push(eq(mobileFieldVisits.sessionId, filters.sessionId));
+      if (filters?.plotId) conditions.push(eq(mobileFieldVisits.plotId, filters.plotId));
+      if (filters?.visitStatus) conditions.push(eq(mobileFieldVisits.visitStatus, filters.visitStatus));
+      if (filters?.governorateId) conditions.push(eq(mobileFieldVisits.governorateId, filters.governorateId));
+      if (filters?.districtId) conditions.push(eq(mobileFieldVisits.districtId, filters.districtId));
+      if (filters?.startDate) conditions.push(sql`${mobileFieldVisits.visitDate} >= ${filters.startDate}`);
+      if (filters?.endDate) conditions.push(sql`${mobileFieldVisits.visitDate} <= ${filters.endDate}`);
+
+      let query = db.select().from(mobileFieldVisits);
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+      
+      return await query.orderBy(desc(mobileFieldVisits.createdAt));
+    } catch (error) {
+      console.error('Failed to get mobile field visits:', error);
+      throw error;
+    }
+  }
+
+  async getMobileFieldVisit(
+    id: string,
+    lbacFilter?: { userId: string; userGeographicScope: any }
+  ): Promise<MobileFieldVisit | undefined> {
+    try {
+      const [visit] = await db.select()
+        .from(mobileFieldVisits)
+        .where(eq(mobileFieldVisits.id, id));
+      
+      return visit || undefined;
+    } catch (error) {
+      console.error('Failed to get mobile field visit:', error);
+      throw error;
+    }
+  }
+
+  async startMobileFieldVisit(
+    visit: InsertMobileFieldVisit,
+    metadata: {
+      userId: string;
+      deviceId: string;
+      clientChangeId?: string;
+      geographic: { plotId?: string; governorateId?: string; districtId?: string };
+    }
+  ): Promise<{ visit: MobileFieldVisit; changeEntry: ChangeTracking }> {
+    try {
+      const result = await this.safeCreate<MobileFieldVisit>(
+        'mobile_field_visits',
+        { ...visit, visitStatus: 'started' },
+        {
+          userId: metadata.userId,
+          deviceId: metadata.deviceId,
+          clientChangeId: metadata.clientChangeId,
+          changeSource: 'mobile_app',
+          geographic: metadata.geographic
+        }
+      );
+      
+      return {
+        visit: result.record,
+        changeEntry: result.changeEntry
+      };
+    } catch (error) {
+      console.error('Failed to start mobile field visit:', error);
+      throw error;
+    }
+  }
+
+  async updateMobileFieldVisit(
+    id: string,
+    updates: Partial<InsertMobileFieldVisit>,
+    metadata: {
+      userId: string;
+      deviceId: string;
+      clientChangeId?: string;
+    }
+  ): Promise<{ visit: MobileFieldVisit; changeEntry: ChangeTracking }> {
+    try {
+      const result = await this.safeUpdate<MobileFieldVisit>(
+        'mobile_field_visits',
+        id,
+        updates,
+        {
+          userId: metadata.userId,
+          deviceId: metadata.deviceId,
+          clientChangeId: metadata.clientChangeId,
+          changeSource: 'mobile_app'
+        }
+      );
+      
+      return {
+        visit: result.record,
+        changeEntry: result.changeEntry
+      };
+    } catch (error) {
+      console.error('Failed to update mobile field visit:', error);
+      throw error;
+    }
+  }
+
+  async completeMobileFieldVisit(
+    id: string,
+    completionData: {
+      endTime: Date;
+      notes?: string;
+      weatherConditions?: string;
+      totalPointsCaptured?: number;
+      qualityScore?: number;
+    },
+    metadata: { userId: string; deviceId: string }
+  ): Promise<MobileFieldVisit> {
+    try {
+      const [visit] = await db
+        .update(mobileFieldVisits)
+        .set({
+          visitStatus: 'completed',
+          endTime: completionData.endTime,
+          notes: completionData.notes,
+          weatherConditions: completionData.weatherConditions,
+          totalPointsCaptured: completionData.totalPointsCaptured,
+          qualityScore: completionData.qualityScore,
+          updatedAt: sql`CURRENT_TIMESTAMP`
+        })
+        .where(eq(mobileFieldVisits.id, id))
+        .returning();
+      
+      // Create change tracking entry
+      await this.createChangeTrackingEntry({
+        tableName: 'mobile_field_visits',
+        recordId: id,
+        operationType: 'update',
+        changedById: metadata.userId,
+        changeSource: 'mobile_app',
+        deviceId: metadata.deviceId,
+        fieldChanges: ['visitStatus', 'endTime', 'notes', 'weatherConditions', 'totalPointsCaptured', 'qualityScore'],
+        changeMetadata: { ...completionData, visitStatus: 'completed' }
+      });
+      
+      return visit;
+    } catch (error) {
+      console.error('Failed to complete mobile field visit:', error);
+      throw error;
+    }
+  }
+
+  // Mobile Survey Attachments Management - Secure File Handling
+  async getMobileSurveyAttachments(
+    filters?: {
+      sessionId?: string;
+      pointId?: string;
+      attachmentType?: 'photo' | 'document' | 'audio' | 'video' | 'signature';
+      isUploaded?: boolean;
+      isDeleted?: boolean;
+    },
+    lbacFilter?: { userId: string; userGeographicScope: any }
+  ): Promise<MobileSurveyAttachment[]> {
+    try {
+      const conditions = [];
+      
+      if (filters?.sessionId) conditions.push(eq(mobileSurveyAttachments.sessionId, filters.sessionId));
+      if (filters?.pointId) conditions.push(eq(mobileSurveyAttachments.relatedPointId, filters.pointId));
+      if (filters?.attachmentType) conditions.push(eq(mobileSurveyAttachments.attachmentType, filters.attachmentType));
+      if (filters?.isUploaded !== undefined) conditions.push(eq(mobileSurveyAttachments.isUploaded, filters.isUploaded));
+      // Remove isDeleted filter as mobileSurveyAttachments doesn't have isDeleted column
+
+      let query = db.select().from(mobileSurveyAttachments);
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+      
+      return await query.orderBy(desc(mobileSurveyAttachments.createdAt));
+    } catch (error) {
+      console.error('Failed to get mobile survey attachments:', error);
+      throw error;
+    }
+  }
+
+  async getMobileSurveyAttachment(
+    id: string,
+    lbacFilter?: { userId: string; userGeographicScope: any }
+  ): Promise<MobileSurveyAttachment | undefined> {
+    try {
+      const [attachment] = await db.select()
+        .from(mobileSurveyAttachments)
+        .where(eq(mobileSurveyAttachments.id, id));
+      
+      return attachment || undefined;
+    } catch (error) {
+      console.error('Failed to get mobile survey attachment:', error);
+      throw error;
+    }
+  }
+
+  async createMobileSurveyAttachment(
+    attachment: InsertMobileSurveyAttachment,
+    metadata: {
+      userId: string;
+      deviceId: string;
+      sessionId: string;
+      clientChangeId?: string;
+    }
+  ): Promise<{ attachment: MobileSurveyAttachment; changeEntry: ChangeTracking }> {
+    try {
+      const result = await this.safeCreate<MobileSurveyAttachment>(
+        'mobile_survey_attachments',
+        attachment,
+        {
+          userId: metadata.userId,
+          deviceId: metadata.deviceId,
+          sessionId: metadata.sessionId,
+          clientChangeId: metadata.clientChangeId,
+          changeSource: 'mobile_app'
+        }
+      );
+      
+      return {
+        attachment: result.record,
+        changeEntry: result.changeEntry
+      };
+    } catch (error) {
+      console.error('Failed to create mobile survey attachment:', error);
+      throw error;
+    }
+  }
+
+  async updateMobileSurveyAttachment(
+    id: string,
+    updates: Partial<InsertMobileSurveyAttachment>,
+    metadata: {
+      userId: string;
+      deviceId: string;
+      clientChangeId?: string;
+    }
+  ): Promise<{ attachment: MobileSurveyAttachment; changeEntry: ChangeTracking }> {
+    try {
+      const result = await this.safeUpdate<MobileSurveyAttachment>(
+        'mobile_survey_attachments',
+        id,
+        updates,
+        {
+          userId: metadata.userId,
+          deviceId: metadata.deviceId,
+          clientChangeId: metadata.clientChangeId,
+          changeSource: 'mobile_app'
+        }
+      );
+      
+      return {
+        attachment: result.record,
+        changeEntry: result.changeEntry
+      };
+    } catch (error) {
+      console.error('Failed to update mobile survey attachment:', error);
+      throw error;
+    }
+  }
+
+  async markAttachmentAsUploaded(
+    id: string,
+    uploadMetadata: {
+      storageUrl: string;
+      uploadedAt: Date;
+      fileHash?: string;
+      compressionRatio?: number;
+    }
+  ): Promise<MobileSurveyAttachment> {
+    try {
+      const [attachment] = await db
+        .update(mobileSurveyAttachments)
+        .set({
+          isUploaded: true,
+          storageUrl: uploadMetadata.storageUrl,
+          uploadedAt: uploadMetadata.uploadedAt,
+          // fileHash field doesn't exist in schema
+          compressionRatio: uploadMetadata.compressionRatio,
+          updatedAt: sql`CURRENT_TIMESTAMP`
+        })
+        .where(eq(mobileSurveyAttachments.id, id))
+        .returning();
+      
+      return attachment;
+    } catch (error) {
+      console.error('Failed to mark attachment as uploaded:', error);
+      throw error;
+    }
+  }
+
+  // Mobile Sync Cursors Management - Delta Sync Support
+  async getMobileSyncCursors(filters?: {
+    deviceId?: string;
+    userId?: string;
+    tableName?: string;
+    isActive?: boolean;
+  }): Promise<MobileSyncCursor[]> {
+    try {
+      const conditions = [];
+      
+      if (filters?.deviceId) conditions.push(eq(mobileSyncCursors.deviceId, filters.deviceId));
+      // Remove userId filter as mobileSyncCursors doesn't have userId column
+      if (filters?.tableName) conditions.push(eq(mobileSyncCursors.tableName, filters.tableName));
+      if (filters?.isActive !== undefined) conditions.push(eq(mobileSyncCursors.isActive, filters.isActive));
+
+      let query = db.select().from(mobileSyncCursors);
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+      
+      return await query.orderBy(desc(mobileSyncCursors.lastSyncTimestamp));
+    } catch (error) {
+      console.error('Failed to get mobile sync cursors:', error);
+      throw error;
+    }
+  }
+
+  async getMobileSyncCursor(id: string): Promise<MobileSyncCursor | undefined> {
+    try {
+      const [cursor] = await db.select()
+        .from(mobileSyncCursors)
+        .where(eq(mobileSyncCursors.id, id));
+      
+      return cursor || undefined;
+    } catch (error) {
+      console.error('Failed to get mobile sync cursor:', error);
+      throw error;
+    }
+  }
+
+  async updateMobileSyncCursor(
+    deviceId: string,
+    tableName: string,
+    cursor: {
+      lastSyncTimestamp: Date;
+      watermarkHigh: string;
+      recordCount: number;
+      syncStatus: 'pending' | 'in_progress' | 'completed' | 'failed';
+    }
+  ): Promise<MobileSyncCursor> {
+    try {
+      // Try to update existing cursor
+      const [existing] = await db.select()
+        .from(mobileSyncCursors)
+        .where(and(
+          eq(mobileSyncCursors.deviceId, deviceId),
+          eq(mobileSyncCursors.tableName, tableName)
+        ))
+        .limit(1);
+
+      if (existing) {
+        const [updated] = await db
+          .update(mobileSyncCursors)
+          .set({
+            lastSyncTimestamp: cursor.lastSyncTimestamp,
+            // watermarkHigh field doesn't exist in mobileSyncCursors schema
+            recordCount: cursor.recordCount,
+            syncStatus: cursor.syncStatus,
+            updatedAt: sql`CURRENT_TIMESTAMP`
+          })
+          .where(eq(mobileSyncCursors.id, existing.id))
+          .returning();
+        
+        return updated;
+      } else {
+        // Create new cursor
+        const [created] = await db
+          .insert(mobileSyncCursors)
+          .values({
+            deviceId,
+            tableName,
+            lastSyncTimestamp: cursor.lastSyncTimestamp,
+            // watermarkHigh field doesn't exist in mobileSyncCursors schema
+            // watermarkLow field doesn't exist in mobileSyncCursors schema
+            recordCount: cursor.recordCount,
+            syncStatus: cursor.syncStatus,
+            isActive: true
+          })
+          .returning();
+        
+        return created;
+      }
+    } catch (error) {
+      console.error('Failed to update mobile sync cursor:', error);
+      throw error;
+    }
+  }
+
+  async getMobileDeltaChanges(
+    deviceId: string,
+    tableName: string,
+    watermarkLow?: string,
+    limit: number = 100,
+    lbacFilter?: { userId: string; userGeographicScope: any }
+  ): Promise<{
+    changes: any[];
+    nextWatermark: string;
+    hasMore: boolean;
+    tombstones: DeletionTombstone[];
+  }> {
+    try {
+      // Get changes since last watermark
+      const conditions = [
+        eq(changeTracking.tableName, tableName)
+      ];
+      
+      if (watermarkLow) {
+        conditions.push(sql`${changeTracking.changeVersion} > ${watermarkLow}`);
+      }
+      
+      // Apply LBAC filtering if provided
+      if (lbacFilter && lbacFilter.userGeographicScope) {
+        // Add geographic constraints based on table type
+        if (tableName.includes('mobile_survey')) {
+          // For mobile survey tables, filter by geographic scope
+          const geoConditions = [];
+          if (lbacFilter.userGeographicScope.governorateIds?.length > 0) {
+            geoConditions.push(sql`${changeTracking.geographic}->>'governorateId' = ANY(${lbacFilter.userGeographicScope.governorateIds})`);
+          }
+          if (geoConditions.length > 0) {
+            conditions.push(or(...geoConditions));
+          }
+        }
+      }
+
+      const changes = await db.select()
+        .from(changeTracking)
+        .where(and(...conditions))
+        .orderBy(asc(changeTracking.changeVersion))
+        .limit(limit + 1); // Get one extra to check if there are more
+
+      const hasMore = changes.length > limit;
+      const resultChanges = hasMore ? changes.slice(0, limit) : changes;
+      
+      const nextWatermark = resultChanges.length > 0 
+        ? resultChanges[resultChanges.length - 1].changeVersion 
+        : watermarkLow || '0';
+
+      // Get related tombstones
+      const tombstoneConditions = [
+        eq(deletionTombstones.tableName, tableName)
+      ];
+      
+      if (watermarkLow) {
+        tombstoneConditions.push(sql`${deletionTombstones.deletedAt} > (SELECT created_at FROM change_tracking WHERE change_version = ${watermarkLow})`);
+      }
+
+      const tombstones = await db.select()
+        .from(deletionTombstones)
+        .where(and(...tombstoneConditions))
+        .limit(50); // Reasonable limit for tombstones
+
+      return {
+        changes: resultChanges,
+        nextWatermark,
+        hasMore,
+        tombstones
+      };
+    } catch (error) {
+      console.error('Failed to get mobile delta changes:', error);
+      throw error;
+    }
+  }
+
+  async processMobileBatchUpload(
+    deviceId: string,
+    operations: Array<{
+      operation: 'create' | 'update' | 'delete';
+      tableName: string;
+      recordId?: string;
+      data?: any;
+      clientChangeId: string;
+      timestamp: Date;
+    }>,
+    metadata: {
+      userId: string;
+      sessionId: string;
+      geographic?: { governorateId?: string; districtId?: string };
+    }
+  ): Promise<{
+    processed: number;
+    conflicts: Array<{ operation: any; reason: string; suggested: any }>;
+    errors: Array<{ operation: any; error: string }>;
+    changeEntries: ChangeTracking[];
+  }> {
+    try {
+      const results = {
+        processed: 0,
+        conflicts: [],
+        errors: [],
+        changeEntries: []
+      };
+
+      for (const operation of operations) {
+        try {
+          // Check for idempotency
+          const isProcessed = await this.isChangeProcessed(deviceId, operation.clientChangeId);
+          if (isProcessed) {
+            // Already processed, skip
+            results.processed++;
+            continue;
+          }
+
+          switch (operation.operation) {
+            case 'create':
+              try {
+                const result = await this.safeCreate(
+                  operation.tableName,
+                  operation.data,
+                  {
+                    userId: metadata.userId,
+                    deviceId,
+                    sessionId: metadata.sessionId,
+                    clientChangeId: operation.clientChangeId,
+                    changeSource: 'mobile_app',
+                    geographic: metadata.geographic
+                  }
+                );
+                results.changeEntries.push(result.changeEntry);
+                results.processed++;
+              } catch (error: any) {
+                if (error.message?.includes('unique') || error.message?.includes('duplicate')) {
+                  results.conflicts.push({
+                    operation,
+                    reason: 'Record already exists with unique constraint violation',
+                    suggested: 'Use update operation instead'
+                  });
+                } else {
+                  results.errors.push({ operation, error: error.message });
+                }
+              }
+              break;
+
+            case 'update':
+              if (!operation.recordId) {
+                results.errors.push({ operation, error: 'Record ID required for update operation' });
+                break;
+              }
+              try {
+                const result = await this.safeUpdate(
+                  operation.tableName,
+                  operation.recordId,
+                  operation.data,
+                  {
+                    userId: metadata.userId,
+                    deviceId,
+                    sessionId: metadata.sessionId,
+                    clientChangeId: operation.clientChangeId,
+                    changeSource: 'mobile_app',
+                    geographic: metadata.geographic
+                  }
+                );
+                results.changeEntries.push(result.changeEntry);
+                results.processed++;
+              } catch (error: any) {
+                results.errors.push({ operation, error: error.message });
+              }
+              break;
+
+            case 'delete':
+              if (!operation.recordId) {
+                results.errors.push({ operation, error: 'Record ID required for delete operation' });
+                break;
+              }
+              try {
+                const result = await this.safeDelete(
+                  operation.tableName,
+                  operation.recordId,
+                  {
+                    userId: metadata.userId,
+                    deviceId,
+                    sessionId: metadata.sessionId,
+                    clientChangeId: operation.clientChangeId,
+                    changeSource: 'mobile_app',
+                    deletionReason: 'Deleted from mobile app',
+                    deletionType: 'soft',
+                    geographic: metadata.geographic
+                  }
+                );
+                results.changeEntries.push(result.changeEntry);
+                results.processed++;
+              } catch (error: any) {
+                results.errors.push({ operation, error: error.message });
+              }
+              break;
+
+            default:
+              results.errors.push({ operation, error: `Unknown operation type: ${operation.operation}` });
+          }
+        } catch (error: any) {
+          results.errors.push({ operation, error: error.message });
+        }
+      }
+
+      return results;
+    } catch (error) {
+      console.error('Failed to process mobile batch upload:', error);
+      throw error;
+    }
+  }
+
+  // Mobile LBAC Geographic Validation
+  async validateMobileUserGeographicAccess(
+    userId: string,
+    requiredAccess: {
+      plotId?: string;
+      neighborhoodId?: string;
+      subDistrictId?: string;
+      districtId?: string;
+      governorateId?: string;
+    }
+  ): Promise<{
+    hasAccess: boolean;
+    accessLevel: 'full' | 'partial' | 'none';
+    allowedOperations: ('read' | 'create' | 'update' | 'delete')[];
+    reason?: string;
+  }> {
+    try {
+      // Get user's geographic scope
+      const userScope = await this.expandUserGeographicScope(userId);
+      
+      // Check access at different levels
+      let hasAccess = false;
+      let accessLevel: 'full' | 'partial' | 'none' = 'none';
+      const allowedOperations: ('read' | 'create' | 'update' | 'delete')[] = [];
+
+      // Check governorate level access
+      if (requiredAccess.governorateId) {
+        if (userScope.governorateIds.includes(requiredAccess.governorateId)) {
+          hasAccess = true;
+          accessLevel = 'full';
+          allowedOperations.push('read', 'create', 'update', 'delete');
+        }
+      }
+
+      // Check district level access
+      if (requiredAccess.districtId && !hasAccess) {
+        if (userScope.districtIds.includes(requiredAccess.districtId)) {
+          hasAccess = true;
+          accessLevel = 'full';
+          allowedOperations.push('read', 'create', 'update', 'delete');
+        }
+      }
+
+      // Check sub-district level access
+      if (requiredAccess.subDistrictId && !hasAccess) {
+        if (userScope.subDistrictIds.includes(requiredAccess.subDistrictId)) {
+          hasAccess = true;
+          accessLevel = 'full';
+          allowedOperations.push('read', 'create', 'update', 'delete');
+        }
+      }
+
+      // Check neighborhood level access
+      if (requiredAccess.neighborhoodId && !hasAccess) {
+        if (userScope.neighborhoodIds.includes(requiredAccess.neighborhoodId)) {
+          hasAccess = true;
+          accessLevel = 'full';
+          allowedOperations.push('read', 'create', 'update', 'delete');
+        }
+      }
+
+      // Check plot level access (requires neighborhood access)
+      if (requiredAccess.plotId && !hasAccess) {
+        // Get plot's neighborhood
+        const [plot] = await db.select({ neighborhoodId: plots.neighborhoodId })
+          .from(plots)
+          .where(eq(plots.id, requiredAccess.plotId))
+          .limit(1);
+        
+        if (plot && userScope.neighborhoodIds.includes(plot.neighborhoodId)) {
+          hasAccess = true;
+          accessLevel = 'full';
+          allowedOperations.push('read', 'create', 'update', 'delete');
+        }
+      }
+
+      // If no specific access, check if user has any geographic assignments (read-only)
+      if (!hasAccess && (userScope.governorateIds.length > 0 || userScope.districtIds.length > 0)) {
+        hasAccess = true;
+        accessLevel = 'partial';
+        allowedOperations.push('read');
+      }
+
+      return {
+        hasAccess,
+        accessLevel,
+        allowedOperations,
+        reason: hasAccess ? undefined : 'User does not have geographic access to the requested area'
+      };
+    } catch (error) {
+      console.error('Failed to validate mobile user geographic access:', error);
+      return {
+        hasAccess: false,
+        accessLevel: 'none',
+        allowedOperations: [],
+        reason: 'Geographic access validation failed'
       };
     }
   }
