@@ -16,7 +16,7 @@ class TasksScreen extends StatefulWidget {
 }
 
 class _TasksScreenState extends State<TasksScreen> {
-  List<SurveyTask> _tasks = [];
+  List<LegacySurveyTask> _tasks = [];
   bool _isLoading = false;
   bool _isAuthenticated = false;
   String? _errorMessage;
@@ -56,7 +56,7 @@ class _TasksScreenState extends State<TasksScreen> {
       
       if (result['success']) {
         setState(() {
-          _tasks = List<SurveyTask>.from(result['tasks']);
+          _tasks = List<LegacySurveyTask>.from(result['tasks']);
           _isLoading = false;
           _errorMessage = null;
         });

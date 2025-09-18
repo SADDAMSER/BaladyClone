@@ -2,24 +2,24 @@ import 'package:dreamflow_app/models/survey_models.dart';
 
 class DatabaseService {
   // Static data storage for now
-  static final List<SurveyTask> _tasks = [
-    SurveyTask(id: '1', citizenName: 'أحمد محمد الحميدي', location: 'صنعاء - حي السبعين', status: 'مخصصة', createdAt: DateTime.now().subtract(const Duration(days: 2))),
-    SurveyTask(id: '2', citizenName: 'فاطمة علي السالمي', location: 'عدن - المعلا', status: 'قيد التنفيذ', createdAt: DateTime.now().subtract(const Duration(days: 1))),
-    SurveyTask(id: '3', citizenName: 'محمد سالم الزبيدي', location: 'تعز - صالة', status: 'مكتمل', createdAt: DateTime.now().subtract(const Duration(days: 5)), completedAt: DateTime.now().subtract(const Duration(days: 1)), isSynced: true),
+  static final List<LegacySurveyTask> _tasks = [
+    LegacySurveyTask(id: '1', citizenName: 'أحمد محمد الحميدي', location: 'صنعاء - حي السبعين', status: 'مخصصة', createdAt: DateTime.now().subtract(const Duration(days: 2))),
+    LegacySurveyTask(id: '2', citizenName: 'فاطمة علي السالمي', location: 'عدن - المعلا', status: 'قيد التنفيذ', createdAt: DateTime.now().subtract(const Duration(days: 1))),
+    LegacySurveyTask(id: '3', citizenName: 'محمد سالم الزبيدي', location: 'تعز - صالة', status: 'مكتمل', createdAt: DateTime.now().subtract(const Duration(days: 5)), completedAt: DateTime.now().subtract(const Duration(days: 1)), isSynced: true),
   ];
 
-  static final List<SurveyPoint> _points = [];
-  static final List<SurveyPolygon> _polygons = [];
-  static final List<SurveyLine> _lines = [];
+  static final List<LegacySurveyPoint> _points = [];
+  static final List<DraftPolygon> _polygons = [];
+  static final List<DraftLine> _lines = [];
   static final List<SurveyAttachment> _attachments = [];
 
   static Future<void> init() async {
     // Simple initialization - no Hive for now
   }
 
-  static List<SurveyTask> getAllTasks() => _tasks;
+  static List<LegacySurveyTask> getAllTasks() => _tasks;
 
-  static SurveyTask? getTask(String id) {
+  static LegacySurveyTask? getTask(String id) {
     try {
       return _tasks.firstWhere((task) => task.id == id);
     } catch (e) {
@@ -27,7 +27,7 @@ class DatabaseService {
     }
   }
 
-  static void saveTask(SurveyTask task) {
+  static void saveTask(LegacySurveyTask task) {
     final index = _tasks.indexWhere((t) => t.id == task.id);
     if (index != -1) {
       _tasks[index] = task;
@@ -36,9 +36,9 @@ class DatabaseService {
     }
   }
 
-  static List<SurveyPoint> getPointsByTask(String taskId) => _points.where((p) => p.taskId == taskId).toList();
+  static List<LegacySurveyPoint> getPointsByTask(String taskId) => _points.where((p) => p.taskId == taskId).toList();
 
-  static void savePoint(SurveyPoint point) {
+  static void savePoint(LegacySurveyPoint point) {
     final index = _points.indexWhere((p) => p.id == point.id);
     if (index != -1) {
       _points[index] = point;
@@ -48,9 +48,9 @@ class DatabaseService {
   }
 
   // Polygons
-  static List<SurveyPolygon> getPolygonsByTask(String taskId) => _polygons.where((p) => p.taskId == taskId).toList();
+  static List<DraftPolygon> getPolygonsByTask(String taskId) => _polygons.where((p) => p.taskId == taskId).toList();
 
-  static void savePolygon(SurveyPolygon polygon) {
+  static void savePolygon(DraftPolygon polygon) {
     final index = _polygons.indexWhere((p) => p.id == polygon.id);
     if (index != -1) {
       _polygons[index] = polygon;
@@ -60,9 +60,9 @@ class DatabaseService {
   }
 
   // Lines
-  static List<SurveyLine> getLinesByTask(String taskId) => _lines.where((l) => l.taskId == taskId).toList();
+  static List<DraftLine> getLinesByTask(String taskId) => _lines.where((l) => l.taskId == taskId).toList();
 
-  static void saveLine(SurveyLine line) {
+  static void saveLine(DraftLine line) {
     final index = _lines.indexWhere((l) => l.id == line.id);
     if (index != -1) {
       _lines[index] = line;

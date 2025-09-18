@@ -12,7 +12,7 @@ import 'package:dreamflow_app/services/local_storage_service.dart';
 import 'package:dreamflow_app/models/local_storage_models.dart';
 
 class TaskDetailsScreen extends StatefulWidget {
-  final SurveyTask task;
+  final LegacySurveyTask task;
 
   const TaskDetailsScreen({super.key, required this.task});
 

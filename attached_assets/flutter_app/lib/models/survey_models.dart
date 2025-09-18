@@ -1,4 +1,4 @@
-class SurveyTask {
+class LegacySurveyTask {
   String id;
   String citizenName;
   String location;
@@ -7,7 +7,7 @@ class SurveyTask {
   DateTime? completedAt;
   bool isSynced; // synced with backend
 
-  SurveyTask({
+  LegacySurveyTask({
     required this.id,
     required this.citizenName,
     required this.location,
@@ -18,7 +18,7 @@ class SurveyTask {
   });
 }
 
-class SurveyPoint {
+class LegacySurveyPoint {
   String id;
   String taskId;
   double latitude;
@@ -30,7 +30,7 @@ class SurveyPoint {
   String? featureCode; // e.g., Tree, Manhole
   bool isSynced;
 
-  SurveyPoint({
+  LegacySurveyPoint({
     required this.id,
     required this.taskId,
     required this.latitude,
@@ -45,7 +45,7 @@ class SurveyPoint {
 }
 
 // A simple polygon captured on the map canvas (local pixel coordinates for demo)
-class SurveyPolygon {
+class DraftPolygon {
   String id;
   String taskId;
   String featureCode; // e.g., Building, Vacant Land, Courtyard
@@ -54,7 +54,7 @@ class SurveyPolygon {
   DateTime createdAt;
   bool isSynced;
 
-  SurveyPolygon({
+  DraftPolygon({
     required this.id,
     required this.taskId,
     required this.featureCode,
@@ -66,7 +66,7 @@ class SurveyPolygon {
 }
 
 // A simple polyline feature captured on the canvas (local pixel coordinates)
-class SurveyLine {
+class DraftLine {
   String id;
   String taskId;
   String featureCode; // e.g., Fence, Road Centerline
@@ -74,7 +74,7 @@ class SurveyLine {
   DateTime createdAt;
   bool isSynced;
 
-  SurveyLine({
+  DraftLine({
     required this.id,
     required this.taskId,
     required this.featureCode,

@@ -6,7 +6,7 @@ import 'package:dreamflow_app/services/sync_service.dart';
 import 'package:dreamflow_app/widgets/gnss_status_panel.dart';
 
 class FieldSurveyScreen extends StatefulWidget {
-  final SurveyTask task;
+  final LegacySurveyTask task;
 
   const FieldSurveyScreen({super.key, required this.task});
 
