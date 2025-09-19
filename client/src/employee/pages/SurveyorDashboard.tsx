@@ -25,7 +25,8 @@ import {
   Eye,
   Clock,
   Target,
-  Activity
+  Activity,
+  Calendar
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { toast } from "@/hooks/use-toast";
@@ -67,6 +68,31 @@ interface SurveyReport {
   createdAt: string;
 }
 
+interface FieldVisit {
+  id: string;
+  applicationId: string;
+  engineerId: string;
+  visitDate: string;
+  status: string;
+  arrivalTime?: string;
+  departureTime?: string;
+  gpsLocation?: {
+    latitude: number;
+    longitude: number;
+    accuracy?: number;
+  };
+  visitNotes: string;
+  citizenPresent: boolean;
+  equipmentUsed?: any;
+  requiresFollowUp: boolean;
+  createdAt: string;
+  updatedAt: string;
+  application?: {
+    applicationNumber: string;
+    status: string;
+  };
+}
+
 export default function SurveyorDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
@@ -87,7 +113,7 @@ export default function SurveyorDashboard() {
   const surveyorId = '550e8400-e29b-41d4-a716-446655440040'; // Mock surveyor ID
 
   // Get assigned applications
-  const { data: assignedApplications = [], isLoading } = useQuery({
+  const { data: assignedApplications = [], isLoading } = useQuery<Application[]>({
     queryKey: ['/api/applications', { assignedToId: surveyorId, status: 'assigned' }],
   });
 
@@ -149,15 +175,15 @@ export default function SurveyorDashboard() {
     }
   });
 
-  const filteredApplications = assignedApplications.filter((app: Application) =>
+  const filteredApplications = (assignedApplications || []).filter((app: Application) =>
     app.applicationNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     app.applicationData?.applicantName?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const totalAssigned = assignedApplications.length;
-  const totalCompleted = completedApplications.length;
-  const pendingReview = assignedApplications.filter((app: Application) => 
-    !completedApplications.find(completed => completed.id === app.id)
+  const totalAssigned = (assignedApplications || []).length;
+  const totalCompleted = (completedApplications || []).length;
+  const pendingReview = (assignedApplications || []).filter((app: Application) => 
+    !(completedApplications || []).find(completed => completed.id === app.id)
   ).length;
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -260,12 +286,15 @@ export default function SurveyorDashboard() {
 
       {/* Main Content */}
       <Tabs defaultValue="assigned" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="assigned" data-testid="tab-assigned-surveys">
             المعين لي ({totalAssigned})
           </TabsTrigger>
           <TabsTrigger value="completed" data-testid="tab-completed-surveys">
             المكتمل ({totalCompleted})
+          </TabsTrigger>
+          <TabsTrigger value="field-visits" data-testid="tab-field-visits">
+            الزيارات الميدانية
           </TabsTrigger>
         </TabsList>
 
@@ -678,7 +707,208 @@ export default function SurveyorDashboard() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="field-visits" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>سجل الزيارات الميدانية</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                جميع الزيارات الميدانية المسجلة للمساح الحالي
+              </p>
+            </CardHeader>
+            <CardContent>
+              <FieldVisitsSection />
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+// مكون الزيارات الميدانية
+function FieldVisitsSection() {
+  // جلب الزيارات الميدانية للمساح الحالي
+  // TODO: Replace with actual authenticated user ID from useAuth()
+  const currentSurveyorId = "550e8400-e29b-41d4-a716-446655440040"; // Mock ID - should be from auth context
+
+  const { data: fieldVisits = [], isLoading: visitsLoading } = useQuery<FieldVisit[]>({
+    queryKey: [`/api/field-visits/engineer/${currentSurveyorId}`],
+  });
+
+  const formatDateTime = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('ar', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const getStatusBadge = (status: string) => {
+    const statusConfig = {
+      'completed': { label: 'مكتمل', color: 'bg-green-100 text-green-800' },
+      'in_progress': { label: 'قيد التنفيذ', color: 'bg-blue-100 text-blue-800' },
+      'scheduled': { label: 'مجدول', color: 'bg-yellow-100 text-yellow-800' },
+      'cancelled': { label: 'ملغي', color: 'bg-red-100 text-red-800' },
+    };
+    
+    const config = statusConfig[status as keyof typeof statusConfig] || 
+      { label: status, color: 'bg-gray-100 text-gray-800' };
+    
+    return (
+      <Badge className={config.color}>
+        {config.label}
+      </Badge>
+    );
+  };
+
+  if (visitsLoading) {
+    return (
+      <div className="flex justify-center p-6">
+        <div className="flex items-center gap-2">
+          <Clock className="h-4 w-4 animate-spin" />
+          جاري تحميل الزيارات الميدانية...
+        </div>
+      </div>
+    );
+  }
+
+  if (fieldVisits.length === 0) {
+    return (
+      <div className="text-center p-8 text-muted-foreground">
+        <MapPin className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+        <h3 className="text-lg font-medium mb-2">لا توجد زيارات ميدانية مسجلة</h3>
+        <p>
+          ستظهر هنا جميع الزيارات الميدانية التي تم تسجيلها من خلال التطبيق المحمول
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <MapPin className="h-5 w-5 text-primary" />
+          <span className="font-medium">إجمالي الزيارات: {fieldVisits.length}</span>
+        </div>
+        <div className="flex gap-2">
+          <Badge variant="outline" className="bg-green-50">
+            مكتمل: {fieldVisits.filter((v: any) => v.status === 'completed').length}
+          </Badge>
+          <Badge variant="outline" className="bg-blue-50">
+            قيد التنفيذ: {fieldVisits.filter((v: any) => v.status === 'in_progress').length}
+          </Badge>
+        </div>
+      </div>
+
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>رقم الطلب</TableHead>
+            <TableHead>تاريخ الزيارة</TableHead>
+            <TableHead>الحالة</TableHead>
+            <TableHead>وقت الوصول</TableHead>
+            <TableHead>وقت المغادرة</TableHead>
+            <TableHead>الموقع GPS</TableHead>
+            <TableHead>الملاحظات</TableHead>
+            <TableHead>الإجراءات</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {fieldVisits.map((visit: any) => (
+            <TableRow key={visit.id} data-testid={`row-field-visit-${visit.id}`}>
+              <TableCell className="font-medium">
+                {visit.application?.applicationNumber || visit.applicationId.slice(0, 8)}
+              </TableCell>
+              <TableCell>
+                <div className="flex items-center gap-1">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  {formatDateTime(visit.visitDate)}
+                </div>
+              </TableCell>
+              <TableCell>
+                {getStatusBadge(visit.status)}
+              </TableCell>
+              <TableCell>
+                {visit.arrivalTime ? (
+                  <div className="flex items-center gap-1 text-sm">
+                    <Clock className="h-3 w-3 text-green-600" />
+                    {new Date(visit.arrivalTime).toLocaleTimeString('ar', { 
+                      hour: '2-digit', 
+                      minute: '2-digit' 
+                    })}
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground text-xs">غير محدد</span>
+                )}
+              </TableCell>
+              <TableCell>
+                {visit.departureTime ? (
+                  <div className="flex items-center gap-1 text-sm">
+                    <Clock className="h-3 w-3 text-red-600" />
+                    {new Date(visit.departureTime).toLocaleTimeString('ar', { 
+                      hour: '2-digit', 
+                      minute: '2-digit' 
+                    })}
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground text-xs">لم ينته</span>
+                )}
+              </TableCell>
+              <TableCell>
+                {visit.gpsLocation ? (
+                  <div className="text-xs">
+                    <div className="flex items-center gap-1">
+                      <MapPin className="h-3 w-3 text-blue-600" />
+                      <span>{visit.gpsLocation.latitude.toFixed(4)}</span>
+                    </div>
+                    <div className="text-muted-foreground">
+                      {visit.gpsLocation.longitude.toFixed(4)}
+                    </div>
+                    {visit.gpsLocation.accuracy && (
+                      <div className="text-muted-foreground">
+                        دقة: {visit.gpsLocation.accuracy}م
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground text-xs">غير متاح</span>
+                )}
+              </TableCell>
+              <TableCell>
+                <div className="max-w-40">
+                  <span className="text-xs">
+                    {visit.visitNotes.length > 50 
+                      ? `${visit.visitNotes.slice(0, 50)}...` 
+                      : visit.visitNotes}
+                  </span>
+                  {visit.citizenPresent && (
+                    <div className="flex items-center gap-1 mt-1">
+                      <CheckCircle className="h-3 w-3 text-green-600" />
+                      <span className="text-xs text-green-600">حضور المواطن</span>
+                    </div>
+                  )}
+                  {visit.requiresFollowUp && (
+                    <div className="flex items-center gap-1 mt-1">
+                      <AlertTriangle className="h-3 w-3 text-yellow-600" />
+                      <span className="text-xs text-yellow-600">يتطلب متابعة</span>
+                    </div>
+                  )}
+                </div>
+              </TableCell>
+              <TableCell>
+                <Button variant="outline" size="sm" data-testid={`button-view-visit-${visit.id}`}>
+                  <Eye className="h-3 w-3 ml-1" />
+                  عرض التفاصيل
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }
