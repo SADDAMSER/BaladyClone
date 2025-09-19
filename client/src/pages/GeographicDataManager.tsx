@@ -88,6 +88,61 @@ interface District {
   updatedAt: string;
 }
 
+interface SubDistrict {
+  id: string;
+  code: string;
+  nameAr: string;
+  nameEn?: string;
+  districtId: string;
+  geometry?: any;
+  properties?: any;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface Sector {
+  id: string;
+  code?: string;
+  nameAr: string;
+  nameEn?: string;
+  governorateId: string;
+  sectorType?: string;
+  geometry?: any;
+  properties?: any;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface NeighborhoodUnit {
+  id: string;
+  code: string;
+  nameAr: string;
+  nameEn?: string;
+  sectorId?: string;
+  neighborhoodId?: string;
+  geometry?: any;
+  properties?: any;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface Block {
+  id: string;
+  code: string;
+  nameAr: string;
+  nameEn?: string;
+  neighborhoodUnitId: string;
+  blockType?: string;
+  geometry?: any;
+  properties?: any;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export default function GeographicDataManager() {
   const [activeTab, setActiveTab] = useState('governorates');
   const [searchTerm, setSearchTerm] = useState('');
@@ -100,6 +155,10 @@ export default function GeographicDataManager() {
   const [selectedGovernorateFilter, setSelectedGovernorateFilter] = useState<string>('all');
   const [mapSelectedGovernorateId, setMapSelectedGovernorateId] = useState<string>('');
   const [mapSelectedDistrictId, setMapSelectedDistrictId] = useState<string>('');
+  const [mapSelectedSubDistrictId, setMapSelectedSubDistrictId] = useState<string>('');
+  const [mapSelectedSectorId, setMapSelectedSectorId] = useState<string>('');
+  const [mapSelectedNeighborhoodUnitId, setMapSelectedNeighborhoodUnitId] = useState<string>('');
+  const [mapSelectedBlockId, setMapSelectedBlockId] = useState<string>('');
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -112,6 +171,30 @@ export default function GeographicDataManager() {
   // Fetch districts
   const { data: districts = [], isLoading: loadingDistricts } = useQuery<District[]>({
     queryKey: ['/api/districts'],
+  });
+
+  // Fetch sub-districts based on selected district
+  const { data: subDistricts = [] } = useQuery<SubDistrict[]>({
+    queryKey: ['/api/sub-districts', { districtId: mapSelectedDistrictId }],
+    enabled: !!mapSelectedDistrictId,
+  });
+
+  // Fetch sectors based on selected governorate
+  const { data: sectors = [] } = useQuery<Sector[]>({
+    queryKey: ['/api/sectors', { governorateId: mapSelectedGovernorateId }],
+    enabled: !!mapSelectedGovernorateId,
+  });
+
+  // Fetch neighborhood units based on selected sector
+  const { data: neighborhoodUnits = [] } = useQuery<NeighborhoodUnit[]>({
+    queryKey: ['/api/neighborhood-units', { sectorId: mapSelectedSectorId }],
+    enabled: !!mapSelectedSectorId,
+  });
+
+  // Fetch blocks based on selected neighborhood unit
+  const { data: blocks = [] } = useQuery<Block[]>({
+    queryKey: ['/api/blocks', { neighborhoodUnitId: mapSelectedNeighborhoodUnitId }],
+    enabled: !!mapSelectedNeighborhoodUnitId,
   });
 
   // Create governorate mutation
@@ -914,7 +997,12 @@ export default function GeographicDataManager() {
                         onValueChange={(value) => {
                           const selectedValue = value === 'all' ? '' : value;
                           setMapSelectedGovernorateId(selectedValue);
-                          setMapSelectedDistrictId(''); // Reset district selection
+                          // Reset all downstream selections
+                          setMapSelectedDistrictId('');
+                          setMapSelectedSubDistrictId('');
+                          setMapSelectedSectorId('');
+                          setMapSelectedNeighborhoodUnitId('');
+                          setMapSelectedBlockId('');
                         }}
                       >
                         <SelectTrigger data-testid="select-map-governorate">
@@ -941,6 +1029,11 @@ export default function GeographicDataManager() {
                           onValueChange={(value) => {
                             const selectedValue = value === 'all' ? '' : value;
                             setMapSelectedDistrictId(selectedValue);
+                            // Reset downstream selections
+                            setMapSelectedSubDistrictId('');
+                            setMapSelectedSectorId('');
+                            setMapSelectedNeighborhoodUnitId('');
+                            setMapSelectedBlockId('');
                           }}
                         >
                           <SelectTrigger data-testid="select-map-district">
@@ -962,6 +1055,127 @@ export default function GeographicDataManager() {
                         </Select>
                       </div>
                     )}
+
+                    {/* Sub-District Filter */}
+                    {mapSelectedDistrictId && (
+                      <div>
+                        <Label className="text-sm font-medium">اختيار العزلة</Label>
+                        <Select 
+                          value={mapSelectedSubDistrictId || 'all'} 
+                          onValueChange={(value) => {
+                            const selectedValue = value === 'all' ? '' : value;
+                            setMapSelectedSubDistrictId(selectedValue);
+                            // Reset downstream selections
+                            setMapSelectedSectorId('');
+                            setMapSelectedNeighborhoodUnitId('');
+                            setMapSelectedBlockId('');
+                          }}
+                        >
+                          <SelectTrigger data-testid="select-map-subdistrict">
+                            <SelectValue placeholder="اختر العزلة" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">جميع العزل</SelectItem>
+                            {subDistricts
+                              .filter(subdist => subdist.geometry)
+                              .map((subdist) => (
+                              <SelectItem key={subdist.id} value={subdist.id}>
+                                {subdist.nameAr}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    {/* Sector Filter */}
+                    {mapSelectedGovernorateId && (
+                      <div>
+                        <Label className="text-sm font-medium">اختيار القطاع</Label>
+                        <Select 
+                          value={mapSelectedSectorId || 'all'} 
+                          onValueChange={(value) => {
+                            const selectedValue = value === 'all' ? '' : value;
+                            setMapSelectedSectorId(selectedValue);
+                            // Reset downstream selections
+                            setMapSelectedNeighborhoodUnitId('');
+                            setMapSelectedBlockId('');
+                          }}
+                        >
+                          <SelectTrigger data-testid="select-map-sector">
+                            <SelectValue placeholder="اختر القطاع" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">جميع القطاعات</SelectItem>
+                            {sectors
+                              .filter(sector => sector.geometry)
+                              .map((sector) => (
+                              <SelectItem key={sector.id} value={sector.id}>
+                                {sector.nameAr}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    {/* Neighborhood Unit Filter */}
+                    {mapSelectedSectorId && (
+                      <div>
+                        <Label className="text-sm font-medium">اختيار وحدة الجوار</Label>
+                        <Select 
+                          value={mapSelectedNeighborhoodUnitId || 'all'} 
+                          onValueChange={(value) => {
+                            const selectedValue = value === 'all' ? '' : value;
+                            setMapSelectedNeighborhoodUnitId(selectedValue);
+                            // Reset downstream selections
+                            setMapSelectedBlockId('');
+                          }}
+                        >
+                          <SelectTrigger data-testid="select-map-neighborhood-unit">
+                            <SelectValue placeholder="اختر وحدة الجوار" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">جميع وحدات الجوار</SelectItem>
+                            {neighborhoodUnits
+                              .filter(unit => unit.geometry)
+                              .map((unit) => (
+                              <SelectItem key={unit.id} value={unit.id}>
+                                {unit.nameAr}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    {/* Block Filter */}
+                    {mapSelectedNeighborhoodUnitId && (
+                      <div>
+                        <Label className="text-sm font-medium">اختيار البلوك</Label>
+                        <Select 
+                          value={mapSelectedBlockId || 'all'} 
+                          onValueChange={(value) => {
+                            const selectedValue = value === 'all' ? '' : value;
+                            setMapSelectedBlockId(selectedValue);
+                          }}
+                        >
+                          <SelectTrigger data-testid="select-map-block">
+                            <SelectValue placeholder="اختر البلوك" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">جميع البلوكات</SelectItem>
+                            {blocks
+                              .filter(block => block.geometry)
+                              .map((block) => (
+                              <SelectItem key={block.id} value={block.id}>
+                                {block.nameAr}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                     
                     <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
                       <h4 className="text-sm font-medium mb-2">إحصائيات</h4>
@@ -970,16 +1184,44 @@ export default function GeographicDataManager() {
                         <div>مع بيانات جغرافية: {governorates.filter(g => g.geometry).length}</div>
                         <div>إجمالي المديريات: {districts.length}</div>
                         <div>مع بيانات جغرافية: {districts.filter(d => d.geometry).length}</div>
+                        {mapSelectedDistrictId && (
+                          <>
+                            <div>العزل المتاحة: {subDistricts.length}</div>
+                            <div>مع بيانات جغرافية: {subDistricts.filter(s => s.geometry).length}</div>
+                          </>
+                        )}
+                        {mapSelectedGovernorateId && (
+                          <>
+                            <div>القطاعات المتاحة: {sectors.length}</div>
+                            <div>مع بيانات جغرافية: {sectors.filter(s => s.geometry).length}</div>
+                          </>
+                        )}
+                        {mapSelectedSectorId && (
+                          <>
+                            <div>وحدات الجوار المتاحة: {neighborhoodUnits.length}</div>
+                            <div>مع بيانات جغرافية: {neighborhoodUnits.filter(n => n.geometry).length}</div>
+                          </>
+                        )}
+                        {mapSelectedNeighborhoodUnitId && (
+                          <>
+                            <div>البلوكات المتاحة: {blocks.length}</div>
+                            <div>مع بيانات جغرافية: {blocks.filter(b => b.geometry).length}</div>
+                          </>
+                        )}
                       </div>
                     </div>
 
-                    {(mapSelectedGovernorateId || mapSelectedDistrictId) && (
+                    {(mapSelectedGovernorateId || mapSelectedDistrictId || mapSelectedSubDistrictId || mapSelectedSectorId || mapSelectedNeighborhoodUnitId || mapSelectedBlockId) && (
                       <Button 
                         variant="outline" 
                         size="sm"
                         onClick={() => {
                           setMapSelectedGovernorateId('');
                           setMapSelectedDistrictId('');
+                          setMapSelectedSubDistrictId('');
+                          setMapSelectedSectorId('');
+                          setMapSelectedNeighborhoodUnitId('');
+                          setMapSelectedBlockId('');
                         }}
                         data-testid="button-clear-map-selection"
                       >
