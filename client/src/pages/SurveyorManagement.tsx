@@ -26,6 +26,7 @@ import {
   MoreHorizontal
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/auth/useAuth";
 import Header from "@/components/Header";
 
 interface User {
@@ -86,19 +87,20 @@ export default function SurveyorManagement() {
   const [selectedSurveyor, setSelectedSurveyor] = useState<User | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
 
-  // Fetch all users with filtering for surveyors
-  const { data: allUsers = [], isLoading: usersLoading } = useQuery<User[]>({
+  // Fetch all users and filter for surveyors (temporary until backend supports role filtering)
+  const { data: allUsers = [], isLoading: usersLoading, error: usersError } = useQuery<User[]>({
     queryKey: ["/api/users"],
+    enabled: isAuthenticated, // Only fetch when authenticated
   });
 
-  // Filter for surveyors only (users with surveyor role or specific roles)
+  // Filter for surveyors on frontend (temporary solution)
   const surveyors = allUsers.filter(user => 
     user.role?.code === 'SURVEYOR' || 
     user.role?.code === 'ENGINEER' ||
     user.role?.nameAr?.includes('مساح') ||
-    user.role?.nameEn?.toLowerCase().includes('surveyor') ||
-    user.fullName?.includes('مساح')
+    user.role?.nameEn?.toLowerCase().includes('surveyor')
   );
 
   // Filter surveyors based on search query
@@ -108,10 +110,13 @@ export default function SurveyorManagement() {
     surveyor.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Statistics will be calculated based on available surveyor data
+  // For now, we'll show basic counts from the surveyor list and selected surveyor visits
+
   // Fetch field visits for selected surveyor
-  const { data: surveyorVisits = [], isLoading: visitsLoading } = useQuery<FieldVisit[]>({
-    queryKey: ["/api/field-visits/engineer", selectedSurveyor?.id],
-    enabled: !!selectedSurveyor?.id,
+  const { data: surveyorVisits = [], isLoading: visitsLoading, error: visitsError } = useQuery<FieldVisit[]>({
+    queryKey: ['/api/field-visits/engineer', selectedSurveyor?.id],
+    enabled: !!selectedSurveyor?.id && isAuthenticated,
   });
 
   const formatDate = (dateString: string) => {
@@ -141,6 +146,34 @@ export default function SurveyorManagement() {
       </Badge>
     );
   };
+
+  // Show loading state during authentication check
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]" dir="rtl">
+        <div className="text-center space-y-2">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="text-muted-foreground">جاري التحقق من صلاحيات الوصول...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show authentication required message if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]" dir="rtl">
+        <Alert className="max-w-md">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            يجب تسجيل الدخول أولاً للوصول إلى إدارة المساحين. 
+            <br />
+            يرجى <a href="/login" className="text-primary underline">تسجيل الدخول</a> للمتابعة.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6" dir="rtl">
@@ -246,6 +279,16 @@ export default function SurveyorManagement() {
                       <Skeleton key={i} className="h-20 w-full" />
                     ))}
                   </div>
+                ) : usersError ? (
+                  <Alert className="border-red-200">
+                    <AlertCircle className="h-4 w-4 text-red-600" />
+                    <AlertDescription className="text-red-800">
+                      خطأ في جلب بيانات المساحين. 
+                      <Button variant="link" className="p-0 h-auto text-red-600" onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/users"] })}>
+                        المحاولة مرة أخرى
+                      </Button>
+                    </AlertDescription>
+                  </Alert>
                 ) : filteredSurveyors.length === 0 ? (
                   <Alert>
                     <AlertCircle className="h-4 w-4" />
