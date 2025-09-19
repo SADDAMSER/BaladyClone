@@ -60,6 +60,7 @@ function AuthenticatedRouter() {
       <AdminLayout>
         <Switch>
         <Route path="/admin" component={AdminDashboard} />
+        <Route path="/dashboard" component={AdminDashboard} />
         <Route path="/building-licenses" component={BuildingLicenses} />
         <Route path="/surveying-decision" component={SurveyingDecision} />
         <Route path="/technical-requirements" component={TechnicalRequirements} />
@@ -114,6 +115,11 @@ function MainRouter() {
         </AuthProvider>
       </Route>
       <Route path="/admin/:rest*">
+        <AuthProvider>
+          <AuthenticatedRouter />
+        </AuthProvider>
+      </Route>
+      <Route path="/dashboard">
         <AuthProvider>
           <AuthenticatedRouter />
         </AuthProvider>

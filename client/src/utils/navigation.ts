@@ -18,7 +18,13 @@ import {
   Archive,
   Search,
   UserCheck,
-  Activity
+  Activity,
+  ClipboardList,
+  HardHat,
+  UserCog,
+  BookOpen,
+  Target,
+  TrendingUp
 } from "lucide-react";
 
 export interface NavigationItem {
@@ -35,89 +41,83 @@ export interface NavigationItem {
 }
 
 export const navigationConfig: NavigationItem[] = [
+  // 1. لوحة التحكم الرئيسية
   {
     id: 'dashboard',
-    label: 'لوحة التحكم',
+    label: 'لوحة التحكم الرئيسية',
     icon: LayoutDashboard,
-    path: '/'
+    path: '/dashboard'
   },
-  {
-    id: 'services',
-    label: 'إدارة الخدمات',
-    icon: Settings,
-    children: [
-      { id: 'services-catalog', label: 'دليل الخدمات', icon: FileText, path: '/services' },
-      { id: 'building-licenses', label: 'تراخيص البناء', icon: Building, path: '/building-licenses' },
-      { id: 'surveying-decision', label: 'القرار المساحي', icon: Map, path: '/surveying-decision' },
-      { id: 'technical-requirements', label: 'الاشتراطات الفنية', icon: Cog, path: '/technical-requirements' },
-      { id: 'legal-system', label: 'النظام القانوني', icon: Scale, path: '/legal-system' },
-      { id: 'service-builder', label: 'منشئ الخدمات', icon: Zap, path: '/service-builder' }
-    ]
-  },
+  
+  // 2. الطلبات والمعاملات
   {
     id: 'applications',
     label: 'الطلبات والمعاملات',
-    icon: FileText,
-    badge: { text: '12', variant: 'info' },
+    icon: ClipboardList,
+    badge: { text: '23', variant: 'info' },
     children: [
+      { id: 'building-licenses', label: 'تراخيص البناء', icon: Building, path: '/building-licenses', badge: { text: '45', variant: 'info' } },
+      { id: 'surveying-decision', label: 'القرار المساحي', icon: Map, path: '/surveying-decision', badge: { text: '23', variant: 'info' } },
       { id: 'apps-track', label: 'تتبع الطلبات', icon: Search, path: '/applications/track' },
       { id: 'apps-pending', label: 'الطلبات المعلقة', icon: FileText, path: '/applications/pending' },
       { id: 'employee-dashboard', label: 'لوحة الموظف', icon: UserCheck, path: '/employee/dashboard' },
-      { id: 'apps-approved', label: 'الطلبات المعتمدة', icon: FileText, path: '/applications/approved' },
       { id: 'apps-history', label: 'سجل الطلبات', icon: Archive, path: '/applications/history' }
     ]
   },
+
+  // 3. العمل الميداني
   {
-    id: 'organization',
-    label: 'الهيكل التنظيمي',
-    icon: Table,
+    id: 'field-work',
+    label: 'العمل الميداني',
+    icon: HardHat,
     children: [
-      { id: 'org-structure', label: 'الهيكل التنظيمي', icon: Table, path: '/organizational-structure' },
-      { id: 'org-advanced', label: 'الهيكل المتقدم', icon: Table, path: '/advanced-organizational-structure' },
-      { id: 'task-management', label: 'إدارة المهام', icon: ListTodo, path: '/task-management' }
+      { id: 'surveyor-management', label: 'إدارة المساحين', icon: UserCheck, path: '/surveyor-management' },
+      { id: 'field-visits', label: 'الزيارات الميدانية', icon: Map, path: '/employee/engineer' },
+      { id: 'assistant-manager', label: 'مساعد المدير', icon: UserCog, path: '/employee/assistant-manager' },
+      { id: 'department-manager', label: 'مدير القسم', icon: UserCog, path: '/employee/department-manager' },
+      { id: 'geographic-data', label: 'البيانات الجغرافية', icon: Map, path: '/geographic-data' }
     ]
   },
+
+  // 4. الإدارة والتنظيم
   {
-    id: 'analytics',
-    label: 'التقارير والإحصائيات',
-    icon: BarChart3,
-    children: [
-      { id: 'advanced-analytics', label: 'التحليلات المتقدمة', icon: BarChart3, path: '/advanced-analytics' },
-      { id: 'reports', label: 'التقارير', icon: FileText, path: '/reports' }
-    ]
-  },
-  {
-    id: 'users',
-    label: 'إدارة المستخدمين',
-    icon: Users,
+    id: 'administration',
+    label: 'الإدارة والتنظيم',
+    icon: UserCog,
     children: [
       { id: 'user-management', label: 'إدارة المستخدمين', icon: Users, path: '/user-management' },
-      { id: 'surveyor-management', label: 'إدارة المساحين', icon: UserCheck, path: '/surveyor-management' },
-      { id: 'permissions', label: 'الصلاحيات', icon: Shield, path: '/permissions' }
+      { id: 'org-structure', label: 'الهيكل التنظيمي', icon: Table, path: '/organizational-structure' },
+      { id: 'org-advanced', label: 'الهيكل المتقدم', icon: Table, path: '/advanced-organizational-structure' },
+      { id: 'task-management', label: 'إدارة المهام', icon: ListTodo, path: '/task-management' },
+      { id: 'permissions', label: 'الصلاحيات', icon: Shield, path: '/permissions' },
+      { id: 'lbac-management', label: 'إدارة الصلاحيات المكانية', icon: Shield, path: '/lbac-management' }
     ]
   },
+
+  // 5. النظام والتشريعات
   {
-    id: 'tools',
-    label: 'الأدوات المساعدة',
-    icon: Brain,
+    id: 'system-legislation',
+    label: 'النظام والتشريعات',
+    icon: BookOpen,
     children: [
+      { id: 'legal-system', label: 'النظام القانوني', icon: Scale, path: '/legal-system', badge: { text: '144', variant: 'success' } },
+      { id: 'technical-requirements', label: 'الاشتراطات الفنية', icon: Cog, path: '/technical-requirements', badge: { text: '167', variant: 'success' } },
+      { id: 'services-catalog', label: 'دليل الخدمات', icon: FileText, path: '/services' },
+      { id: 'service-builder', label: 'منشئ الخدمات', icon: Zap, path: '/service-builder' },
       { id: 'smart-search', label: 'البحث الذكي', icon: Search, path: '/smart-search' },
       { id: 'document-archive', label: 'الأرشفة الإلكترونية', icon: Archive, path: '/document-archive' }
     ]
   },
+
+  // 6. التقارير والتحليلات
   {
-    id: 'monitoring',
-    label: 'مراقبة النظام',
-    icon: Activity,
-    path: '/monitoring'
-  },
-  {
-    id: 'settings',
-    label: 'إعدادات النظام',
-    icon: Settings,
+    id: 'analytics-reports',
+    label: 'التقارير والتحليلات',
+    icon: TrendingUp,
     children: [
-      { id: 'general-settings', label: 'الإعدادات العامة', icon: Settings, path: '/settings/general' },
-      { id: 'notifications', label: 'إعدادات الإشعارات', icon: Bell, path: '/settings/notifications' }
+      { id: 'advanced-analytics', label: 'التحليلات المتقدمة', icon: BarChart3, path: '/advanced-analytics' },
+      { id: 'monitoring', label: 'مراقبة النظام', icon: Activity, path: '/monitoring' },
+      { id: 'reports', label: 'التقارير', icon: FileText, path: '/reports' }
     ]
   }
 ];
