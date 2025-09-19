@@ -41,7 +41,8 @@ interface GeoJSONCollection {
 
 // Helper function to read GeoJSON files
 function readGeoJSONFile(filename: string): GeoJSONCollection {
-  const filePath = path.join(__dirname, 'data', filename);
+  const scriptDir = path.dirname(new URL(import.meta.url).pathname);
+  const filePath = path.join(scriptDir, 'data', filename);
   if (!fs.existsSync(filePath)) {
     throw new Error(`File not found: ${filePath}`);
   }
@@ -335,6 +336,4 @@ async function main() {
 }
 
 // Run the script
-if (require.main === module) {
-  main();
-}
+main();
