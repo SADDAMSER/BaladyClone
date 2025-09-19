@@ -1237,12 +1237,42 @@ export default function GeographicDataManager() {
                       <InteractiveDrawingMap
                         selectedGovernorateId={mapSelectedGovernorateId}
                         selectedDistrictId={mapSelectedDistrictId}
+                        selectedSubDistrictId={mapSelectedSubDistrictId}
+                        selectedSectorId={mapSelectedSectorId}
+                        selectedNeighborhoodUnitId={mapSelectedNeighborhoodUnitId}
+                        selectedBlockId={mapSelectedBlockId}
                         onGovernorateSelect={(govId) => {
                           setMapSelectedGovernorateId(govId);
                           setMapSelectedDistrictId('');
+                          setMapSelectedSubDistrictId('');
+                          setMapSelectedSectorId('');
+                          setMapSelectedNeighborhoodUnitId('');
+                          setMapSelectedBlockId('');
                         }}
                         onDistrictSelect={(distId) => {
                           setMapSelectedDistrictId(distId);
+                          setMapSelectedSubDistrictId('');
+                          setMapSelectedSectorId('');
+                          setMapSelectedNeighborhoodUnitId('');
+                          setMapSelectedBlockId('');
+                        }}
+                        onSubDistrictSelect={(subDistId) => {
+                          setMapSelectedSubDistrictId(subDistId);
+                          setMapSelectedSectorId('');
+                          setMapSelectedNeighborhoodUnitId('');
+                          setMapSelectedBlockId('');
+                        }}
+                        onSectorSelect={(sectorId) => {
+                          setMapSelectedSectorId(sectorId);
+                          setMapSelectedNeighborhoodUnitId('');
+                          setMapSelectedBlockId('');
+                        }}
+                        onNeighborhoodUnitSelect={(unitId) => {
+                          setMapSelectedNeighborhoodUnitId(unitId);
+                          setMapSelectedBlockId('');
+                        }}
+                        onBlockSelect={(blockId) => {
+                          setMapSelectedBlockId(blockId);
                         }}
                         showDrawingTools={false}
                         showBoundaryControls={true}

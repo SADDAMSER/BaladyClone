@@ -151,9 +151,17 @@ function BoundaryPolygon({
 export default function GeographicBoundaryLayer({
   selectedGovernorateId,
   selectedDistrictId,
+  selectedSubDistrictId,
+  selectedSectorId,
+  selectedNeighborhoodUnitId,
+  selectedBlockId,
   onBoundaryClick,
   onGovernorateSelect,
-  onDistrictSelect
+  onDistrictSelect,
+  onSubDistrictSelect,
+  onSectorSelect,
+  onNeighborhoodUnitSelect,
+  onBlockSelect
 }: GeographicBoundaryLayerProps) {
   const map = useMap();
 
@@ -170,71 +178,113 @@ export default function GeographicBoundaryLayer({
     select: (data: any[]) => data.filter(dist => dist.geometry) // Only include districts with geometry data
   });
 
-  // Auto-fit map to selected boundary with priority: District > Governorate
+  // Fetch sub-districts for selected district with geometry
+  const { data: subDistricts = [] } = useQuery<BoundaryFeature[]>({
+    queryKey: ['/api/sub-districts', { districtId: selectedDistrictId }],
+    enabled: !!selectedDistrictId,
+    select: (data: any[]) => data.filter(subDist => subDist.geometry) // Only include with geometry data
+  });
+
+  // Fetch sectors for selected governorate with geometry
+  const { data: sectors = [] } = useQuery<BoundaryFeature[]>({
+    queryKey: ['/api/sectors', { governorateId: selectedGovernorateId }],
+    enabled: !!selectedGovernorateId,
+    select: (data: any[]) => data.filter(sector => sector.geometry) // Only include with geometry data
+  });
+
+  // Fetch neighborhood units for selected sector with geometry
+  const { data: neighborhoodUnits = [] } = useQuery<BoundaryFeature[]>({
+    queryKey: ['/api/neighborhood-units', { sectorId: selectedSectorId }],
+    enabled: !!selectedSectorId,
+    select: (data: any[]) => data.filter(unit => unit.geometry) // Only include with geometry data
+  });
+
+  // Fetch blocks for selected neighborhood unit with geometry
+  const { data: blocks = [] } = useQuery<BoundaryFeature[]>({
+    queryKey: ['/api/blocks', { neighborhoodUnitId: selectedNeighborhoodUnitId }],
+    enabled: !!selectedNeighborhoodUnitId,
+    select: (data: any[]) => data.filter(block => block.geometry) // Only include with geometry data
+  });
+
+  // Auto-fit map to selected boundary with priority: Block > NeighborhoodUnit > Sector > SubDistrict > District > Governorate
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
     
     const fitMapToBoundary = () => {
-      // Priority 1: District (most specific)
-      if (selectedDistrictId && districts.length > 0) {
-        const selectedDistrict = districts.find(d => d.id === selectedDistrictId);
-        if (selectedDistrict && selectedDistrict.geometry) {
-          try {
-            const featureGroup = L.featureGroup();
-            
-            if (selectedDistrict.geometry.type === 'MultiPolygon') {
-              selectedDistrict.geometry.coordinates.forEach((polygon: any) => {
-                const coords = polygon[0].map((coord: any) => [coord[1], coord[0]] as [number, number]);
-                L.polygon(coords).addTo(featureGroup);
-              });
-            } else if (selectedDistrict.geometry.type === 'Polygon') {
-              const coords = selectedDistrict.geometry.coordinates[0].map((coord: any) => [coord[1], coord[0]] as [number, number]);
+      // Helper function to fit bounds for any geographic entity
+      const fitBounds = (entity: BoundaryFeature, type: string, maxZoom: number, padding: [number, number] = [30, 30]) => {
+        try {
+          const featureGroup = L.featureGroup();
+          
+          if (entity.geometry.type === 'MultiPolygon') {
+            entity.geometry.coordinates.forEach((polygon: any) => {
+              const coords = polygon[0].map((coord: any) => [coord[1], coord[0]] as [number, number]);
               L.polygon(coords).addTo(featureGroup);
-            }
-            
-            if (featureGroup.getLayers().length > 0) {
-              // For districts, use more focused padding for better zoom
-              map.fitBounds(featureGroup.getBounds(), { 
-                padding: [30, 30],
-                maxZoom: 12 // Prevent excessive zoom-in
-              });
-              console.log(`🎯 Focused map on district: ${selectedDistrict.nameAr}`);
-            }
-            return;
-          } catch (error) {
-            console.error('Error fitting bounds for district:', error);
+            });
+          } else if (entity.geometry.type === 'Polygon') {
+            const coords = entity.geometry.coordinates[0].map((coord: any) => [coord[1], coord[0]] as [number, number]);
+            L.polygon(coords).addTo(featureGroup);
           }
+          
+          if (featureGroup.getLayers().length > 0) {
+            map.fitBounds(featureGroup.getBounds(), { 
+              padding,
+              maxZoom
+            });
+            console.log(`🎯 Focused map on ${type}: ${entity.nameAr}`);
+          }
+          return true;
+        } catch (error) {
+          console.error(`Error fitting bounds for ${type}:`, error);
+          return false;
+        }
+      };
+
+      // Priority 1: Block (most specific)
+      if (selectedBlockId && blocks.length > 0) {
+        const selectedBlock = blocks.find(b => b.id === selectedBlockId);
+        if (selectedBlock && selectedBlock.geometry) {
+          if (fitBounds(selectedBlock, 'block', 16, [10, 10])) return;
+        }
+      }
+
+      // Priority 2: Neighborhood Unit
+      if (selectedNeighborhoodUnitId && neighborhoodUnits.length > 0) {
+        const selectedUnit = neighborhoodUnits.find(u => u.id === selectedNeighborhoodUnitId);
+        if (selectedUnit && selectedUnit.geometry) {
+          if (fitBounds(selectedUnit, 'neighborhood unit', 15, [15, 15])) return;
+        }
+      }
+
+      // Priority 3: Sector
+      if (selectedSectorId && sectors.length > 0) {
+        const selectedSector = sectors.find(s => s.id === selectedSectorId);
+        if (selectedSector && selectedSector.geometry) {
+          if (fitBounds(selectedSector, 'sector', 14, [20, 20])) return;
+        }
+      }
+
+      // Priority 4: Sub-District
+      if (selectedSubDistrictId && subDistricts.length > 0) {
+        const selectedSubDistrict = subDistricts.find(sd => sd.id === selectedSubDistrictId);
+        if (selectedSubDistrict && selectedSubDistrict.geometry) {
+          if (fitBounds(selectedSubDistrict, 'sub-district', 13, [25, 25])) return;
         }
       }
       
-      // Priority 2: Governorate (fallback when no district selected)
+      // Priority 5: District
+      if (selectedDistrictId && districts.length > 0) {
+        const selectedDistrict = districts.find(d => d.id === selectedDistrictId);
+        if (selectedDistrict && selectedDistrict.geometry) {
+          if (fitBounds(selectedDistrict, 'district', 12, [30, 30])) return;
+        }
+      }
+      
+      // Priority 6: Governorate (fallback when no other selections)
       if (selectedGovernorateId && governorates.length > 0) {
         const selectedGov = governorates.find(g => g.id === selectedGovernorateId);
         if (selectedGov && selectedGov.geometry) {
-          try {
-            const featureGroup = L.featureGroup();
-            
-            if (selectedGov.geometry.type === 'MultiPolygon') {
-              selectedGov.geometry.coordinates.forEach((polygon: any) => {
-                const coords = polygon[0].map((coord: any) => [coord[1], coord[0]] as [number, number]);
-                L.polygon(coords).addTo(featureGroup);
-              });
-            } else if (selectedGov.geometry.type === 'Polygon') {
-              const coords = selectedGov.geometry.coordinates[0].map((coord: any) => [coord[1], coord[0]] as [number, number]);
-              L.polygon(coords).addTo(featureGroup);
-            }
-            
-            if (featureGroup.getLayers().length > 0) {
-              // For governorates, use moderate padding
-              map.fitBounds(featureGroup.getBounds(), { 
-                padding: [40, 40],
-                maxZoom: 10 // Prevent excessive zoom-in for large areas
-              });
-              console.log(`🗺️ Focused map on governorate: ${selectedGov.nameAr}`);
-            }
-          } catch (error) {
-            console.error('Error fitting bounds for governorate:', error);
-          }
+          fitBounds(selectedGov, 'governorate', 10, [40, 40]);
         }
       }
     };
@@ -247,7 +297,7 @@ export default function GeographicBoundaryLayer({
         clearTimeout(timeoutId);
       }
     };
-  }, [selectedGovernorateId, selectedDistrictId, governorates, districts, map]);
+  }, [selectedGovernorateId, selectedDistrictId, selectedSubDistrictId, selectedSectorId, selectedNeighborhoodUnitId, selectedBlockId, governorates, districts, subDistricts, sectors, neighborhoodUnits, blocks, map]);
 
   return (
     <>
@@ -278,6 +328,70 @@ export default function GeographicBoundaryLayer({
             onBoundaryClick?.(type, id, name);
             if (type === 'district') {
               onDistrictSelect?.(id);
+            }
+          }}
+        />
+      ))}
+
+      {/* Render sub-districts for selected district */}
+      {subDistricts.map(subDistrict => (
+        <BoundaryPolygon
+          key={`sub-${subDistrict.id}`}
+          feature={subDistrict}
+          type="subDistrict"
+          isSelected={subDistrict.id === selectedSubDistrictId}
+          onClick={(type, id, name) => {
+            onBoundaryClick?.(type, id, name);
+            if (type === 'subDistrict') {
+              onSubDistrictSelect?.(id);
+            }
+          }}
+        />
+      ))}
+
+      {/* Render sectors for selected governorate */}
+      {sectors.map(sector => (
+        <BoundaryPolygon
+          key={`sector-${sector.id}`}
+          feature={sector}
+          type="sector"
+          isSelected={sector.id === selectedSectorId}
+          onClick={(type, id, name) => {
+            onBoundaryClick?.(type, id, name);
+            if (type === 'sector') {
+              onSectorSelect?.(id);
+            }
+          }}
+        />
+      ))}
+
+      {/* Render neighborhood units for selected sector */}
+      {neighborhoodUnits.map(unit => (
+        <BoundaryPolygon
+          key={`unit-${unit.id}`}
+          feature={unit}
+          type="neighborhoodUnit"
+          isSelected={unit.id === selectedNeighborhoodUnitId}
+          onClick={(type, id, name) => {
+            onBoundaryClick?.(type, id, name);
+            if (type === 'neighborhoodUnit') {
+              onNeighborhoodUnitSelect?.(id);
+            }
+          }}
+        />
+      ))}
+
+      {/* Render blocks for selected neighborhood unit */}
+      {blocks.map(block => (
+        <BoundaryPolygon
+          key={`block-${block.id}`}
+          feature={block}
+          type="block"
+          isSelected={block.id === selectedBlockId}
+          onClick={(type, id, name) => {
+            onBoundaryClick?.(type, id, name);
+            if (type === 'block') {
+              onBlockSelect?.(id);
             }
           }}
         />

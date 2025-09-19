@@ -591,8 +591,16 @@ export default function InteractiveDrawingMap({
   isEnabled = true,
   selectedGovernorateId,
   selectedDistrictId,
+  selectedSubDistrictId,
+  selectedSectorId,
+  selectedNeighborhoodUnitId,
+  selectedBlockId,
   onGovernorateSelect,
   onDistrictSelect,
+  onSubDistrictSelect,
+  onSectorSelect,
+  onNeighborhoodUnitSelect,
+  onBlockSelect,
   onBoundaryClick,
   showDrawingTools = true,
   showBoundaryControls = false
@@ -697,9 +705,17 @@ export default function InteractiveDrawingMap({
           <GeographicBoundaryLayer
             selectedGovernorateId={selectedGovernorateId}
             selectedDistrictId={selectedDistrictId}
+            selectedSubDistrictId={selectedSubDistrictId}
+            selectedSectorId={selectedSectorId}
+            selectedNeighborhoodUnitId={selectedNeighborhoodUnitId}
+            selectedBlockId={selectedBlockId}
             onBoundaryClick={onBoundaryClick}
             onGovernorateSelect={onGovernorateSelect}
             onDistrictSelect={onDistrictSelect}
+            onSubDistrictSelect={onSubDistrictSelect}
+            onSectorSelect={onSectorSelect}
+            onNeighborhoodUnitSelect={onNeighborhoodUnitSelect}
+            onBlockSelect={onBlockSelect}
           />
           
           {/* Existing Features */}
