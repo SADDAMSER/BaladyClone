@@ -6196,6 +6196,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
+      // Data validation functions for Yemen boundaries and geometry integrity
+      function validateYemenCoordinates(lat: number, lng: number): boolean {
+        return lat >= 12 && lat <= 19 && lng >= 42 && lng <= 54;
+      }
+      
+      function validatePolygonClosure(coordinates: number[][]): boolean {
+        if (!coordinates || coordinates.length < 4) return false;
+        const firstPoint = coordinates[0];
+        const lastPoint = coordinates[coordinates.length - 1];
+        return firstPoint[0] === lastPoint[0] && firstPoint[1] === lastPoint[1];
+      }
+      
+      function validateGeometryData(data: any): { valid: boolean; error?: string } {
+        // Validate coordinates for points
+        if (data.coordinates && Array.isArray(data.coordinates)) {
+          const [lng, lat] = data.coordinates;
+          if (typeof lat === 'number' && typeof lng === 'number') {
+            if (!validateYemenCoordinates(lat, lng)) {
+              return {
+                valid: false,
+                error: `الإحداثيات خارج النطاق الجغرافي لليمن (${lat.toFixed(6)}, ${lng.toFixed(6)})`
+              };
+            }
+          }
+        }
+        
+        // Validate GeoJSON geometry coordinates
+        if (data.geoJson && data.geoJson.coordinates) {
+          const geometry = data.geoJson;
+          
+          if (geometry.type === 'Point') {
+            const [lng, lat] = geometry.coordinates;
+            if (!validateYemenCoordinates(lat, lng)) {
+              return {
+                valid: false,
+                error: `نقطة GeoJSON خارج النطاق الجغرافي لليمن (${lat.toFixed(6)}, ${lng.toFixed(6)})`
+              };
+            }
+          } else if (geometry.type === 'Polygon') {
+            const rings = geometry.coordinates;
+            for (let i = 0; i < rings.length; i++) {
+              const ring = rings[i];
+              
+              // Validate polygon closure
+              if (!validatePolygonClosure(ring)) {
+                return {
+                  valid: false,
+                  error: `المضلع غير مغلق - النقطة الأولى يجب أن تساوي النقطة الأخيرة في الحلقة ${i + 1}`
+                };
+              }
+              
+              // Validate all coordinates are within Yemen
+              for (const [lng, lat] of ring) {
+                if (!validateYemenCoordinates(lat, lng)) {
+                  return {
+                    valid: false,
+                    error: `إحداثيات المضلع خارج النطاق الجغرافي لليمن (${lat.toFixed(6)}, ${lng.toFixed(6)})`
+                  };
+                }
+              }
+            }
+          } else if (geometry.type === 'LineString') {
+            for (const [lng, lat] of geometry.coordinates) {
+              if (!validateYemenCoordinates(lat, lng)) {
+                return {
+                  valid: false,
+                  error: `إحداثيات الخط خارج النطاق الجغرافي لليمن (${lat.toFixed(6)}, ${lng.toFixed(6)})`
+                };
+              }
+            }
+          }
+        }
+        
+        return { valid: true };
+      }
+      
       const accepted: any[] = [];
       const conflicts: any[] = [];
       
@@ -6214,6 +6290,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
               serverData: null
             });
             continue;
+          }
+          
+          // Validate geometry data for Yemen boundaries and polygon closure
+          if (entity === 'points' || entity === 'geometries') {
+            const validation = validateGeometryData(data);
+            if (!validation.valid) {
+              return res.status(400).json({
+                success: false,
+                error: {
+                  code: 'GEOMETRY_VALIDATION_ERROR',
+                  message: validation.error
+                }
+              });
+            }
           }
           
           // Check for existing change with same idempotency key
