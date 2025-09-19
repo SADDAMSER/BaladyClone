@@ -92,6 +92,7 @@ export const navigationConfig: NavigationItem[] = [
     icon: Users,
     children: [
       { id: 'user-management', label: 'إدارة المستخدمين', icon: Users, path: '/user-management' },
+      { id: 'surveyor-management', label: 'إدارة المساحين', icon: UserCheck, path: '/surveyor-management' },
       { id: 'permissions', label: 'الصلاحيات', icon: Shield, path: '/permissions' }
     ]
   },
