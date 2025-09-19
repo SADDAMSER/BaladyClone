@@ -180,28 +180,28 @@ export default function GeographicBoundaryLayer({
 
   // Fetch sub-districts for selected district with geometry
   const { data: subDistricts = [] } = useQuery<BoundaryFeature[]>({
-    queryKey: ['/api/sub-districts', { districtId: selectedDistrictId }],
+    queryKey: [`/api/sub-districts?districtId=${selectedDistrictId}`],
     enabled: !!selectedDistrictId,
     select: (data: any[]) => data.filter(subDist => subDist.geometry) // Only include with geometry data
   });
 
   // Fetch sectors for selected governorate with geometry
   const { data: sectors = [] } = useQuery<BoundaryFeature[]>({
-    queryKey: ['/api/sectors', { governorateId: selectedGovernorateId }],
+    queryKey: [`/api/sectors?governorateId=${selectedGovernorateId}`],
     enabled: !!selectedGovernorateId,
     select: (data: any[]) => data.filter(sector => sector.geometry) // Only include with geometry data
   });
 
   // Fetch neighborhood units for selected sector with geometry
   const { data: neighborhoodUnits = [] } = useQuery<BoundaryFeature[]>({
-    queryKey: ['/api/neighborhood-units', { sectorId: selectedSectorId }],
+    queryKey: [`/api/neighborhood-units?sectorId=${selectedSectorId}`],
     enabled: !!selectedSectorId,
     select: (data: any[]) => data.filter(unit => unit.geometry) // Only include with geometry data
   });
 
   // Fetch blocks for selected neighborhood unit with geometry
   const { data: blocks = [] } = useQuery<BoundaryFeature[]>({
-    queryKey: ['/api/blocks', { neighborhoodUnitId: selectedNeighborhoodUnitId }],
+    queryKey: [`/api/neighborhood-units/${selectedNeighborhoodUnitId}/blocks`],
     enabled: !!selectedNeighborhoodUnitId,
     select: (data: any[]) => data.filter(block => block.geometry) // Only include with geometry data
   });

@@ -175,25 +175,25 @@ export default function GeographicDataManager() {
 
   // Fetch sub-districts based on selected district
   const { data: subDistricts = [] } = useQuery<SubDistrict[]>({
-    queryKey: ['/api/sub-districts', { districtId: mapSelectedDistrictId }],
+    queryKey: [`/api/sub-districts?districtId=${mapSelectedDistrictId}`],
     enabled: !!mapSelectedDistrictId,
   });
 
   // Fetch sectors based on selected governorate
   const { data: sectors = [] } = useQuery<Sector[]>({
-    queryKey: ['/api/sectors', { governorateId: mapSelectedGovernorateId }],
+    queryKey: [`/api/sectors?governorateId=${mapSelectedGovernorateId}`],
     enabled: !!mapSelectedGovernorateId,
   });
 
   // Fetch neighborhood units based on selected sector
   const { data: neighborhoodUnits = [] } = useQuery<NeighborhoodUnit[]>({
-    queryKey: ['/api/neighborhood-units', { sectorId: mapSelectedSectorId }],
+    queryKey: [`/api/neighborhood-units?sectorId=${mapSelectedSectorId}`],
     enabled: !!mapSelectedSectorId,
   });
 
   // Fetch blocks based on selected neighborhood unit
   const { data: blocks = [] } = useQuery<Block[]>({
-    queryKey: ['/api/blocks', { neighborhoodUnitId: mapSelectedNeighborhoodUnitId }],
+    queryKey: [`/api/neighborhood-units/${mapSelectedNeighborhoodUnitId}/blocks`],
     enabled: !!mapSelectedNeighborhoodUnitId,
   });
 
