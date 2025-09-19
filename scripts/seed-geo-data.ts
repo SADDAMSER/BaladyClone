@@ -13,7 +13,7 @@ import {
   sectors, 
   neighborhoodUnits, 
   blocks 
-} from '../shared/schema.js';
+} from '../shared/schema';
 
 // Database connection
 const connectionString = process.env.DATABASE_URL;
