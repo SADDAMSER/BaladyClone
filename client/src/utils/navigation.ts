@@ -24,7 +24,15 @@ import {
   UserCog,
   BookOpen,
   Target,
-  TrendingUp
+  TrendingUp,
+  Calculator,
+  Wallet,
+  Receipt,
+  FileCheck,
+  Printer,
+  Layers,
+  AppWindow,
+  FilePlus
 } from "lucide-react";
 
 export interface NavigationItem {
@@ -61,6 +69,9 @@ export const navigationConfig: NavigationItem[] = [
       { id: 'apps-track', label: 'تتبع الطلبات', icon: Search, path: '/applications/track' },
       { id: 'apps-pending', label: 'الطلبات المعلقة', icon: FileText, path: '/applications/pending' },
       { id: 'employee-dashboard', label: 'لوحة الموظف', icon: UserCheck, path: '/employee/dashboard' },
+      { id: 'cashier-dashboard', label: 'لوحة أمين الصندوق', icon: Calculator, path: '/employee/cashier' },
+      { id: 'public-service-dashboard', label: 'لوحة مراجع الخدمات العامة', icon: FileCheck, path: '/employee/public-service' },
+      { id: 'treasury-dashboard', label: 'لوحة الخزينة', icon: Wallet, path: '/employee/treasury' },
       { id: 'apps-history', label: 'سجل الطلبات', icon: Archive, path: '/applications/history' }
     ]
   },
@@ -72,7 +83,9 @@ export const navigationConfig: NavigationItem[] = [
     icon: HardHat,
     children: [
       { id: 'surveyor-management', label: 'إدارة المساحين', icon: UserCheck, path: '/surveyor-management' },
+      { id: 'surveyor-dashboard', label: 'لوحة المساح الميداني', icon: UserCheck, path: '/employee/surveyor' },
       { id: 'field-visits', label: 'الزيارات الميدانية', icon: Map, path: '/employee/engineer' },
+      { id: 'assignment-form', label: 'صفحة تكليف المهام', icon: ListTodo, path: '/employee/assignment-form' },
       { id: 'assistant-manager', label: 'مساعد المدير', icon: UserCog, path: '/employee/assistant-manager' },
       { id: 'department-manager', label: 'مدير القسم', icon: UserCog, path: '/employee/department-manager' },
       { id: 'geographic-data', label: 'البيانات الجغرافية', icon: Map, path: '/geographic-data' }
@@ -103,6 +116,9 @@ export const navigationConfig: NavigationItem[] = [
       { id: 'legal-system', label: 'النظام القانوني', icon: Scale, path: '/legal-system', badge: { text: '144', variant: 'success' } },
       { id: 'technical-requirements', label: 'الاشتراطات الفنية', icon: Cog, path: '/technical-requirements', badge: { text: '167', variant: 'success' } },
       { id: 'services-catalog', label: 'دليل الخدمات', icon: FileText, path: '/services' },
+      { id: 'service-application', label: 'تطبيق الخدمة', icon: AppWindow, path: '/service-application' },
+      { id: 'service-details', label: 'تفاصيل الخدمة', icon: Layers, path: '/service-details' },
+      { id: 'surveying-decision-form', label: 'نموذج القرار المساحي', icon: FilePlus, path: '/services/surveying-decision' },
       { id: 'service-builder', label: 'منشئ الخدمات', icon: Zap, path: '/service-builder' },
       { id: 'smart-search', label: 'البحث الذكي', icon: Search, path: '/smart-search' },
       { id: 'document-archive', label: 'الأرشفة الإلكترونية', icon: Archive, path: '/document-archive' }
