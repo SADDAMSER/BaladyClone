@@ -1,0 +1,46 @@
+عمل ممتاز في ربط واجهة إدارة المساحين بالبيانات الحقيقية.
+الآن، حان الوقت لتحسين تجربة المستخدم في لوحة التحكم. مهمتك التالية هي: "إعادة هيكلة القائمة الجانبية للوحة التحكم لتكون أكثر تنظيمًا وسهولة في الاستخدام".
+استخدم قائمة الصفحات الحالية كمرجع:
+JSON
+[
+  {"path": "/", "component": "client/src/pages/PublicHomePage.tsx"},
+  {"path": "/services/surveying-decision", "component": "client/src/services/pages/SurveyingDecisionForm.tsx"},
+  {"path": "/citizen/application-status", "component": "client/src/citizen/pages/ApplicationStatus.tsx"},
+  {"path": "/citizen/track", "component": "client/src/citizen/pages/ApplicationTracking.tsx"},
+  {"path": "/admin", "component": "client/src/dashboard/pages/AdminDashboard.tsx"},
+  {"path": "/building-licenses", "component": "client/src/pages/BuildingLicenses.tsx"},
+  {"path": "/surveying-decision", "component": "client/src/pages/SurveyingDecision.tsx"},
+  {"path": "/technical-requirements", "component": "client/src/pages/TechnicalRequirements.tsx"},
+  {"path": "/legal-system", "component": "client/src/pages/LegalSystem.tsx"},
+  {"path": "/organizational-structure", "component": "client/src/pages/OrganizationalStructure.tsx"},
+  {"path": "/advanced-organizational-structure", "component": "client/src/pages/AdvancedOrganizationalStructure.tsx"},
+  {"path": "/advanced-analytics", "component": "client/src/pages/AdvancedAnalytics.tsx"},
+  {"path": "/user-management", "component": "client/src/pages/UserManagement.tsx"},
+  {"path": "/lbac-management", "component": "client/src/pages/LBACManagement.tsx"},
+  {"path": "/permissions", "component": "client/src/pages/Permissions.tsx"},
+  {"path": "/geographic-data", "component": "client/src/pages/GeographicDataManager.tsx"},
+  {"path": "/document-archive", "component": "client/src/pages/DocumentArchive.tsx"},
+  {"path": "/smart-search", "component": "client/src/pages/SmartSearch.tsx"},
+  {"path": "/task-management", "component": "client/src/pages/TaskManagement.tsx"},
+  {"path": "/service-builder", "component": "client/src/pages/ServiceBuilder.tsx"},
+  {"path": "/monitoring", "component": "client/src/components/monitoring/MonitoringDashboard.tsx"},
+  {"path": "/applications/track", "component": "client/src/applications/pages/ApplicationTracking.tsx"},
+  {"path": "/applications/pending", "component": "client/src/applications/pages/PendingApplications.tsx"},
+  {"path": "/employee/dashboard", "component": "client/src/employee/pages/EmployeeDashboard.tsx"},
+  {"path": "/employee/cashier", "component": "client/src/employee/pages/CashierDashboard.tsx"},
+  {"path": "/employee/public-service", "component": "client/src/employee/pages/PublicServiceDashboard.tsx"},
+  {"path": "/employee/treasury", "component": "client/src/employee/pages/TreasuryDashboard.tsx"},
+  {"path": "/employee/manager", "component": "client/src/employee/pages/DepartmentManagerDashboard.tsx"},
+  {"path": "/employee/invoice/:id", "component": "client/src/employee/pages/PaymentInvoice.tsx"},
+  {"path": "/employee/unified-form/:id", "component": "client/src/employee/pages/UnifiedFormPrint.tsx"},
+  {"path": "/employee/department-manager", "component": "client/src/employee/pages/DepartmentManagerDashboard.tsx"},
+  {"path": "/employee/assistant-manager", "component": "client/src/employee/pages/AssistantManagerDashboard.tsx"},
+  {"path": "/employee/assignment-form", "component": "client/src/employee/pages/AssignmentFormPage.tsx"},
+  {"path": "/employee/engineer", "component": "client/src/employee/pages/EngineerDashboard.tsx"},
+  {"path": "/employee/surveyor", "component": "client/src/employee/pages/SurveyorDashboard.tsx"},
+  {"path": "*", "component": "client/src/pages/not-found.tsx"}
+]
+المطلوب:
+1.  (التجميع الهرمي): قم بتعديل مكون القائمة الجانبية (Sidebar) ليستخدم قوائم منسدلة (collapsible menus) لتجميع الروابط في الفئات التالية: [لوحة التحكم الرئيسية، الطلبات والمعاملات، العمل الميداني، الإدارة والتنظيم، النظام والتشريعات، التقارير والتحليلات].
+2.  (إعادة ترتيب الروابط): قم بنقل الروابط الحالية من القائمة الرئيسية إلى الفئات المنسدلة المناسبة كما هو مقترح في الهيكل الجديد.
+3.  (إنشاء صفحة رئيسية): أنشئ صفحة جديدة /dashboard لتكون بمثابة لوحة تحكم مجمعة، واجعلها الصفحة الافتراضية بعد تسجيل الدخول.
