@@ -6,9 +6,17 @@ import L from 'leaflet';
 interface GeographicBoundaryLayerProps {
   selectedGovernorateId?: string;
   selectedDistrictId?: string;
-  onBoundaryClick?: (type: 'governorate' | 'district', id: string, name: string) => void;
+  selectedSubDistrictId?: string;
+  selectedSectorId?: string;
+  selectedNeighborhoodUnitId?: string;
+  selectedBlockId?: string;
+  onBoundaryClick?: (type: 'governorate' | 'district' | 'subDistrict' | 'sector' | 'neighborhoodUnit' | 'block', id: string, name: string) => void;
   onGovernorateSelect?: (governorateId: string) => void;
   onDistrictSelect?: (districtId: string) => void;
+  onSubDistrictSelect?: (subDistrictId: string) => void;
+  onSectorSelect?: (sectorId: string) => void;
+  onNeighborhoodUnitSelect?: (neighborhoodUnitId: string) => void;
+  onBlockSelect?: (blockId: string) => void;
 }
 
 interface GeometryData {
@@ -23,7 +31,7 @@ interface BoundaryFeature {
   geometry: GeometryData;
 }
 
-// Component to render a single boundary (governorate or district)
+// Component to render a single boundary (governorate, district, sub-district, sector, neighborhood unit, or block)
 function BoundaryPolygon({ 
   feature, 
   type, 
@@ -31,9 +39,9 @@ function BoundaryPolygon({
   onClick 
 }: { 
   feature: BoundaryFeature; 
-  type: 'governorate' | 'district';
+  type: 'governorate' | 'district' | 'subDistrict' | 'sector' | 'neighborhoodUnit' | 'block';
   isSelected: boolean;
-  onClick?: (type: 'governorate' | 'district', id: string, name: string) => void;
+  onClick?: (type: 'governorate' | 'district' | 'subDistrict' | 'sector' | 'neighborhoodUnit' | 'block', id: string, name: string) => void;
 }) {
   const map = useMap();
 
@@ -62,17 +70,26 @@ function BoundaryPolygon({
   }, [feature.geometry]);
 
   // Define colors based on type and selection state
-  const pathOptions = useMemo(() => ({
-    color: isSelected ? 
-      (type === 'governorate' ? '#dc3545' : '#28a745') : 
-      (type === 'governorate' ? '#6c757d' : '#17a2b8'),
-    fillColor: isSelected ? 
-      (type === 'governorate' ? '#dc3545' : '#28a745') : 
-      (type === 'governorate' ? '#6c757d' : '#17a2b8'),
-    fillOpacity: isSelected ? 0.3 : 0.1,
-    weight: isSelected ? 3 : 2,
-    opacity: 0.8
-  }), [type, isSelected]);
+  const pathOptions = useMemo(() => {
+    const colorScheme = {
+      governorate: { normal: '#6c757d', selected: '#dc3545' },
+      district: { normal: '#17a2b8', selected: '#28a745' },
+      subDistrict: { normal: '#ffc107', selected: '#fd7e14' },
+      sector: { normal: '#6f42c1', selected: '#e83e8c' },
+      neighborhoodUnit: { normal: '#20c997', selected: '#198754' },
+      block: { normal: '#fd7e14', selected: '#dc3545' }
+    };
+    
+    const colors = colorScheme[type] || colorScheme.governorate;
+    
+    return {
+      color: isSelected ? colors.selected : colors.normal,
+      fillColor: isSelected ? colors.selected : colors.normal,
+      fillOpacity: isSelected ? 0.4 : 0.15,
+      weight: isSelected ? 3 : 2,
+      opacity: 0.8
+    };
+  }, [type, isSelected]);
 
   // Handle polygon click
   const handleClick = () => {
@@ -95,12 +112,21 @@ function BoundaryPolygon({
           eventHandlers={{
             click: handleClick,
             mouseover: (e) => {
+              const typeLabels = {
+                governorate: 'المحافظة',
+                district: 'المديرية',
+                subDistrict: 'العزلة',
+                sector: 'القطاع',
+                neighborhoodUnit: 'وحدة الجوار',
+                block: 'البلوك'
+              };
+              
               const tooltip = L.tooltip({
                 permanent: false,
                 direction: 'top',
                 offset: [0, -10]
               })
-                .setContent(`${type === 'governorate' ? 'المحافظة' : 'المديرية'}: ${feature.nameAr}`)
+                .setContent(`${typeLabels[type] || 'المنطقة'}: ${feature.nameAr}`)
                 .setLatLng(e.latlng);
               
               tooltip.addTo(map);

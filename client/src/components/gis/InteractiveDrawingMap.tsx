@@ -45,9 +45,17 @@ interface InteractiveDrawingMapProps {
   // Geographic boundary props
   selectedGovernorateId?: string;
   selectedDistrictId?: string;
+  selectedSubDistrictId?: string;
+  selectedSectorId?: string;
+  selectedNeighborhoodUnitId?: string;
+  selectedBlockId?: string;
   onGovernorateSelect?: (governorateId: string) => void;
   onDistrictSelect?: (districtId: string) => void;
-  onBoundaryClick?: (type: 'governorate' | 'district', id: string, name: string) => void;
+  onSubDistrictSelect?: (subDistrictId: string) => void;
+  onSectorSelect?: (sectorId: string) => void;
+  onNeighborhoodUnitSelect?: (neighborhoodUnitId: string) => void;
+  onBlockSelect?: (blockId: string) => void;
+  onBoundaryClick?: (type: 'governorate' | 'district' | 'subDistrict' | 'sector' | 'neighborhoodUnit' | 'block', id: string, name: string) => void;
   // Control props
   showDrawingTools?: boolean;
   showBoundaryControls?: boolean;
