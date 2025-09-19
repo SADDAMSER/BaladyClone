@@ -2,9 +2,10 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
-import { eq, and } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { 
   governorates, 
   districts, 
@@ -12,7 +13,15 @@ import {
   neighborhoods,
   sectors, 
   neighborhoodUnits, 
-  blocks 
+  blocks,
+  insertSubDistrictSchema,
+  insertSectorSchema,
+  insertNeighborhoodUnitSchema,
+  insertBlockSchema,
+  type InsertSubDistrict,
+  type InsertSector,
+  type InsertNeighborhoodUnit,
+  type InsertBlock
 } from '../shared/schema';
 
 // Database connection
@@ -23,6 +32,10 @@ if (!connectionString) {
 
 const sql = postgres(connectionString);
 const db = drizzle(sql);
+
+// Configuration
+const BATCH_SIZE = 500;
+const PROGRESS_INTERVAL = 100;
 
 // Types for GeoJSON features
 interface GeoJSONFeature {
@@ -39,84 +52,184 @@ interface GeoJSONCollection {
   features: GeoJSONFeature[];
 }
 
-// Helper function to read GeoJSON files
-function readGeoJSONFile(filename: string): GeoJSONCollection {
-  const scriptDir = path.dirname(new URL(import.meta.url).pathname);
-  const filePath = path.join(scriptDir, 'data', filename);
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`File not found: ${filePath}`);
+// Helper function to read GeoJSON files with flexible naming
+function readGeoJSONFile(pattern: string): GeoJSONCollection {
+  const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+  const dataDir = path.join(scriptDir, 'data');
+  
+  // Find files matching pattern
+  const files = fs.readdirSync(dataDir).filter(f => f.includes(pattern) && f.endsWith('.geojson'));
+  
+  if (files.length === 0) {
+    throw new Error(`No GeoJSON file found matching pattern: ${pattern}`);
   }
+  
+  const filePath = path.join(dataDir, files[0]);
+  console.log(`📖 Reading: ${files[0]}`);
   
   const content = fs.readFileSync(filePath, 'utf-8');
   return JSON.parse(content);
 }
 
-// Helper function to find existing record by external code
-async function findByExternalCode(table: any, codeField: string, code: string) {
-  const result = await db
-    .select()
-    .from(table)
-    .where(eq(table[codeField], code))
-    .limit(1);
+// Helper function to create lookup maps
+function createLookupMap<T extends { id: string; code: string | null }>(items: T[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const item of items) {
+    if (item.code) {
+      map.set(item.code, item.id);
+    }
+  }
+  return map;
+}
+
+// Helper function to chunk array
+function chunk<T>(array: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < array.length; i += size) {
+    chunks.push(array.slice(i, i + size));
+  }
+  return chunks;
+}
+
+// Function to seed sub-districts (العزل) from azafinall.geojson  
+async function seedSubDistricts() {
+  console.log('🌱 Seeding sub-districts (عزل)...');
   
-  return result[0] || null;
+  // Preload existing data
+  const existingSubDistricts = await db.select({ id: subDistricts.id, code: subDistricts.code }).from(subDistricts);
+  const existingCodes = new Set(existingSubDistricts.map(s => s.code).filter(Boolean));
+  
+  const allDistricts = await db.select({ id: districts.id, code: districts.code }).from(districts);
+  const districtMap = createLookupMap(allDistricts);
+  
+  console.log(`📊 Found ${allDistricts.length} districts, ${existingSubDistricts.length} existing sub-districts`);
+  
+  const azalData = readGeoJSONFile('azafinall');
+  const newSubDistricts: InsertSubDistrict[] = [];
+  let skippedCount = 0;
+
+  for (const feature of azalData.features) {
+    const props = feature.properties;
+    const azalcode = props.azalcode?.toString();
+    const admin1Pcod = props.admin1Pcod;
+    const admin2Pcod = props.admin2Pcod;
+    const admin3Name = props.admin3Name;
+    const admin3NameAr = props.admin3Na_1;
+    
+    if (!azalcode || !admin2Pcod) {
+      skippedCount++;
+      continue;
+    }
+
+    if (existingCodes.has(azalcode)) {
+      skippedCount++;
+      continue;
+    }
+
+    const districtId = districtMap.get(admin2Pcod);
+    if (!districtId) {
+      skippedCount++;
+      continue;
+    }
+
+    newSubDistricts.push({
+      code: azalcode,
+      nameAr: admin3NameAr || admin3Name || `عزلة ${azalcode}`,
+      nameEn: admin3Name || `Sub-district ${azalcode}`,
+      districtId: districtId,
+      geometry: feature.geometry,
+      properties: props,
+      isActive: true
+    });
+  }
+
+  // Insert in batches
+  let insertedCount = 0;
+  const batches = chunk(newSubDistricts, BATCH_SIZE);
+  
+  for (let i = 0; i < batches.length; i++) {
+    const batch = batches[i];
+    try {
+      await db.insert(subDistricts).values(batch);
+      insertedCount += batch.length;
+      
+      if (insertedCount % PROGRESS_INTERVAL === 0 || i === batches.length - 1) {
+        console.log(`✅ Processed ${insertedCount}/${newSubDistricts.length} sub-districts`);
+      }
+    } catch (error) {
+      console.error(`❌ Error inserting batch ${i}:`, error);
+    }
+  }
+
+  console.log(`🎯 Sub-districts summary: ${insertedCount} inserted, ${skippedCount} skipped`);
 }
 
 // Function to seed sectors (القطاعات) from sctorfinal.geojson
 async function seedSectors() {
   console.log('🌱 Seeding sectors...');
   
-  const sectorsData = readGeoJSONFile('sctorfinal_1758314630360.geojson');
-  let insertedCount = 0;
+  // Preload existing data
+  const existingSectors = await db.select({ id: sectors.id, code: sectors.code }).from(sectors);
+  const existingCodes = new Set(existingSectors.map(s => s.code).filter(Boolean));
+  
+  const allGovernorates = await db.select({ id: governorates.id, code: governorates.code }).from(governorates);
+  const governorateMap = createLookupMap(allGovernorates);
+  
+  console.log(`📊 Found ${allGovernorates.length} governorates, ${existingSectors.length} existing sectors`);
+  
+  const sectorsData = readGeoJSONFile('sctorfinal');
+  const newSectors: InsertSector[] = [];
   let skippedCount = 0;
 
   for (const feature of sectorsData.features) {
     const props = feature.properties;
-    
-    // Use Zone_ as the sector code
-    const sectorCode = props.Zone_;
+    const sectorCode = props.Zone_?.toString();
     const admin1Pcod = props.admin1pcod;
     const admin2Name = props.admin2name || props.admin2na_1;
     
     if (!sectorCode || !admin1Pcod) {
-      console.log(`⚠️  Skipping sector - missing required data:`, { sectorCode, admin1Pcod });
       skippedCount++;
       continue;
     }
 
-    // Check if sector already exists
-    const existing = await findByExternalCode(sectors, 'code', sectorCode);
-    if (existing) {
-      console.log(`⏭️  Sector ${sectorCode} already exists, skipping...`);
+    if (existingCodes.has(sectorCode)) {
       skippedCount++;
       continue;
     }
 
-    // Find the governorate by admin1Pcod
-    const governorate = await findByExternalCode(governorates, 'code', admin1Pcod);
-    if (!governorate) {
-      console.log(`⚠️  Governorate not found for code: ${admin1Pcod}, skipping sector ${sectorCode}`);
+    const governorateId = governorateMap.get(admin1Pcod);
+    if (!governorateId) {
       skippedCount++;
       continue;
     }
 
+    newSectors.push({
+      code: sectorCode,
+      nameAr: admin2Name || `قطاع ${sectorCode}`,
+      nameEn: props.admin2name || `Sector ${sectorCode}`,
+      governorateId: governorateId,
+      sectorType: 'planning',
+      geometry: feature.geometry,
+      properties: props,
+      isActive: true
+    });
+  }
+
+  // Insert in batches
+  let insertedCount = 0;
+  const batches = chunk(newSectors, BATCH_SIZE);
+  
+  for (let i = 0; i < batches.length; i++) {
+    const batch = batches[i];
     try {
-      await db.insert(sectors).values({
-        code: sectorCode,
-        nameAr: admin2Name || `قطاع ${sectorCode}`,
-        nameEn: props.admin2name || `Sector ${sectorCode}`,
-        governorateId: governorate.id,
-        sectorType: 'planning',
-        geometry: feature.geometry,
-        properties: props,
-        isActive: true
-      });
+      await db.insert(sectors).values(batch);
+      insertedCount += batch.length;
       
-      console.log(`✅ Inserted sector: ${sectorCode} (${admin2Name})`);
-      insertedCount++;
+      if (insertedCount % PROGRESS_INTERVAL === 0 || i === batches.length - 1) {
+        console.log(`✅ Processed ${insertedCount}/${newSectors.length} sectors`);
+      }
     } catch (error) {
-      console.error(`❌ Error inserting sector ${sectorCode}:`, error);
-      skippedCount++;
+      console.error(`❌ Error inserting batch ${i}:`, error);
     }
   }
 
@@ -127,61 +240,65 @@ async function seedSectors() {
 async function seedNeighborhoodUnits() {
   console.log('🌱 Seeding neighborhood units...');
   
-  const unitsData = readGeoJSONFile('unitsfinal_1758314630359.geojson');
-  let insertedCount = 0;
+  // Preload existing data
+  const existingUnits = await db.select({ id: neighborhoodUnits.id, code: neighborhoodUnits.code }).from(neighborhoodUnits);
+  const existingCodes = new Set(existingUnits.map(u => u.code).filter(Boolean));
+  
+  const allSectors = await db.select({ id: sectors.id, code: sectors.code }).from(sectors);
+  const sectorMap = createLookupMap(allSectors);
+  
+  console.log(`📊 Found ${allSectors.length} sectors, ${existingUnits.length} existing units`);
+  
+  const unitsData = readGeoJSONFile('unitsfinal');
+  const newUnits: InsertNeighborhoodUnit[] = [];
   let skippedCount = 0;
 
   for (const feature of unitsData.features) {
     const props = feature.properties;
-    
-    const uniqueUnitId = props.unique_unit_id;
-    const citycode = props.citycode;
-    const admin1Pcod = props.admin1Pcod;
-    const admin2Pcod = props.admin2Pcod;
-    const admin3Name = props.admin3Name;
-    const unitNumber = props['ÑÞã_æÍÏÉ_Ç'] || props.unique_unit_id;
+    const uniqueUnitId = props.unique_unit_id?.toString();
+    const citycode = props.citycode?.toString();
     const unitNameAr = props['ÇáãØÇÈÞÉ'] || `وحدة جوار ${uniqueUnitId}`;
     
     if (!uniqueUnitId) {
-      console.log(`⚠️  Skipping unit - missing unique_unit_id`);
       skippedCount++;
       continue;
     }
 
-    // Check if unit already exists by unique_unit_id
-    const existing = await findByExternalCode(neighborhoodUnits, 'code', uniqueUnitId.toString());
-    if (existing) {
-      console.log(`⏭️  Neighborhood unit ${uniqueUnitId} already exists, skipping...`);
+    if (existingCodes.has(uniqueUnitId)) {
       skippedCount++;
       continue;
     }
 
-    // Find related sector by citycode or admin codes
-    let sectorId = null;
-    if (citycode) {
-      const sector = await findByExternalCode(sectors, 'code', citycode.toString());
-      if (sector) {
-        sectorId = sector.id;
-      }
-    }
+    // Try to find sector by citycode
+    const sectorId = citycode && sectorMap.has(citycode) ? sectorMap.get(citycode) : undefined;
 
+    newUnits.push({
+      code: uniqueUnitId,
+      nameAr: unitNameAr,
+      nameEn: `Neighborhood Unit ${uniqueUnitId}`,
+      sectorId: sectorId || null,
+      neighborhoodId: null, // To be linked later when neighborhoods are populated
+      geometry: feature.geometry,
+      properties: props,
+      isActive: true
+    });
+  }
+
+  // Insert in batches
+  let insertedCount = 0;
+  const batches = chunk(newUnits, BATCH_SIZE);
+  
+  for (let i = 0; i < batches.length; i++) {
+    const batch = batches[i];
     try {
-      await db.insert(neighborhoodUnits).values({
-        code: uniqueUnitId.toString(),
-        nameAr: unitNameAr,
-        nameEn: `Neighborhood Unit ${uniqueUnitId}`,
-        sectorId: sectorId,
-        neighborhoodId: null, // Will be linked later when neighborhoods are populated
-        geometry: feature.geometry,
-        properties: props,
-        isActive: true
-      });
+      await db.insert(neighborhoodUnits).values(batch);
+      insertedCount += batch.length;
       
-      console.log(`✅ Inserted neighborhood unit: ${uniqueUnitId} (${unitNameAr})`);
-      insertedCount++;
+      if (insertedCount % PROGRESS_INTERVAL === 0 || i === batches.length - 1) {
+        console.log(`✅ Processed ${insertedCount}/${newUnits.length} neighborhood units`);
+      }
     } catch (error) {
-      console.error(`❌ Error inserting neighborhood unit ${uniqueUnitId}:`, error);
-      skippedCount++;
+      console.error(`❌ Error inserting batch ${i}:`, error);
     }
   }
 
@@ -192,139 +309,150 @@ async function seedNeighborhoodUnits() {
 async function seedBlocks() {
   console.log('🌱 Seeding blocks...');
   
-  const blocksData = readGeoJSONFile('blocksfinal_1758314630359.geojson');
-  let insertedCount = 0;
+  // Preload existing data
+  const existingBlocks = await db.select({ id: blocks.id, code: blocks.code }).from(blocks);
+  const existingCodes = new Set(existingBlocks.map(b => b.code).filter(Boolean));
+  
+  const allUnits = await db.select({ id: neighborhoodUnits.id, code: neighborhoodUnits.code }).from(neighborhoodUnits);
+  const unitMap = createLookupMap(allUnits);
+  
+  console.log(`📊 Found ${allUnits.length} neighborhood units, ${existingBlocks.length} existing blocks`);
+  
+  const blocksData = readGeoJSONFile('blocksfinal');
+  const newBlocks: InsertBlock[] = [];
   let skippedCount = 0;
 
   for (const feature of blocksData.features) {
     const props = feature.properties;
-    
-    const blockId = props.Id;
-    const uniqueUnitId = props.unique_unit_id;
-    const citycode = props.citycode;
-    const admin1Pcod = props.admin1Pcod;
-    const admin2Pcod = props.admin2Pcod;
-    const admin3Name = props.admin3Name;
-    const shapeArea = props.Shape_Area;
+    const blockId = props.Id?.toString();
+    const uniqueUnitId = props.unique_unit_id?.toString();
     
     if (!blockId || !uniqueUnitId) {
-      console.log(`⚠️  Skipping block - missing required data:`, { blockId, uniqueUnitId });
       skippedCount++;
       continue;
     }
 
-    // Check if block already exists
     const blockCode = `${uniqueUnitId}-${blockId}`;
-    const existing = await findByExternalCode(blocks, 'code', blockCode);
-    if (existing) {
-      console.log(`⏭️  Block ${blockCode} already exists, skipping...`);
+    
+    if (existingCodes.has(blockCode)) {
       skippedCount++;
       continue;
     }
 
-    // Find related neighborhood unit
-    const neighborhoodUnit = await findByExternalCode(neighborhoodUnits, 'code', uniqueUnitId.toString());
-    if (!neighborhoodUnit) {
-      console.log(`⚠️  Neighborhood unit not found for code: ${uniqueUnitId}, skipping block ${blockId}`);
+    const neighborhoodUnitId = unitMap.get(uniqueUnitId);
+    if (!neighborhoodUnitId) {
       skippedCount++;
       continue;
     }
 
+    newBlocks.push({
+      code: blockCode,
+      nameAr: `بلوك ${blockId}`,
+      nameEn: `Block ${blockId}`,
+      neighborhoodUnitId: neighborhoodUnitId,
+      blockType: 'residential',
+      geometry: feature.geometry,
+      properties: props,
+      isActive: true
+    });
+  }
+
+  // Insert in batches
+  let insertedCount = 0;
+  const batches = chunk(newBlocks, BATCH_SIZE);
+  
+  for (let i = 0; i < batches.length; i++) {
+    const batch = batches[i];
     try {
-      await db.insert(blocks).values({
-        code: blockCode,
-        nameAr: `بلوك ${blockId}`,
-        nameEn: `Block ${blockId}`,
-        neighborhoodUnitId: neighborhoodUnit.id,
-        blockType: 'residential', // Default type, can be updated later
-        geometry: feature.geometry,
-        properties: props,
-        isActive: true
-      });
+      await db.insert(blocks).values(batch);
+      insertedCount += batch.length;
       
-      console.log(`✅ Inserted block: ${blockCode} (area: ${shapeArea})`);
-      insertedCount++;
+      if (insertedCount % PROGRESS_INTERVAL === 0 || i === batches.length - 1) {
+        console.log(`✅ Processed ${insertedCount}/${newBlocks.length} blocks`);
+      }
     } catch (error) {
-      console.error(`❌ Error inserting block ${blockCode}:`, error);
-      skippedCount++;
+      console.error(`❌ Error inserting batch ${i}:`, error);
     }
   }
 
   console.log(`🎯 Blocks summary: ${insertedCount} inserted, ${skippedCount} skipped`);
 }
 
-// Function to seed sub-districts (العزل) from azafinall.geojson
-async function seedSubDistricts() {
-  console.log('🌱 Seeding sub-districts (عزل)...');
+// Function to check prerequisites
+async function checkPrerequisites() {
+  console.log('🔍 Checking prerequisites...');
   
-  const azalData = readGeoJSONFile('azafinall_1758314630360.geojson');
-  let insertedCount = 0;
-  let skippedCount = 0;
-
-  for (const feature of azalData.features) {
-    const props = feature.properties;
-    
-    const azalcode = props.azalcode;
-    const admin1Pcod = props.admin1Pcod;
-    const admin2Pcod = props.admin2Pcod;
-    const admin3Name = props.admin3Name;
-    const admin3NameAr = props.admin3Na_1;
-    
-    if (!azalcode || !admin1Pcod || !admin2Pcod) {
-      console.log(`⚠️  Skipping عزلة - missing required data:`, { azalcode, admin1Pcod, admin2Pcod });
-      skippedCount++;
-      continue;
-    }
-
-    // Check if sub-district already exists
-    const existing = await findByExternalCode(subDistricts, 'code', azalcode.toString());
-    if (existing) {
-      console.log(`⏭️  Sub-district ${azalcode} already exists, skipping...`);
-      skippedCount++;
-      continue;
-    }
-
-    // Find the district by admin2Pcod
-    const district = await findByExternalCode(districts, 'code', admin2Pcod);
-    if (!district) {
-      console.log(`⚠️  District not found for code: ${admin2Pcod}, skipping عزلة ${azalcode}`);
-      skippedCount++;
-      continue;
-    }
-
-    try {
-      await db.insert(subDistricts).values({
-        code: azalcode.toString(),
-        nameAr: admin3NameAr || admin3Name || `عزلة ${azalcode}`,
-        nameEn: admin3Name || `Sub-district ${azalcode}`,
-        districtId: district.id,
-        geometry: feature.geometry,
-        properties: props,
-        isActive: true
-      });
-      
-      console.log(`✅ Inserted sub-district: ${azalcode} (${admin3NameAr || admin3Name})`);
-      insertedCount++;
-    } catch (error) {
-      console.error(`❌ Error inserting sub-district ${azalcode}:`, error);
-      skippedCount++;
-    }
+  const governorateCount = await db.select().from(governorates);
+  const districtCount = await db.select().from(districts);
+  
+  console.log(`📊 Found ${governorateCount.length} governorates, ${districtCount.length} districts`);
+  
+  if (governorateCount.length === 0) {
+    console.warn('⚠️  No governorates found - sectors may not be linked properly');
   }
+  
+  if (districtCount.length === 0) {
+    console.warn('⚠️  No districts found - sub-districts may not be linked properly');
+  }
+  
+  return { governorates: governorateCount.length, districts: districtCount.length };
+}
 
-  console.log(`🎯 Sub-districts summary: ${insertedCount} inserted, ${skippedCount} skipped`);
+// CLI argument parsing
+function parseArgs() {
+  const args = process.argv.slice(2);
+  const entityArg = args.find(arg => ['subdistricts', 'sectors', 'units', 'blocks', 'all'].includes(arg));
+  return {
+    entity: entityArg || 'all',
+    help: args.includes('--help') || args.includes('-h')
+  };
 }
 
 // Main seeding function
 async function main() {
+  const { entity, help } = parseArgs();
+  
+  if (help) {
+    console.log(`
+🌱 Geographic Data Seeding Script
+
+Usage: tsx seed-geo-data.ts [entity]
+
+Entities:
+  subdistricts  - Seed sub-districts only (عزل)
+  sectors       - Seed sectors only (قطاعات)
+  units         - Seed neighborhood units only (وحدات الجوار)
+  blocks        - Seed blocks only (بلوكات)
+  all           - Seed all entities (default)
+
+Examples:
+  tsx seed-geo-data.ts
+  tsx seed-geo-data.ts sectors
+  tsx seed-geo-data.ts all
+`);
+    return;
+  }
+  
   console.log('🚀 Starting geographic data seeding...');
-  console.log('📂 Loading GeoJSON files from scripts/data/');
+  console.log(`📂 Target entity: ${entity}`);
   
   try {
-    // Seed in order of dependencies
-    await seedSubDistricts(); // First: عزل (sub-districts)
-    await seedSectors();       // Second: قطاعات (sectors)  
-    await seedNeighborhoodUnits(); // Third: وحدات الجوار (neighborhood units)
-    await seedBlocks();           // Fourth: بلوكات (blocks)
+    const prerequisites = await checkPrerequisites();
+    
+    if (entity === 'all') {
+      await seedSubDistricts();
+      await seedSectors();
+      await seedNeighborhoodUnits();
+      await seedBlocks();
+    } else if (entity === 'subdistricts') {
+      await seedSubDistricts();
+    } else if (entity === 'sectors') {
+      await seedSectors();
+    } else if (entity === 'units') {
+      await seedNeighborhoodUnits();
+    } else if (entity === 'blocks') {
+      await seedBlocks();
+    }
     
     console.log('🎉 Geographic data seeding completed successfully!');
   } catch (error) {
@@ -335,5 +463,7 @@ async function main() {
   }
 }
 
-// Run the script
-main();
+// ESM-safe entry point
+if (fileURLToPath(import.meta.url) === process.argv[1]) {
+  main();
+}
