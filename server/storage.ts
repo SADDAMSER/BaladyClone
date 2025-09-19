@@ -261,6 +261,8 @@ export interface IStorage {
   getSectors(governorateId?: string): Promise<Sector[]>;
   getSector(id: string): Promise<Sector | undefined>;
   getSectorsByGovernorateId(governorateId: string): Promise<Sector[]>;
+  getSectorsByDistrictId(districtId: string): Promise<Sector[]>;
+  getSectorsBySubDistrictId(subDistrictId: string): Promise<Sector[]>;
   createSector(sector: InsertSector): Promise<Sector>;
   updateSector(id: string, updates: Partial<InsertSector>): Promise<Sector>;
   deleteSector(id: string): Promise<void>;
@@ -2206,6 +2208,28 @@ export class DatabaseStorage implements IStorage {
   }
   async getSectorsByGovernorateId(governorateId: string): Promise<Sector[]> { 
     return await db.select().from(sectors).where(eq(sectors.governorateId, governorateId));
+  }
+  async getSectorsByDistrictId(districtId: string): Promise<Sector[]> {
+    // Get the district to find its governorate
+    const [district] = await db.select().from(districts).where(eq(districts.id, districtId));
+    if (!district) {
+      return [];
+    }
+    // Return all sectors in the same governorate
+    return await db.select().from(sectors).where(eq(sectors.governorateId, district.governorateId));
+  }
+  async getSectorsBySubDistrictId(subDistrictId: string): Promise<Sector[]> {
+    // Get the sub-district and its district to find the governorate
+    const [subDistrict] = await db.select().from(subDistricts).where(eq(subDistricts.id, subDistrictId));
+    if (!subDistrict) {
+      return [];
+    }
+    const [district] = await db.select().from(districts).where(eq(districts.id, subDistrict.districtId));
+    if (!district) {
+      return [];
+    }
+    // Return all sectors in the same governorate
+    return await db.select().from(sectors).where(eq(sectors.governorateId, district.governorateId));
   }
   async createSector(sector: InsertSector): Promise<Sector> { throw new Error("Not implemented yet"); }
   async updateSector(id: string, updates: Partial<InsertSector>): Promise<Sector> { throw new Error("Not implemented yet"); }

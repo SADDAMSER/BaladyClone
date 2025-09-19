@@ -1594,6 +1594,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // TODO: Add these APIs after implementing the methods in DatabaseStorage
+  // app.get("/api/districts/:id/sectors", async (req, res) => {
+  //   try {
+  //     const sectors = await storage.getSectorsByDistrictId(req.params.id);
+  //     res.json(sectors);
+  //   } catch (error) {
+  //     res.status(500).json({ message: "Internal server error" });
+  //   }
+  // });
+
+  // app.get("/api/sub-districts/:id/sectors", async (req, res) => {
+  //   try {
+  //     const sectors = await storage.getSectorsBySubDistrictId(req.params.id);
+  //     res.json(sectors);
+  //   } catch (error) {
+  //     res.status(500).json({ message: "Internal server error" });
+  //   }
+  // });
+
   app.post("/api/sectors", authenticateToken, requireRole(['manager', 'admin']), enforceLBACAccess('governorate'), validateRequest(insertSectorSchema), async (req, res) => {
     try {
       const validatedData = insertSectorSchema.parse(req.body);
