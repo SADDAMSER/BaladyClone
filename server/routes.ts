@@ -6,7 +6,7 @@ import { z } from "zod";
 import { sql, eq, desc, and, or, isNull, lte, gte, gt, inArray, asc } from "drizzle-orm";
 import { 
   applications, userGeographicAssignments, mobileSurveyPoints, mobileSurveyGeometries,
-  mobileSurveyAttachments, mobileSurveySessions, changeTracking, deletionTombstones
+  mobileSurveyAttachments, mobileSurveySessions, changeTracking, deletionTombstones, fieldVisits
 } from "@shared/schema";
 import {
   insertUserSchema, insertDepartmentSchema, insertPositionSchema,
@@ -6197,18 +6197,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Data validation functions for Yemen boundaries and geometry integrity
-      function validateYemenCoordinates(lat: number, lng: number): boolean {
+      const validateYemenCoordinates = (lat: number, lng: number): boolean => {
         return lat >= 12 && lat <= 19 && lng >= 42 && lng <= 54;
-      }
+      };
       
-      function validatePolygonClosure(coordinates: number[][]): boolean {
+      const validatePolygonClosure = (coordinates: number[][]): boolean => {
         if (!coordinates || coordinates.length < 4) return false;
         const firstPoint = coordinates[0];
         const lastPoint = coordinates[coordinates.length - 1];
         return firstPoint[0] === lastPoint[0] && firstPoint[1] === lastPoint[1];
-      }
+      };
       
-      function validateGeometryData(data: any): { valid: boolean; error?: string } {
+      const validateGeometryData = (data: any): { valid: boolean; error?: string } => {
         // Validate coordinates for points
         if (data.coordinates && Array.isArray(data.coordinates)) {
           const [lng, lat] = data.coordinates;
@@ -6239,7 +6239,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             for (let i = 0; i < rings.length; i++) {
               const ring = rings[i];
               
-              // Validate polygon closure
+              // Validate polygon closure for each ring
               if (!validatePolygonClosure(ring)) {
                 return {
                   valid: false,
@@ -6247,12 +6247,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 };
               }
               
-              // Validate all coordinates are within Yemen
+              // Validate all coordinates are within Yemen for each ring
               for (const [lng, lat] of ring) {
                 if (!validateYemenCoordinates(lat, lng)) {
                   return {
                     valid: false,
-                    error: `إحداثيات المضلع خارج النطاق الجغرافي لليمن (${lat.toFixed(6)}, ${lng.toFixed(6)})`
+                    error: `إحداثيات المضلع خارج النطاق الجغرافي لليمن في الحلقة ${i + 1} (${lat.toFixed(6)}, ${lng.toFixed(6)})`
                   };
                 }
               }
@@ -6293,7 +6293,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           
           // Validate geometry data for Yemen boundaries and polygon closure
-          if (entity === 'points' || entity === 'geometries') {
+          if (entity === 'points' || entity === 'geometries' || entity === 'mobileSurveyPoints' || entity === 'mobileSurveyGeometries') {
             const validation = validateGeometryData(data);
             if (!validation.valid) {
               return res.status(400).json({
@@ -6375,6 +6375,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
               serverVersion: 1, // TODO: Get actual version from change tracking
               serverTimestamp: new Date().toISOString()
             });
+            
+            // Field visit tracking for completed surveys
+            if ((entity === 'sessions' || entity === 'mobileSurveySessions') && operation === 'updated' && data.status === 'completed') {
+              try {
+                // Check for existing field visit to prevent duplicates (idempotency)
+                const existingVisit = await db.select()
+                  .from(fieldVisits)
+                  .where(and(
+                    eq(fieldVisits.engineerId, user.id),
+                    eq(fieldVisits.visitNotes, `مسح ميداني مكتمل من الجهاز المحمول - معرف الجلسة: ${entityId}`)
+                  ))
+                  .limit(1);
+                
+                if (existingVisit.length === 0) {
+                  // Extract survey completion details
+                  const currentTime = new Date();
+                  const surveyStartTime = data.startTime ? new Date(data.startTime) : currentTime;
+                  const surveyEndTime = data.endTime ? new Date(data.endTime) : currentTime;
+                  
+                  // Create field visit record for survey completion
+                  const fieldVisitData = {
+                    appointmentId: data.appointmentId || `temp-${entityId}`, // Use temporary if not available
+                    applicationId: data.applicationId || `survey-${entityId}`, // Use survey ID if no application
+                    engineerId: user.id,
+                    visitDate: surveyStartTime,
+                    status: 'completed',
+                    arrivalTime: surveyStartTime,
+                    departureTime: surveyEndTime,
+                    gpsLocation: data.startLocation ? {
+                      latitude: data.startLocation.latitude,
+                      longitude: data.startLocation.longitude,
+                      accuracy: data.startLocation.accuracy
+                    } : null,
+                    visitNotes: `مسح ميداني مكتمل من الجهاز المحمول - معرف الجلسة: ${entityId}`,
+                    citizenPresent: data.citizenPresent || false,
+                    equipmentUsed: {
+                      device: deviceId,
+                      sessionType: data.sessionType,
+                      plannedDuration: data.plannedDuration
+                    },
+                    requiresFollowUp: false
+                  };
+                  
+                  await storage.createFieldVisit(fieldVisitData, {
+                    userId: user.id,
+                    deviceId,
+                    clientChangeId: itemKey,
+                    geographic: {
+                      governorateId: data.governorateId,
+                      districtId: data.districtId
+                    }
+                  });
+                  console.log(`Field visit created for completed survey session: ${entityId}`);
+                } else {
+                  console.log(`Field visit already exists for survey session: ${entityId}`);
+                }
+              } catch (fieldVisitError) {
+                console.error('Error creating field visit record:', fieldVisitError);
+                // Don't fail the main operation for field visit tracking errors
+              }
+            }
           } else {
             conflicts.push({
               changeId: itemKey,
