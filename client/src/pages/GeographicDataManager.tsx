@@ -173,25 +173,39 @@ export default function GeographicDataManager() {
     queryKey: ['/api/districts'],
   });
 
-  // Fetch sub-districts based on selected district
+  // Fetch all data for global statistics  
+  const { data: allSubDistricts = [] } = useQuery<SubDistrict[]>({
+    queryKey: ['/api/sub-districts'],
+  });
+
+  const { data: allSectors = [] } = useQuery<Sector[]>({
+    queryKey: ['/api/sectors'],
+  });
+
+  const { data: allNeighborhoodUnits = [] } = useQuery<NeighborhoodUnit[]>({
+    queryKey: ['/api/neighborhood-units'],
+  });
+
+  const { data: allBlocks = [] } = useQuery<Block[]>({
+    queryKey: ['/api/blocks'],
+  });
+
+  // Fetch filtered data based on selections for map display
   const { data: subDistricts = [] } = useQuery<SubDistrict[]>({
     queryKey: [`/api/sub-districts?districtId=${mapSelectedDistrictId}`],
     enabled: !!mapSelectedDistrictId,
   });
 
-  // Fetch sectors based on selected governorate
   const { data: sectors = [] } = useQuery<Sector[]>({
     queryKey: [`/api/sectors?governorateId=${mapSelectedGovernorateId}`],
     enabled: !!mapSelectedGovernorateId,
   });
 
-  // Fetch neighborhood units based on selected sector
   const { data: neighborhoodUnits = [] } = useQuery<NeighborhoodUnit[]>({
     queryKey: [`/api/neighborhood-units?sectorId=${mapSelectedSectorId}`],
     enabled: !!mapSelectedSectorId,
   });
 
-  // Fetch blocks based on selected neighborhood unit
   const { data: blocks = [] } = useQuery<Block[]>({
     queryKey: [`/api/neighborhood-units/${mapSelectedNeighborhoodUnitId}/blocks`],
     enabled: !!mapSelectedNeighborhoodUnitId,
@@ -1178,35 +1192,36 @@ export default function GeographicDataManager() {
                     )}
                     
                     <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-                      <h4 className="text-sm font-medium mb-2">إحصائيات</h4>
-                      <div className="space-y-1 text-xs text-gray-600 dark:text-gray-400">
-                        <div>إجمالي المحافظات: {governorates.length}</div>
-                        <div>مع بيانات جغرافية: {governorates.filter(g => g.geometry).length}</div>
-                        <div>إجمالي المديريات: {districts.length}</div>
-                        <div>مع بيانات جغرافية: {districts.filter(d => d.geometry).length}</div>
-                        {mapSelectedDistrictId && (
-                          <>
-                            <div>العزل المتاحة: {subDistricts.length}</div>
-                            <div>مع بيانات جغرافية: {subDistricts.filter(s => s.geometry).length}</div>
-                          </>
-                        )}
-                        {mapSelectedGovernorateId && (
-                          <>
-                            <div>القطاعات المتاحة: {sectors.length}</div>
-                            <div>مع بيانات جغرافية: {sectors.filter(s => s.geometry).length}</div>
-                          </>
-                        )}
-                        {mapSelectedSectorId && (
-                          <>
-                            <div>وحدات الجوار المتاحة: {neighborhoodUnits.length}</div>
-                            <div>مع بيانات جغرافية: {neighborhoodUnits.filter(n => n.geometry).length}</div>
-                          </>
-                        )}
-                        {mapSelectedNeighborhoodUnitId && (
-                          <>
-                            <div>البلوكات المتاحة: {blocks.length}</div>
-                            <div>مع بيانات جغرافية: {blocks.filter(b => b.geometry).length}</div>
-                          </>
+                      <h4 className="text-sm font-medium mb-2">إحصائيات شاملة للنظام</h4>
+                      <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
+                        {/* Global Statistics */}
+                        <div className="border-b border-gray-200 dark:border-gray-700 pb-2">
+                          <div className="font-medium text-gray-800 dark:text-gray-200 mb-1">البيانات الإجمالية</div>
+                          <div>المحافظات: {governorates.length} (مع خرائط: {governorates.filter(g => g.geometry).length})</div>
+                          <div>المديريات: {districts.length} (مع خرائط: {districts.filter(d => d.geometry).length})</div>
+                          <div>العزل: {allSubDistricts.length} (مع خرائط: {allSubDistricts.filter(s => s.geometry).length})</div>
+                          <div>القطاعات: {allSectors.length} (مع خرائط: {allSectors.filter(s => s.geometry).length})</div>
+                          <div>الوحدات الجوارية: {allNeighborhoodUnits.length} (مع خرائط: {allNeighborhoodUnits.filter(n => n.geometry).length})</div>
+                          <div>البلوكات: {allBlocks.length} (مع خرائط: {allBlocks.filter(b => b.geometry).length})</div>
+                        </div>
+                        
+                        {/* Filtered Statistics */}
+                        {(mapSelectedDistrictId || mapSelectedGovernorateId || mapSelectedSectorId || mapSelectedNeighborhoodUnitId) && (
+                          <div>
+                            <div className="font-medium text-gray-800 dark:text-gray-200 mb-1">المرشحة حسب الاختيار</div>
+                            {mapSelectedDistrictId && (
+                              <div>العزل المتاحة: {subDistricts.length} (مع خرائط: {subDistricts.filter(s => s.geometry).length})</div>
+                            )}
+                            {mapSelectedGovernorateId && (
+                              <div>القطاعات المتاحة: {sectors.length} (مع خرائط: {sectors.filter(s => s.geometry).length})</div>
+                            )}
+                            {mapSelectedSectorId && (
+                              <div>وحدات الجوار المتاحة: {neighborhoodUnits.length} (مع خرائط: {neighborhoodUnits.filter(n => n.geometry).length})</div>
+                            )}
+                            {mapSelectedNeighborhoodUnitId && (
+                              <div>البلوكات المتاحة: {blocks.length} (مع خرائط: {blocks.filter(b => b.geometry).length})</div>
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>
