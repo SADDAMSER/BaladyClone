@@ -195,12 +195,14 @@ export default function GeographicDataManager() {
     queryKey: ['sub-districts', mapSelectedDistrictId],
     queryFn: () => fetch(`/api/sub-districts?districtId=${mapSelectedDistrictId}`).then(res => res.json()),
     enabled: !!mapSelectedDistrictId,
+    select: (data: any[]) => (data || [])
   });
 
   const { data: sectors = [] } = useQuery<Sector[]>({
     queryKey: ['sectors', mapSelectedSubDistrictId],
     queryFn: () => fetch(`/api/sectors?subDistrictId=${mapSelectedSubDistrictId}`).then(res => res.json()),
     enabled: !!mapSelectedSubDistrictId,
+    select: (data: any[]) => (data || [])
   });
 
   const { data: neighborhoodUnits = [] } = useQuery<NeighborhoodUnit[]>({

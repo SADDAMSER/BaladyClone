@@ -186,8 +186,7 @@ export default function GeographicBoundaryLayer({
     queryFn: () => fetch(`/api/sub-districts?districtId=${selectedDistrictId}`).then(res => res.json()),
     enabled: !!selectedDistrictId,
     select: (data: any[]) => {
-      return data
-        .filter(subDist => subDist.geometry)
+      return (data || [])
         .map(subDist => ({
           ...subDist,
           id: subDist.admin3Pcod || subDist.id,
@@ -202,8 +201,7 @@ export default function GeographicBoundaryLayer({
     queryFn: () => fetch(`/api/sectors?subDistrictId=${selectedSubDistrictId}`).then(res => res.json()),
     enabled: !!selectedSubDistrictId,
     select: (data: any[]) => {
-      return data
-        .filter(sector => sector.geometry)
+      return (data || [])
         .map(sector => ({
           ...sector,
           id: sector.id,
