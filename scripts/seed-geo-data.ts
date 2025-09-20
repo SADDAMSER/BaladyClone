@@ -14,10 +14,14 @@ import {
   sectors, 
   neighborhoodUnits, 
   blocks,
+  insertGovernorateSchema,
+  insertDistrictSchema,
   insertSubDistrictSchema,
   insertSectorSchema,
   insertNeighborhoodUnitSchema,
   insertBlockSchema,
+  type InsertGovernorate,
+  type InsertDistrict,
   type InsertSubDistrict,
   type InsertSector,
   type InsertNeighborhoodUnit,
@@ -91,6 +95,139 @@ function chunk<T>(array: T[], size: number): T[][] {
   return chunks;
 }
 
+// Function to seed governorates (المحافظات) from gov.geojson
+async function seedGovernorates() {
+  console.log('🌱 Seeding governorates (محافظات)...');
+  
+  // Preload existing data
+  const existingGovernorates = await db.select({ id: governorates.id, code: governorates.code }).from(governorates);
+  const existingCodes = new Set(existingGovernorates.map(g => g.code).filter(Boolean));
+  
+  console.log(`📊 Found ${existingGovernorates.length} existing governorates`);
+  
+  const govData = readGeoJSONFile('gov');
+  const newGovernorates: InsertGovernorate[] = [];
+  let skippedCount = 0;
+
+  for (const feature of govData.features) {
+    const props = feature.properties;
+    const admin1Pcod = props.admin1Pcod?.toString();
+    const admin1Name = props.admin1Name;
+    const admin1NameAr = props.admin1Na_1;
+    
+    if (!admin1Pcod) {
+      skippedCount++;
+      continue;
+    }
+
+    if (existingCodes.has(admin1Pcod)) {
+      skippedCount++;
+      continue;
+    }
+
+    newGovernorates.push({
+      code: admin1Pcod,
+      nameAr: admin1NameAr || admin1Name || `محافظة ${admin1Pcod}`,
+      nameEn: admin1Name || `Governorate ${admin1Pcod}`,
+      geometry: feature.geometry,
+      properties: props,
+      isActive: true
+    });
+  }
+
+  // Insert in batches
+  let insertedCount = 0;
+  const batches = chunk(newGovernorates, BATCH_SIZE);
+  
+  for (let i = 0; i < batches.length; i++) {
+    const batch = batches[i];
+    try {
+      await db.insert(governorates).values(batch);
+      insertedCount += batch.length;
+      
+      if (insertedCount % PROGRESS_INTERVAL === 0 || i === batches.length - 1) {
+        console.log(`✅ Processed ${insertedCount}/${newGovernorates.length} governorates`);
+      }
+    } catch (error) {
+      console.error(`❌ Error inserting batch ${i}:`, error);
+    }
+  }
+
+  console.log(`🎯 Governorates summary: ${insertedCount} inserted, ${skippedCount} skipped`);
+}
+
+// Function to seed districts (المديريات) from dis.geojson
+async function seedDistricts() {
+  console.log('🌱 Seeding districts (مديريات)...');
+  
+  // Preload existing data
+  const existingDistricts = await db.select({ id: districts.id, code: districts.code }).from(districts);
+  const existingCodes = new Set(existingDistricts.map(d => d.code).filter(Boolean));
+  
+  const allGovernorates = await db.select({ id: governorates.id, code: governorates.code }).from(governorates);
+  const governorateMap = createLookupMap(allGovernorates);
+  
+  console.log(`📊 Found ${allGovernorates.length} governorates, ${existingDistricts.length} existing districts`);
+  
+  const distData = readGeoJSONFile('dis');
+  const newDistricts: InsertDistrict[] = [];
+  let skippedCount = 0;
+
+  for (const feature of distData.features) {
+    const props = feature.properties;
+    const admin2Pcod = props.admin2Pcod?.toString();
+    const admin1Pcod = props.admin1Pcod?.toString(); // للربط بالمحافظة
+    const admin2Name = props.admin2Name;
+    const admin2NameAr = props.admin2Na_1;
+    
+    if (!admin2Pcod || !admin1Pcod) {
+      skippedCount++;
+      continue;
+    }
+
+    if (existingCodes.has(admin2Pcod)) {
+      skippedCount++;
+      continue;
+    }
+
+    const governorateId = governorateMap.get(admin1Pcod);
+    if (!governorateId) {
+      skippedCount++;
+      continue;
+    }
+
+    newDistricts.push({
+      code: admin2Pcod,
+      nameAr: admin2NameAr || admin2Name || `مديرية ${admin2Pcod}`,
+      nameEn: admin2Name || `District ${admin2Pcod}`,
+      governorateId: governorateId,
+      geometry: feature.geometry,
+      properties: props,
+      isActive: true
+    });
+  }
+
+  // Insert in batches
+  let insertedCount = 0;
+  const batches = chunk(newDistricts, BATCH_SIZE);
+  
+  for (let i = 0; i < batches.length; i++) {
+    const batch = batches[i];
+    try {
+      await db.insert(districts).values(batch);
+      insertedCount += batch.length;
+      
+      if (insertedCount % PROGRESS_INTERVAL === 0 || i === batches.length - 1) {
+        console.log(`✅ Processed ${insertedCount}/${newDistricts.length} districts`);
+      }
+    } catch (error) {
+      console.error(`❌ Error inserting batch ${i}:`, error);
+    }
+  }
+
+  console.log(`🎯 Districts summary: ${insertedCount} inserted, ${skippedCount} skipped`);
+}
+
 // Function to seed sub-districts (العزل) from azafinall.geojson  
 async function seedSubDistricts() {
   console.log('🌱 Seeding sub-districts (عزل)...');
@@ -110,18 +247,17 @@ async function seedSubDistricts() {
 
   for (const feature of azalData.features) {
     const props = feature.properties;
-    const azalcode = props.azalcode?.toString();
-    const admin1Pcod = props.admin1Pcod;
-    const admin2Pcod = props.admin2Pcod;
+    const admin3Pcod = props.admin3Pcod?.toString(); // كود العزلة
+    const admin2Pcod = props.admin2Pcod?.toString(); // للربط بالمديرية
     const admin3Name = props.admin3Name;
     const admin3NameAr = props.admin3Na_1;
     
-    if (!azalcode || !admin2Pcod) {
+    if (!admin3Pcod || !admin2Pcod) {
       skippedCount++;
       continue;
     }
 
-    if (existingCodes.has(azalcode)) {
+    if (existingCodes.has(admin3Pcod)) {
       skippedCount++;
       continue;
     }
@@ -133,9 +269,9 @@ async function seedSubDistricts() {
     }
 
     newSubDistricts.push({
-      code: azalcode,
-      nameAr: admin3NameAr || admin3Name || `عزلة ${azalcode}`,
-      nameEn: admin3Name || `Sub-district ${azalcode}`,
+      code: admin3Pcod,
+      nameAr: admin3NameAr || admin3Name || `عزلة ${admin3Pcod}`,
+      nameEn: admin3Name || `Sub-district ${admin3Pcod}`,
       districtId: districtId,
       geometry: feature.geometry,
       properties: props,
@@ -164,7 +300,7 @@ async function seedSubDistricts() {
   console.log(`🎯 Sub-districts summary: ${insertedCount} inserted, ${skippedCount} skipped`);
 }
 
-// Function to seed sectors (القطاعات) from sctorfinal.geojson
+// Function to seed sectors (القطاعات) from sctorfinal.geojson - مرتبطة بالمحافظات حسب المخطط الحالي
 async function seedSectors() {
   console.log('🌱 Seeding sectors...');
   
@@ -184,7 +320,7 @@ async function seedSectors() {
   for (const feature of sectorsData.features) {
     const props = feature.properties;
     const sectorCode = props.Zone_?.toString();
-    const admin1Pcod = props.admin1pcod;
+    const admin1Pcod = props.admin1pcod?.toString(); // للربط بالمحافظة
     const admin2Name = props.admin2name || props.admin2na_1;
     
     if (!sectorCode || !admin1Pcod) {
@@ -207,7 +343,7 @@ async function seedSectors() {
       code: sectorCode,
       nameAr: admin2Name || `قطاع ${sectorCode}`,
       nameEn: props.admin2name || `Sector ${sectorCode}`,
-      governorateId: governorateId,
+      governorateId: governorateId, // مرتبط بالمحافظة حسب المخطط الحالي
       sectorType: 'planning',
       geometry: feature.geometry,
       properties: props,
@@ -401,7 +537,7 @@ async function checkPrerequisites() {
 // CLI argument parsing
 function parseArgs() {
   const args = process.argv.slice(2);
-  const entityArg = args.find(arg => ['subdistricts', 'sectors', 'units', 'blocks', 'all'].includes(arg));
+  const entityArg = args.find(arg => ['governorates', 'districts', 'subdistricts', 'sectors', 'units', 'blocks', 'all'].includes(arg));
   return {
     entity: entityArg || 'all',
     help: args.includes('--help') || args.includes('-h')
@@ -419,6 +555,8 @@ async function main() {
 Usage: tsx seed-geo-data.ts [entity]
 
 Entities:
+  governorates  - Seed governorates only (محافظات)
+  districts     - Seed districts only (مديريات)
   subdistricts  - Seed sub-districts only (عزل)
   sectors       - Seed sectors only (قطاعات)
   units         - Seed neighborhood units only (وحدات الجوار)
@@ -440,10 +578,16 @@ Examples:
     const prerequisites = await checkPrerequisites();
     
     if (entity === 'all') {
+      await seedGovernorates();
+      await seedDistricts();
       await seedSubDistricts();
       await seedSectors();
       await seedNeighborhoodUnits();
       await seedBlocks();
+    } else if (entity === 'governorates') {
+      await seedGovernorates();
+    } else if (entity === 'districts') {
+      await seedDistricts();
     } else if (entity === 'subdistricts') {
       await seedSubDistricts();
     } else if (entity === 'sectors') {
