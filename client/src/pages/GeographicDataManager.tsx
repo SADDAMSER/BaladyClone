@@ -191,8 +191,8 @@ export default function GeographicDataManager() {
   });
 
   // Fetch filtered data based on selections for map display
-  const { data: subDistricts = [] } = useQuery<SubDistrict[]>({
-    queryKey: ['/api/districts', mapSelectedDistrictId, 'sub-districts'],
+  const { data: subDistricts = [], isLoading: loadingSubDistricts } = useQuery<SubDistrict[]>({
+    queryKey: ['/api/sub-districts', { districtId: mapSelectedDistrictId }],
     enabled: !!mapSelectedDistrictId,
   });
 
@@ -1091,10 +1091,7 @@ export default function GeographicDataManager() {
                           <SelectContent>
                             <SelectItem value="all">جميع العزل</SelectItem>
                             {subDistricts
-                              .filter(subdist => 
-                                subdist.districtId === mapSelectedDistrictId && 
-                                subdist.geometry
-                              )
+                              .filter(subdist => subdist.geometry)
                               .map((subdist) => (
                               <SelectItem key={subdist.id} value={subdist.id}>
                                 {subdist.nameAr}
@@ -1155,10 +1152,7 @@ export default function GeographicDataManager() {
                           <SelectContent>
                             <SelectItem value="all">جميع وحدات الجوار</SelectItem>
                             {neighborhoodUnits
-                              .filter(unit => 
-                                unit.sectorId === mapSelectedSectorId && 
-                                unit.geometry
-                              )
+                              .filter(unit => unit.geometry)
                               .map((unit) => (
                               <SelectItem key={unit.id} value={unit.id}>
                                 {unit.nameAr}
