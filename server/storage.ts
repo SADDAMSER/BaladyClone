@@ -2150,13 +2150,13 @@ export class DatabaseStorage implements IStorage {
   // Geographic Data - New Tables (Minimal implementations for testing)
   async getSubDistricts(districtId?: string): Promise<SubDistrict[]> { 
     if (districtId) {
-      return await db.select().from(subDistricts).where(eq(subDistricts.districtId, districtId));
+      return await db.select().from(subDistricts).where(eq(subDistricts.districtId, sql<string>`${districtId}::uuid`));
     }
     return await db.select().from(subDistricts);
   }
   async getSubDistrict(id: string): Promise<SubDistrict | undefined> { throw new Error("Not implemented yet"); }
   async getSubDistrictsByDistrictId(districtId: string): Promise<SubDistrict[]> { 
-    return await db.select().from(subDistricts).where(eq(subDistricts.districtId, districtId));
+    return await db.select().from(subDistricts).where(eq(subDistricts.districtId, sql<string>`${districtId}::uuid`));
   }
   async createSubDistrict(subDistrict: InsertSubDistrict): Promise<SubDistrict> { throw new Error("Not implemented yet"); }
   async updateSubDistrict(id: string, updates: Partial<InsertSubDistrict>): Promise<SubDistrict> { throw new Error("Not implemented yet"); }
@@ -2164,7 +2164,7 @@ export class DatabaseStorage implements IStorage {
   
   async getNeighborhoods(subDistrictId?: string): Promise<Neighborhood[]> { 
     if (subDistrictId) {
-      return await db.select().from(neighborhoods).where(eq(neighborhoods.subDistrictId, subDistrictId));
+      return await db.select().from(neighborhoods).where(eq(neighborhoods.subDistrictId, sql<string>`${subDistrictId}::uuid`));
     }
     return await db.select().from(neighborhoods);
   }
@@ -2173,7 +2173,7 @@ export class DatabaseStorage implements IStorage {
     return neighborhood || undefined;
   }
   async getNeighborhoodsBySubDistrictId(subDistrictId: string): Promise<Neighborhood[]> { 
-    return await db.select().from(neighborhoods).where(eq(neighborhoods.subDistrictId, subDistrictId));
+    return await db.select().from(neighborhoods).where(eq(neighborhoods.subDistrictId, sql<string>`${subDistrictId}::uuid`));
   }
   async createNeighborhood(neighborhood: InsertNeighborhood): Promise<Neighborhood> { throw new Error("Not implemented yet"); }
   async updateNeighborhood(id: string, updates: Partial<InsertNeighborhood>): Promise<Neighborhood> { throw new Error("Not implemented yet"); }
@@ -2198,7 +2198,7 @@ export class DatabaseStorage implements IStorage {
   
   async getSectors(governorateId?: string): Promise<Sector[]> { 
     if (governorateId) {
-      return await db.select().from(sectors).where(eq(sectors.governorateId, governorateId));
+      return await db.select().from(sectors).where(eq(sectors.governorateId, sql<string>`${governorateId}::uuid`));
     }
     return await db.select().from(sectors);
   }
@@ -2207,11 +2207,11 @@ export class DatabaseStorage implements IStorage {
     return sector || undefined;
   }
   async getSectorsByGovernorateId(governorateId: string): Promise<Sector[]> { 
-    return await db.select().from(sectors).where(eq(sectors.governorateId, governorateId));
+    return await db.select().from(sectors).where(eq(sectors.governorateId, sql<string>`${governorateId}::uuid`));
   }
   async getSectorsByDistrictId(districtId: string): Promise<Sector[]> {
     // Get the district to find its governorate
-    const [district] = await db.select().from(districts).where(eq(districts.id, districtId));
+    const [district] = await db.select().from(districts).where(eq(districts.id, sql<string>`${districtId}::uuid`));
     if (!district) {
       return [];
     }
@@ -2220,7 +2220,7 @@ export class DatabaseStorage implements IStorage {
   }
   async getSectorsBySubDistrictId(subDistrictId: string): Promise<Sector[]> {
     // Get the sub-district and its district to find the governorate
-    const [subDistrict] = await db.select().from(subDistricts).where(eq(subDistricts.id, subDistrictId));
+    const [subDistrict] = await db.select().from(subDistricts).where(eq(subDistricts.id, sql<string>`${subDistrictId}::uuid`));
     if (!subDistrict) {
       return [];
     }
@@ -2237,8 +2237,8 @@ export class DatabaseStorage implements IStorage {
   
   async getNeighborhoodUnits(filters?: { neighborhoodId?: string; sectorId?: string }): Promise<NeighborhoodUnit[]> { 
     const conditions = [];
-    if (filters?.neighborhoodId) conditions.push(eq(neighborhoodUnits.neighborhoodId, filters.neighborhoodId));
-    if (filters?.sectorId) conditions.push(eq(neighborhoodUnits.sectorId, filters.sectorId));
+    if (filters?.neighborhoodId) conditions.push(eq(neighborhoodUnits.neighborhoodId, sql<string>`${filters.neighborhoodId}::uuid`));
+    if (filters?.sectorId) conditions.push(eq(neighborhoodUnits.sectorId, sql<string>`${filters.sectorId}::uuid`));
     
     if (conditions.length > 0) {
       return await db.select().from(neighborhoodUnits).where(and(...conditions));
@@ -2250,10 +2250,10 @@ export class DatabaseStorage implements IStorage {
     return result || undefined;
   }
   async getNeighborhoodUnitsByNeighborhoodId(neighborhoodId: string): Promise<NeighborhoodUnit[]> { 
-    return await db.select().from(neighborhoodUnits).where(eq(neighborhoodUnits.neighborhoodId, neighborhoodId));
+    return await db.select().from(neighborhoodUnits).where(eq(neighborhoodUnits.neighborhoodId, sql<string>`${neighborhoodId}::uuid`));
   }
   async getNeighborhoodUnitsBySectorId(sectorId: string): Promise<NeighborhoodUnit[]> { 
-    return await db.select().from(neighborhoodUnits).where(eq(neighborhoodUnits.sectorId, sectorId));
+    return await db.select().from(neighborhoodUnits).where(eq(neighborhoodUnits.sectorId, sql<string>`${sectorId}::uuid`));
   }
   async createNeighborhoodUnit(neighborhoodUnit: InsertNeighborhoodUnit): Promise<NeighborhoodUnit> { throw new Error("Not implemented yet"); }
   async updateNeighborhoodUnit(id: string, updates: Partial<InsertNeighborhoodUnit>): Promise<NeighborhoodUnit> { throw new Error("Not implemented yet"); }
@@ -2261,7 +2261,7 @@ export class DatabaseStorage implements IStorage {
   
   async getBlocks(neighborhoodUnitId?: string): Promise<Block[]> { 
     if (neighborhoodUnitId) {
-      return await db.select().from(blocks).where(eq(blocks.neighborhoodUnitId, neighborhoodUnitId));
+      return await db.select().from(blocks).where(eq(blocks.neighborhoodUnitId, sql<string>`${neighborhoodUnitId}::uuid`));
     }
     return await db.select().from(blocks);
   }
@@ -2270,7 +2270,7 @@ export class DatabaseStorage implements IStorage {
     return result || undefined;
   }
   async getBlocksByNeighborhoodUnitId(neighborhoodUnitId: string): Promise<Block[]> { 
-    return await db.select().from(blocks).where(eq(blocks.neighborhoodUnitId, neighborhoodUnitId));
+    return await db.select().from(blocks).where(eq(blocks.neighborhoodUnitId, sql<string>`${neighborhoodUnitId}::uuid`));
   }
   async createBlock(block: InsertBlock): Promise<Block> { throw new Error("Not implemented yet"); }
   async updateBlock(id: string, updates: Partial<InsertBlock>): Promise<Block> { throw new Error("Not implemented yet"); }
