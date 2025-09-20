@@ -167,20 +167,23 @@ export default function GeographicBoundaryLayer({
 
   // Fetch all governorates with geometry
   const { data: governorates = [] } = useQuery<BoundaryFeature[]>({
-    queryKey: ['/api/governorates'],
+    queryKey: ['governorates'],
+    queryFn: () => fetch('/api/governorates').then(res => res.json()),
     select: (data: any[]) => data.filter(gov => gov.geometry) // Only include governorates with geometry data
   });
 
   // Fetch districts for selected governorate with geometry
   const { data: districts = [] } = useQuery<BoundaryFeature[]>({
-    queryKey: ['/api/governorates', selectedGovernorateId, 'districts'],
+    queryKey: ['districts', selectedGovernorateId],
+    queryFn: () => fetch(`/api/districts?governorateId=${selectedGovernorateId}`).then(res => res.json()),
     enabled: !!selectedGovernorateId,
     select: (data: any[]) => data.filter(dist => dist.geometry) // Only include districts with geometry data
   });
 
   // Fetch sub-districts for selected district with geometry
   const { data: subDistricts = [] } = useQuery<BoundaryFeature[]>({
-    queryKey: ['/api/districts', selectedDistrictId, 'sub-districts'],
+    queryKey: ['sub-districts', selectedDistrictId],
+    queryFn: () => fetch(`/api/sub-districts?districtId=${selectedDistrictId}`).then(res => res.json()),
     enabled: !!selectedDistrictId,
     select: (data: any[]) => {
       return data
@@ -193,10 +196,11 @@ export default function GeographicBoundaryLayer({
     }
   });
 
-  // FIXED: Fetch sectors for selected DISTRICT using new endpoint with geometry and data transformation
+  // FIXED: Fetch sectors for selected SUB-DISTRICT using correct endpoint with geometry and data transformation
   const { data: sectors = [] } = useQuery<BoundaryFeature[]>({
-    queryKey: ['/api/districts', selectedDistrictId, 'sectors'],
-    enabled: !!selectedDistrictId,
+    queryKey: ['sectors', selectedSubDistrictId],
+    queryFn: () => fetch(`/api/sectors?subDistrictId=${selectedSubDistrictId}`).then(res => res.json()),
+    enabled: !!selectedSubDistrictId,
     select: (data: any[]) => {
       return data
         .filter(sector => sector.geometry)
@@ -210,7 +214,8 @@ export default function GeographicBoundaryLayer({
 
   // Fetch neighborhood units for selected sector with geometry
   const { data: neighborhoodUnits = [] } = useQuery<BoundaryFeature[]>({
-    queryKey: ['/api/sectors', selectedSectorId, 'neighborhood-units'],
+    queryKey: ['neighborhood-units', selectedSectorId],
+    queryFn: () => fetch(`/api/neighborhood-units?sectorId=${selectedSectorId}`).then(res => res.json()),
     enabled: !!selectedSectorId,
     select: (data: any[]) => {
       return data
@@ -225,7 +230,8 @@ export default function GeographicBoundaryLayer({
 
   // Fetch blocks for selected neighborhood unit with geometry
   const { data: blocks = [] } = useQuery<BoundaryFeature[]>({
-    queryKey: ['/api/neighborhood-units', selectedNeighborhoodUnitId, 'blocks'],
+    queryKey: ['blocks', selectedNeighborhoodUnitId],
+    queryFn: () => fetch(`/api/blocks?neighborhoodUnitId=${selectedNeighborhoodUnitId}`).then(res => res.json()),
     enabled: !!selectedNeighborhoodUnitId,
     select: (data: any[]) => data.filter(block => block.geometry) // Blocks should already have correct structure
   });

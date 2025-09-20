@@ -192,22 +192,26 @@ export default function GeographicDataManager() {
 
   // Fetch filtered data based on selections for map display
   const { data: subDistricts = [], isLoading: loadingSubDistricts } = useQuery<SubDistrict[]>({
-    queryKey: ['/api/districts', mapSelectedDistrictId, 'sub-districts'],
+    queryKey: ['sub-districts', mapSelectedDistrictId],
+    queryFn: () => fetch(`/api/sub-districts?districtId=${mapSelectedDistrictId}`).then(res => res.json()),
     enabled: !!mapSelectedDistrictId,
   });
 
   const { data: sectors = [] } = useQuery<Sector[]>({
-    queryKey: ['/api/sub-districts', mapSelectedSubDistrictId, 'sectors'],
+    queryKey: ['sectors', mapSelectedSubDistrictId],
+    queryFn: () => fetch(`/api/sectors?subDistrictId=${mapSelectedSubDistrictId}`).then(res => res.json()),
     enabled: !!mapSelectedSubDistrictId,
   });
 
   const { data: neighborhoodUnits = [] } = useQuery<NeighborhoodUnit[]>({
-    queryKey: ['/api/sectors', mapSelectedSectorId, 'neighborhood-units'],
+    queryKey: ['neighborhood-units', mapSelectedSectorId],
+    queryFn: () => fetch(`/api/neighborhood-units?sectorId=${mapSelectedSectorId}`).then(res => res.json()),
     enabled: !!mapSelectedSectorId,
   });
 
   const { data: blocks = [] } = useQuery<Block[]>({
-    queryKey: ['/api/neighborhood-units', mapSelectedNeighborhoodUnitId, 'blocks'],
+    queryKey: ['blocks', mapSelectedNeighborhoodUnitId],
+    queryFn: () => fetch(`/api/blocks?neighborhoodUnitId=${mapSelectedNeighborhoodUnitId}`).then(res => res.json()),
     enabled: !!mapSelectedNeighborhoodUnitId,
   });
 
