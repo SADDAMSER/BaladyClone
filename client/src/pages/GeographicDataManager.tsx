@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -192,13 +192,13 @@ export default function GeographicDataManager() {
 
   // Fetch filtered data based on selections for map display
   const { data: subDistricts = [], isLoading: loadingSubDistricts } = useQuery<SubDistrict[]>({
-    queryKey: ['/api/sub-districts', { districtId: mapSelectedDistrictId }],
+    queryKey: ['/api/districts', mapSelectedDistrictId, 'sub-districts'],
     enabled: !!mapSelectedDistrictId,
   });
 
   const { data: sectors = [] } = useQuery<Sector[]>({
-    queryKey: ['/api/districts', mapSelectedDistrictId, 'sectors'],
-    enabled: !!mapSelectedDistrictId,
+    queryKey: ['/api/sub-districts', mapSelectedSubDistrictId, 'sectors'],
+    enabled: !!mapSelectedSubDistrictId,
   });
 
   const { data: neighborhoodUnits = [] } = useQuery<NeighborhoodUnit[]>({
@@ -210,6 +210,58 @@ export default function GeographicDataManager() {
     queryKey: ['/api/neighborhood-units', mapSelectedNeighborhoodUnitId, 'blocks'],
     enabled: !!mapSelectedNeighborhoodUnitId,
   });
+
+  // Reset downstream selections when upstream changes
+  useEffect(() => {
+    if (mapSelectedGovernorateId) {
+      setMapSelectedDistrictId('');
+      setMapSelectedSubDistrictId('');
+      setMapSelectedSectorId('');
+      setMapSelectedNeighborhoodUnitId('');
+      setMapSelectedBlockId('');
+    }
+  }, [mapSelectedGovernorateId]);
+
+  useEffect(() => {
+    if (mapSelectedDistrictId) {
+      setMapSelectedSubDistrictId('');
+      setMapSelectedSectorId('');
+      setMapSelectedNeighborhoodUnitId('');
+      setMapSelectedBlockId('');
+    }
+  }, [mapSelectedDistrictId]);
+
+  useEffect(() => {
+    if (mapSelectedSubDistrictId) {
+      setMapSelectedSectorId('');
+      setMapSelectedNeighborhoodUnitId('');
+      setMapSelectedBlockId('');
+    }
+  }, [mapSelectedSubDistrictId]);
+
+  useEffect(() => {
+    if (mapSelectedSectorId) {
+      setMapSelectedNeighborhoodUnitId('');
+      setMapSelectedBlockId('');
+    }
+  }, [mapSelectedSectorId]);
+
+  useEffect(() => {
+    if (mapSelectedNeighborhoodUnitId) {
+      setMapSelectedBlockId('');
+    }
+  }, [mapSelectedNeighborhoodUnitId]);
+
+  // Auto-focus map on selected region (to be implemented in map component)
+  const focusRegion = useMemo(() => {
+    if (mapSelectedBlockId) return { type: 'block', id: mapSelectedBlockId };
+    if (mapSelectedNeighborhoodUnitId) return { type: 'neighborhoodUnit', id: mapSelectedNeighborhoodUnitId };
+    if (mapSelectedSectorId) return { type: 'sector', id: mapSelectedSectorId };
+    if (mapSelectedSubDistrictId) return { type: 'subDistrict', id: mapSelectedSubDistrictId };
+    if (mapSelectedDistrictId) return { type: 'district', id: mapSelectedDistrictId };
+    if (mapSelectedGovernorateId) return { type: 'governorate', id: mapSelectedGovernorateId };
+    return null;
+  }, [mapSelectedGovernorateId, mapSelectedDistrictId, mapSelectedSubDistrictId, mapSelectedSectorId, mapSelectedNeighborhoodUnitId, mapSelectedBlockId]);
 
   // Create governorate mutation
   const createGovernorateMutation = useMutation({
