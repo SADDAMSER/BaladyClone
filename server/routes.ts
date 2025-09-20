@@ -1594,15 +1594,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // TODO: Add these APIs after implementing the methods in DatabaseStorage
-  // app.get("/api/districts/:id/sectors", async (req, res) => {
-  //   try {
-  //     const sectors = await storage.getSectorsByDistrictId(req.params.id);
-  //     res.json(sectors);
-  //   } catch (error) {
-  //     res.status(500).json({ message: "Internal server error" });
-  //   }
-  // });
+  // Sectors by district endpoint
+  app.get("/api/districts/:id/sectors", async (req, res) => {
+    try {
+      const sectors = await storage.getSectorsByDistrictId(req.params.id);
+      res.json(sectors);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
 
   // app.get("/api/sub-districts/:id/sectors", async (req, res) => {
   //   try {
