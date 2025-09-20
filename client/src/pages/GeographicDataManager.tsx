@@ -1091,7 +1091,10 @@ export default function GeographicDataManager() {
                           <SelectContent>
                             <SelectItem value="all">جميع العزل</SelectItem>
                             {subDistricts
-                              .filter(subdist => subdist.geometry)
+                              .filter(subdist => 
+                                subdist.districtId === mapSelectedDistrictId && 
+                                subdist.geometry
+                              )
                               .map((subdist) => (
                               <SelectItem key={subdist.id} value={subdist.id}>
                                 {subdist.nameAr}
@@ -1103,7 +1106,7 @@ export default function GeographicDataManager() {
                     )}
 
                     {/* Sector Filter */}
-                    {mapSelectedGovernorateId && (
+                    {mapSelectedDistrictId && (
                       <div>
                         <Label className="text-sm font-medium">اختيار القطاع</Label>
                         <Select 
@@ -1152,7 +1155,10 @@ export default function GeographicDataManager() {
                           <SelectContent>
                             <SelectItem value="all">جميع وحدات الجوار</SelectItem>
                             {neighborhoodUnits
-                              .filter(unit => unit.geometry)
+                              .filter(unit => 
+                                unit.sectorId === mapSelectedSectorId && 
+                                unit.geometry
+                              )
                               .map((unit) => (
                               <SelectItem key={unit.id} value={unit.id}>
                                 {unit.nameAr}
