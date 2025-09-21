@@ -1,0 +1,36 @@
+مهمة: إصلاح الربط الهرمي الكامل (قطاعات، وحدات جوار، بلوكات) وإعادة بناء قاعدة البيانات.
+
+المشكلة الحالية:
+الجداول `sectors`, `neighborhood_units`, `blocks` مربوطة بشكل خاطئ في مخطط قاعدة البيانات، وسكربت الإدخال لا يستخدم الرموز الصحيحة للربط.
+
+المطلوب (مهمة من 3 خطوات):
+
+الخطوة 1: تعديل مخطط قاعدة البيانات (Schema)
+*   في الملف `shared/schema.ts`:
+    1.  **جدول `sectors`:**
+        *   احذف `governorateId`.
+        *   أضف `subDistrictId: uuid('sub_district_id').references(() => subDistricts.id, { onDelete: 'cascade' })`.
+    2.  **جدول `neighborhood_units`:**
+        *   تأكد من وجود `sectorId: uuid('sector_id').references(() => sectors.id, { onDelete: 'cascade' })`.
+    3.  **جدول `blocks`:**
+        *   تأكد من وجود `neighborhoodUnitId: uuid('neighborhood_unit_id').references(() => neighborhoodUnits.id, { onDelete: 'cascade' })`.
+
+الخطوة 2: تعديل سكربت الإدخال (Seeding Script)
+*   في الملف `scripts/seed-geo-data.ts`، قم بتوسيع وتعديل منطق الإدخال:
+    1.  **العزل:** أنشئ خريطة تربط `azalcode` بالـ `id` الجديد للعزلة.
+    2.  **القطاعات:**
+        *   استخدم `azalcode` للبحث في خريطة العزل والحصول على `subDistrictId`.
+        *   أنشئ خريطة جديدة للقطاعات تربط `citycode` (أو `Zone_` إذا كان هو نفسه) بالـ `id` الجديد للقطاع.
+    3.  **وحدات الجوار:**
+        *   استخدم `citycode` للبحث في خريطة القطاعات والحصول على `sectorId`.
+        *   أنشئ خريطة جديدة لوحدات الجوار تربط `unique_uni` بالـ `id` الجديد لوحدة الجوار.
+    4.  **البلوكات:**
+        *   استخدم `unique_uni` للبحث في خريطة وحدات الجوار والحصول على `neighborhoodUnitId`.
+        *   أدخل البلوك مع `neighborhoodUnitId` الصحيح.
+
+الخطوة 3: إعادة بناء قاعدة البيانات والبيانات
+*   بعد تعديل المخطط والسكربت، قم بتشغيل الأوامر التالية في الطرفية:
+    1.  `npm run db:push -- --force-reset`
+    2.  `npm run seed:geo`
+
+الهدف هو إعادة بناء الهيكل الكامل للجداول الدنيا (القطاعات، وحدات الجوار، البلوكات) لتعكس العلاقات الصحيحة، ثم إعادة ملء قاعدة البيانات بالبيانات المرتبطة بشكل صحيح باستخدام سلسلة الرموز (`azalcode` -> `citycode` -> `unique_uni`).

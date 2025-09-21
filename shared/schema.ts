@@ -823,14 +823,14 @@ export const harat = pgTable("harat", {
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
-// Sectors table (القطاعات التخطيطية) - independent planning entities
+// Sectors table (القطاعات التخطيطية) - child of sub-districts
 export const sectors = pgTable("sectors", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   code: text("code"),
   nameAr: text("name_ar").notNull(),
   nameEn: text("name_en"),
-  governorateId: uuid("governorate_id")
-    .references(() => governorates.id, { onDelete: "cascade" })
+  subDistrictId: uuid("sub_district_id")
+    .references(() => subDistricts.id, { onDelete: "cascade" })
     .notNull(),
   sectorType: text("sector_type").default("planning"), // planning, administrative, economic
   geometry: jsonb("geometry"),
@@ -2216,6 +2216,7 @@ export const subDistrictsRelations = relations(subDistricts, ({ one, many }) => 
     references: [districts.id],
   }),
   neighborhoods: many(neighborhoods),
+  sectors: many(sectors),
 }));
 
 export const neighborhoodsRelations = relations(neighborhoods, ({ one, many }) => ({
@@ -2235,9 +2236,9 @@ export const haratRelations = relations(harat, ({ one }) => ({
 }));
 
 export const sectorsRelations = relations(sectors, ({ one, many }) => ({
-  governorate: one(governorates, {
-    fields: [sectors.governorateId],
-    references: [governorates.id],
+  subDistrict: one(subDistricts, {
+    fields: [sectors.subDistrictId],
+    references: [subDistricts.id],
   }),
   neighborhoodUnits: many(neighborhoodUnits),
 }));

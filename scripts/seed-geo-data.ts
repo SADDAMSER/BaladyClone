@@ -86,6 +86,17 @@ function createLookupMap<T extends { id: string; code: string | null }>(items: T
   return map;
 }
 
+// Helper function to resolve property keys with fallbacks
+function getProp(properties: any, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = properties[key];
+    if (value !== undefined && value !== null && value !== '') {
+      return value.toString();
+    }
+  }
+  return null;
+}
+
 // Helper function to chunk array
 function chunk<T>(array: T[], size: number): T[][] {
   const chunks: T[][] = [];
@@ -247,10 +258,13 @@ async function seedSubDistricts() {
 
   for (const feature of azalData.features) {
     const props = feature.properties;
-    const admin3Pcod = props.admin3Pcod?.toString(); // كود العزلة
-    const admin2Pcod = props.admin2Pcod?.toString(); // للربط بالمديرية
-    const admin3Name = props.admin3Name;
-    const admin3NameAr = props.admin3Na_1;
+    // Multi-key fallbacks for sub-district code
+    const admin3Pcod = getProp(props, ['admin3Pcod', 'admin3pcod', 'azalcode', 'AZALCODE']);
+    // Multi-key fallbacks for district link
+    const admin2Pcod = getProp(props, ['admin2Pcod', 'admin2pcod', 'ADM2_PCODE', 'admin2_pco']);
+    // Multi-key fallbacks for name
+    const admin3Name = getProp(props, ['admin3Name', 'admin3name', 'name_en', 'NAME_EN']);
+    const admin3NameAr = getProp(props, ['admin3Na_1', 'admin3na_1', 'name_ar', 'NAME_AR']) || 'عزلة غير محددة';
     
     if (!admin3Pcod || !admin2Pcod) {
       skippedCount++;
@@ -298,20 +312,21 @@ async function seedSubDistricts() {
   }
 
   console.log(`🎯 Sub-districts summary: ${insertedCount} inserted, ${skippedCount} skipped`);
+  
+  // Create lookup map for the newly inserted sub-districts
+  const allSubDistrictsAfter = await db.select({ id: subDistricts.id, code: subDistricts.code }).from(subDistricts);
+  return createLookupMap(allSubDistrictsAfter);
 }
 
-// Function to seed sectors (القطاعات) from sctorfinal.geojson - مرتبطة بالمحافظات حسب المخطط الحالي
-async function seedSectors() {
+// Function to seed sectors (القطاعات) from sctorfinal.geojson - مرتبطة بالعزل  
+async function seedSectors(subDistrictMap: Map<string, string>) {
   console.log('🌱 Seeding sectors...');
   
   // Preload existing data
   const existingSectors = await db.select({ id: sectors.id, code: sectors.code }).from(sectors);
   const existingCodes = new Set(existingSectors.map(s => s.code).filter(Boolean));
   
-  const allGovernorates = await db.select({ id: governorates.id, code: governorates.code }).from(governorates);
-  const governorateMap = createLookupMap(allGovernorates);
-  
-  console.log(`📊 Found ${allGovernorates.length} governorates, ${existingSectors.length} existing sectors`);
+  console.log(`📊 Found ${subDistrictMap.size} sub-districts, ${existingSectors.length} existing sectors`);
   
   const sectorsData = readGeoJSONFile('sctorfinal');
   const newSectors: InsertSector[] = [];
@@ -319,31 +334,34 @@ async function seedSectors() {
 
   for (const feature of sectorsData.features) {
     const props = feature.properties;
-    const sectorCode = props.Zone_?.toString();
-    const admin1Pcod = props.admin1pcod?.toString(); // للربط بالمحافظة
-    const admin2Name = props.admin2name || props.admin2na_1;
+    // Multi-key fallbacks for sector code
+    const citycode = getProp(props, ['citycode', 'CITYCODE', 'Zone_']);
+    // Multi-key fallbacks for sub-district link
+    const azalcode = getProp(props, ['azalcode', 'AZALCODE', 'admin3Pcod', 'admin3pcod']);
+    // Multi-key fallbacks for name
+    const admin2Name = getProp(props, ['admin2name', 'admin2na_1', 'Zone_', 'NAME']) || `قطاع ${citycode}`;
     
-    if (!sectorCode || !admin1Pcod) {
+    if (!citycode || !azalcode) {
       skippedCount++;
       continue;
     }
 
-    if (existingCodes.has(sectorCode)) {
+    if (existingCodes.has(citycode)) {
       skippedCount++;
       continue;
     }
 
-    const governorateId = governorateMap.get(admin1Pcod);
-    if (!governorateId) {
+    const subDistrictId = subDistrictMap.get(azalcode);
+    if (!subDistrictId) {
       skippedCount++;
       continue;
     }
 
     newSectors.push({
-      code: sectorCode,
-      nameAr: admin2Name || `قطاع ${sectorCode}`,
-      nameEn: props.admin2name || `Sector ${sectorCode}`,
-      governorateId: governorateId, // مرتبط بالمحافظة حسب المخطط الحالي
+      code: citycode,
+      nameAr: admin2Name || `قطاع ${citycode}`,
+      nameEn: props.admin2name || `Sector ${citycode}`,
+      subDistrictId: subDistrictId, // مرتبط بالعزلة الآن
       sectorType: 'planning',
       geometry: feature.geometry,
       properties: props,
@@ -370,20 +388,21 @@ async function seedSectors() {
   }
 
   console.log(`🎯 Sectors summary: ${insertedCount} inserted, ${skippedCount} skipped`);
+  
+  // Create lookup map for the newly inserted sectors
+  const allSectorsAfter = await db.select({ id: sectors.id, code: sectors.code }).from(sectors);
+  return createLookupMap(allSectorsAfter);
 }
 
 // Function to seed neighborhood units (وحدات الجوار) from unitsfinal.geojson
-async function seedNeighborhoodUnits() {
+async function seedNeighborhoodUnits(sectorMap: Map<string, string>) {
   console.log('🌱 Seeding neighborhood units...');
   
   // Preload existing data
   const existingUnits = await db.select({ id: neighborhoodUnits.id, code: neighborhoodUnits.code }).from(neighborhoodUnits);
   const existingCodes = new Set(existingUnits.map(u => u.code).filter(Boolean));
   
-  const allSectors = await db.select({ id: sectors.id, code: sectors.code }).from(sectors);
-  const sectorMap = createLookupMap(allSectors);
-  
-  console.log(`📊 Found ${allSectors.length} sectors, ${existingUnits.length} existing units`);
+  console.log(`📊 Found ${sectorMap.size} sectors, ${existingUnits.length} existing units`);
   
   const unitsData = readGeoJSONFile('unitsfinal');
   const newUnits: InsertNeighborhoodUnit[] = [];
@@ -391,11 +410,14 @@ async function seedNeighborhoodUnits() {
 
   for (const feature of unitsData.features) {
     const props = feature.properties;
-    const uniqueUnitId = props.unique_unit_id?.toString();
-    const citycode = props.citycode?.toString();
-    const unitNameAr = props['ÇáãØÇÈÞÉ'] || `وحدة جوار ${uniqueUnitId}`;
+    // Multi-key fallbacks for unit ID
+    const uniqueUnitId = getProp(props, ['unique_unit_id', 'unique_uni', 'UNIQUE_UNI']);
+    // Multi-key fallbacks for sector link
+    const citycode = getProp(props, ['citycode', 'CITYCODE', 'Zone_']);
+    // Multi-key fallbacks for name
+    const unitNameAr = getProp(props, ['ÇáãØÇÈÞÉ', 'رقم_وحدة_الج', 'unit_name', 'name_ar']) || `وحدة جوار ${uniqueUnitId}`;
     
-    if (!uniqueUnitId) {
+    if (!uniqueUnitId || !citycode) {
       skippedCount++;
       continue;
     }
@@ -405,14 +427,17 @@ async function seedNeighborhoodUnits() {
       continue;
     }
 
-    // Try to find sector by citycode
-    const sectorId = citycode && sectorMap.has(citycode) ? sectorMap.get(citycode) : undefined;
+    const sectorId = sectorMap.get(citycode);
+    if (!sectorId) {
+      skippedCount++;
+      continue;
+    }
 
     newUnits.push({
       code: uniqueUnitId,
       nameAr: unitNameAr,
       nameEn: `Neighborhood Unit ${uniqueUnitId}`,
-      sectorId: sectorId || null,
+      sectorId: sectorId,
       neighborhoodId: null, // To be linked later when neighborhoods are populated
       geometry: feature.geometry,
       properties: props,
@@ -439,20 +464,21 @@ async function seedNeighborhoodUnits() {
   }
 
   console.log(`🎯 Neighborhood units summary: ${insertedCount} inserted, ${skippedCount} skipped`);
+  
+  // Create lookup map for the newly inserted neighborhood units
+  const allUnitsAfter = await db.select({ id: neighborhoodUnits.id, code: neighborhoodUnits.code }).from(neighborhoodUnits);
+  return createLookupMap(allUnitsAfter);
 }
 
 // Function to seed blocks (البلوكات) from blocksfinal.geojson
-async function seedBlocks() {
+async function seedBlocks(unitMap: Map<string, string>) {
   console.log('🌱 Seeding blocks...');
   
   // Preload existing data
   const existingBlocks = await db.select({ id: blocks.id, code: blocks.code }).from(blocks);
   const existingCodes = new Set(existingBlocks.map(b => b.code).filter(Boolean));
   
-  const allUnits = await db.select({ id: neighborhoodUnits.id, code: neighborhoodUnits.code }).from(neighborhoodUnits);
-  const unitMap = createLookupMap(allUnits);
-  
-  console.log(`📊 Found ${allUnits.length} neighborhood units, ${existingBlocks.length} existing blocks`);
+  console.log(`📊 Found ${unitMap.size} neighborhood units, ${existingBlocks.length} existing blocks`);
   
   const blocksData = readGeoJSONFile('blocksfinal');
   const newBlocks: InsertBlock[] = [];
@@ -460,8 +486,10 @@ async function seedBlocks() {
 
   for (const feature of blocksData.features) {
     const props = feature.properties;
-    const blockId = props.Id?.toString();
-    const uniqueUnitId = props.unique_unit_id?.toString();
+    // Multi-key fallbacks for block ID
+    const blockId = getProp(props, ['Id', 'ID', 'id', 'block_id']);
+    // Multi-key fallbacks for unit link
+    const uniqueUnitId = getProp(props, ['unique_unit_id', 'unique_uni', 'UNIQUE_UNI']);
     
     if (!blockId || !uniqueUnitId) {
       skippedCount++;
@@ -580,10 +608,10 @@ Examples:
     if (entity === 'all') {
       await seedGovernorates();
       await seedDistricts();
-      await seedSubDistricts();
-      await seedSectors();
-      await seedNeighborhoodUnits();
-      await seedBlocks();
+      const subDistrictMap = await seedSubDistricts();
+      const sectorMap = await seedSectors(subDistrictMap);
+      const unitMap = await seedNeighborhoodUnits(sectorMap);
+      await seedBlocks(unitMap);
     } else if (entity === 'governorates') {
       await seedGovernorates();
     } else if (entity === 'districts') {
@@ -591,11 +619,20 @@ Examples:
     } else if (entity === 'subdistricts') {
       await seedSubDistricts();
     } else if (entity === 'sectors') {
-      await seedSectors();
+      // Need sub-district map for sectors
+      const allSubDistricts = await db.select({ id: subDistricts.id, code: subDistricts.code }).from(subDistricts);
+      const subDistrictMap = createLookupMap(allSubDistricts);
+      await seedSectors(subDistrictMap);
     } else if (entity === 'units') {
-      await seedNeighborhoodUnits();
+      // Need sector map for units
+      const allSectors = await db.select({ id: sectors.id, code: sectors.code }).from(sectors);
+      const sectorMap = createLookupMap(allSectors);
+      await seedNeighborhoodUnits(sectorMap);
     } else if (entity === 'blocks') {
-      await seedBlocks();
+      // Need unit map for blocks
+      const allUnits = await db.select({ id: neighborhoodUnits.id, code: neighborhoodUnits.code }).from(neighborhoodUnits);
+      const unitMap = createLookupMap(allUnits);
+      await seedBlocks(unitMap);
     }
     
     console.log('🎉 Geographic data seeding completed successfully!');
