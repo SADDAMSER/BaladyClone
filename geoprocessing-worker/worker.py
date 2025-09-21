@@ -32,8 +32,8 @@ import psycopg2.extras
 from psycopg2 import sql
 
 # Import processing modules
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'geotiff-processor-poc'))
-from main import process_geotiff
+from processor import create_processor
+from file_manager import FileManager
 
 # Configure logging
 logging.basicConfig(
@@ -84,9 +84,23 @@ class GeoprocessingWorker:
             headers={'Authorization': f'Worker {self.worker_auth_token}'}
         )
         
+        # Initialize specialized components
+        self.file_manager = FileManager(self.api_base_url, self.worker_auth_token)
+        
+        # Processor configuration
+        processing_config = {
+            'max_image_size': int(os.getenv('MAX_IMAGE_SIZE', 4096)),
+            'compression_quality': int(os.getenv('COMPRESSION_QUALITY', 85)),
+            'generate_thumbnails': os.getenv('GENERATE_THUMBNAILS', 'true').lower() == 'true',
+            'thumbnail_size': int(os.getenv('THUMBNAIL_SIZE', 256)),
+            'include_statistics': os.getenv('INCLUDE_STATISTICS', 'true').lower() == 'true'
+        }
+        self.processor = create_processor(processing_config)
+        
         logger.info(f"Worker initialized: {self.worker_id}")
         logger.info(f"Database: {self.db_config['host']}:{self.db_config['port']}")
         logger.info(f"API Base URL: {self.api_base_url}")
+        logger.info(f"Processing config: {processing_config}")
     
     async def get_database_connection(self):
         """إنشاء اتصال بقاعدة البيانات"""
@@ -200,106 +214,25 @@ class GeoprocessingWorker:
             logger.error(f"Error failing job: {e}")
             return False
     
-    async def download_input_files(self, job: Dict[str, Any]) -> List[str]:
-        """تحميل input files من Object Storage"""
-        downloaded_files = []
-        
+    async def download_input_files(self, job: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """تحميل input files من Object Storage باستخدام FileManager"""
         try:
-            # Get download URLs for input files
-            response = await self.http_client.get(
-                f"{self.api_base_url}/api/geo-jobs/{job['id']}/download/input"
-            )
-            
-            if response.status_code != 200:
-                raise Exception(f"Failed to get download URLs: {response.status_code}")
-            
-            data = response.json()
-            files_info = data.get('data', {}).get('files', [])
-            
-            if not files_info:
-                raise Exception("No input files found for this job")
-            
-            # Download each file
-            for file_info in files_info:
-                if 'error' in file_info:
-                    logger.error(f"Error with file {file_info['fileName']}: {file_info['error']}")
-                    continue
-                
-                # Create temporary file
-                temp_dir = tempfile.mkdtemp(prefix=f"geojob_{job['id']}_")
-                local_path = os.path.join(temp_dir, file_info['fileName'])
-                
-                # Download file
-                async with self.http_client.stream('GET', file_info['downloadUrl']) as file_response:
-                    if file_response.status_code == 200:
-                        with open(local_path, 'wb') as f:
-                            async for chunk in file_response.aiter_bytes():
-                                f.write(chunk)
-                        
-                        downloaded_files.append(local_path)
-                        logger.info(f"Downloaded: {file_info['fileName']} -> {local_path}")
-                    else:
-                        logger.error(f"Failed to download {file_info['fileName']}: {file_response.status_code}")
-            
-            return downloaded_files
-            
+            return await self.file_manager.download_job_input_files(job['id'])
         except Exception as e:
             logger.error(f"Error downloading input files: {e}")
-            # Cleanup partial downloads
-            for file_path in downloaded_files:
-                try:
-                    if os.path.exists(file_path):
-                        os.unlink(file_path)
-                        # Also remove temp directory if empty
-                        temp_dir = os.path.dirname(file_path)
-                        if os.path.exists(temp_dir) and not os.listdir(temp_dir):
-                            os.rmdir(temp_dir)
-                except:
-                    pass
             raise
     
     async def upload_output_files(self, job_id: str, output_files: List[str]) -> List[str]:
-        """رفع output files إلى Object Storage"""
-        uploaded_keys = []
-        
-        for file_path in output_files:
-            try:
-                file_name = os.path.basename(file_path)
-                file_size = os.path.getsize(file_path)
-                
-                # Determine content type
-                content_type = 'application/octet-stream'
-                if file_name.endswith('.png'):
-                    content_type = 'image/png'
-                elif file_name.endswith('.json'):
-                    content_type = 'application/json'
-                elif file_name.endswith('.pgw'):
-                    content_type = 'text/plain'
-                
-                # Get upload URL
-                # Note: We need to implement a way to get upload URL for output files
-                # For now, we'll use a direct approach with file upload
-                
-                # Generate unique key for output file
-                file_key = f"geo-jobs/{job_id}/output/{uuid.uuid4().hex}-{file_name}"
-                
-                # Read file content
-                with open(file_path, 'rb') as f:
-                    file_content = f.read()
-                
-                # Upload via multipart (this would need implementation on server side)
-                # For now, log the operation
-                logger.info(f"Would upload {file_name} as {file_key} ({file_size} bytes)")
-                uploaded_keys.append(file_key)
-                
-            except Exception as e:
-                logger.error(f"Failed to upload {file_path}: {e}")
-        
-        return uploaded_keys
+        """رفع output files إلى Object Storage باستخدام FileManager"""
+        try:
+            return await self.file_manager.upload_job_output_files(job_id, output_files)
+        except Exception as e:
+            logger.error(f"Error uploading output files: {e}")
+            return []
     
     async def process_geotiff_job(self, job: Dict[str, Any]) -> Dict[str, Any]:
         """
-        معالجة GeoTIFF job باستخدام PoC الموجود
+        معالجة GeoTIFF job باستخدام Processor المحدث
         """
         job_id = job['id']
         
@@ -307,81 +240,71 @@ class GeoprocessingWorker:
             logger.info(f"Starting GeoTIFF processing for job {job_id}")
             await self.update_job_progress(job_id, 10, "Downloading input files...")
             
-            # Download input files
-            input_files = await self.download_input_files(job)
+            # Download input files using FileManager
+            input_file_infos = await self.download_input_files(job)
             
-            if not input_files:
+            if not input_file_infos:
                 raise Exception("No input files downloaded")
             
             await self.update_job_progress(job_id, 30, "Processing GeoTIFF files...")
             
-            # Process each GeoTIFF file
-            all_output_files = []
-            processing_results = []
+            # Extract file paths for GeoTIFF files
+            geotiff_files = []
+            for file_info in input_file_infos:
+                file_path = file_info['local_path']
+                if file_path.lower().endswith(('.tif', '.tiff', '.geotiff')):
+                    geotiff_files.append(file_path)
+                else:
+                    logger.warning(f"Skipping non-GeoTIFF file: {file_info['file_name']}")
             
-            for input_file in input_files:
-                try:
-                    # Check if it's a GeoTIFF file
-                    if not input_file.lower().endswith(('.tif', '.tiff', '.geotiff')):
-                        logger.warning(f"Skipping non-GeoTIFF file: {input_file}")
-                        continue
-                    
-                    # Create output directory for this file
-                    output_dir = tempfile.mkdtemp(prefix=f"output_{job_id}_")
-                    
-                    # Process using PoC
-                    result = process_geotiff(
-                        geotiff_path=input_file,
-                        output_dir=output_dir,
-                        max_size=job.get('inputPayload', {}).get('maxSize')
-                    )
-                    
-                    # Collect output files
-                    output_files = [
-                        result['png_path'],
-                        result['world_file_path'],
-                        result['metadata_path']
-                    ]
-                    
-                    all_output_files.extend(output_files)
-                    processing_results.append({
-                        'input_file': os.path.basename(input_file),
-                        'output_files': [os.path.basename(f) for f in output_files],
-                        'metadata': result['metadata']
-                    })
-                    
-                    logger.info(f"Successfully processed: {os.path.basename(input_file)}")
-                    
-                except Exception as e:
-                    logger.error(f"Failed to process {input_file}: {e}")
-                    processing_results.append({
-                        'input_file': os.path.basename(input_file),
-                        'error': str(e)
-                    })
+            if not geotiff_files:
+                raise Exception("No GeoTIFF files found in input")
+            
+            # Create output directory
+            output_base_dir = tempfile.mkdtemp(prefix=f"output_{job_id}_")
+            
+            # Process using enhanced processor
+            job_config = job.get('inputPayload', {})
+            batch_result = self.processor.batch_process_files(
+                geotiff_files, 
+                output_base_dir, 
+                job_config
+            )
             
             await self.update_job_progress(job_id, 70, "Uploading output files...")
             
-            # Upload output files
+            # Collect all output files
+            all_output_files = []
+            for file_name, file_result in batch_result['files'].items():
+                if 'output_files' in file_result:
+                    for output_type, output_path in file_result['output_files'].items():
+                        all_output_files.append(output_path)
+            
+            # Upload output files using FileManager
             output_keys = await self.upload_output_files(job_id, all_output_files)
             
             await self.update_job_progress(job_id, 90, "Finalizing results...")
             
-            # Prepare final output payload
+            # Prepare enhanced output payload
             output_payload = {
                 'taskType': job['taskType'],
                 'processedAt': datetime.now().isoformat(),
                 'workerId': self.worker_id,
-                'results': processing_results,
+                'processingResults': batch_result,
                 'summary': {
-                    'totalInputFiles': len(input_files),
-                    'successfullyProcessed': len([r for r in processing_results if 'error' not in r]),
-                    'failed': len([r for r in processing_results if 'error' in r]),
-                    'outputFilesCount': len(all_output_files)
-                }
+                    'totalInputFiles': len(input_file_infos),
+                    'geotiffFiles': len(geotiff_files),
+                    'successfullyProcessed': batch_result['summary']['successful'],
+                    'failed': batch_result['summary']['failed'],
+                    'totalOutputFiles': batch_result['summary']['total_output_files'],
+                    'uploadedFiles': len(output_keys)
+                },
+                'inputValidation': [file_info.get('validation', {}) for file_info in input_file_infos]
             }
             
-            # Cleanup temp files
-            self.cleanup_temp_files(input_files + all_output_files)
+            # Cleanup temp files using FileManager
+            self.file_manager.cleanup_temp_files(input_file_infos)
+            self.cleanup_temp_files(all_output_files)
             
             return {
                 'output_payload': output_payload,
@@ -520,6 +443,7 @@ class GeoprocessingWorker:
         """إيقاف Worker بأمان"""
         self.running = False
         await self.http_client.aclose()
+        await self.file_manager.close()
 
 
 async def main():
