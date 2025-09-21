@@ -7258,6 +7258,375 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // =============================================
+  // GEOPROCESSING FILE MANAGEMENT
+  // =============================================
+
+  // Upload input file for geo job - POST /api/geo-jobs/:id/upload
+  app.post('/api/geo-jobs/:id/upload', globalSecurityMonitor, uploadRateLimit, authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const user = req.user!;
+      const jobId = req.params.id;
+
+      // Check if job exists and user has access
+      const job = await storage.getGeoJob(jobId);
+      if (!job) {
+        return res.status(404).json({ error: 'Geo job not found' });
+      }
+
+      // Check ownership or admin access
+      const userRoles = user.roleCodes || [];
+      const isAdmin = userRoles.includes('ADMIN');
+      const isOwner = job.ownerId === user.id;
+
+      if (!isAdmin && !isOwner) {
+        return res.status(403).json({ 
+          error: 'Access denied to upload files for this geo job',
+          code: 'OWNERSHIP_VIOLATION' 
+        });
+      }
+
+      // Only allow uploads for queued jobs
+      if (job.status !== 'queued') {
+        return res.status(400).json({ 
+          error: `Cannot upload files for job in ${job.status} status`,
+          code: 'INVALID_STATUS' 
+        });
+      }
+
+      const { fileName, fileSize, fileType } = req.body;
+
+      if (!fileName || !fileSize || !fileType) {
+        return res.status(400).json({ 
+          error: 'fileName, fileSize, and fileType are required' 
+        });
+      }
+
+      // Validate file type for geoprocessing
+      const allowedTypes = [
+        'image/tiff',
+        'application/octet-stream', // For .tif files
+        'application/x-zip-compressed',
+        'application/zip',
+        'application/json' // For GeoJSON files
+      ];
+
+      const allowedExtensions = ['.tif', '.tiff', '.geotiff', '.zip', '.geojson', '.json'];
+      const fileExtension = fileName.toLowerCase().split('.').pop();
+      const hasValidExtension = allowedExtensions.some(ext => 
+        fileName.toLowerCase().endsWith(ext)
+      );
+
+      if (!allowedTypes.includes(fileType) && !hasValidExtension) {
+        return res.status(400).json({ 
+          error: 'Invalid file type. Supported: GeoTIFF (.tif, .tiff), ZIP, GeoJSON',
+          code: 'INVALID_FILE_TYPE'
+        });
+      }
+
+      // Validate file size (max 100MB for geoprocessing files)
+      const maxFileSize = 100 * 1024 * 1024; // 100MB
+      if (fileSize > maxFileSize) {
+        return res.status(400).json({ 
+          error: 'File size exceeds maximum limit of 100MB',
+          code: 'FILE_TOO_LARGE'
+        });
+      }
+
+      try {
+        const objectStorage = new ObjectStorageService();
+        
+        // Generate unique file path in private directory
+        const fileKey = `geo-jobs/${jobId}/input/${crypto.randomUUID()}-${fileName}`;
+        
+        // Generate upload URL for private storage
+        const uploadUrl = await objectStorage.generateUploadUrl(
+          fileKey, 
+          fileType,
+          fileSize,
+          ObjectPermission.PRIVATE
+        );
+
+        // Update job with input file info
+        await storage.updateGeoJob(jobId, {
+          inputKeys: job.inputKeys ? [...job.inputKeys, fileKey] : [fileKey]
+        });
+
+        // Create job event for file upload
+        await storage.createGeoJobEvent({
+          jobId: jobId,
+          eventType: 'file_uploaded',
+          message: `Input file uploaded: ${fileName}`,
+          payload: { fileName, fileSize, fileType, fileKey }
+        });
+
+        res.json({
+          success: true,
+          data: {
+            uploadUrl,
+            fileKey,
+            expiresIn: 300 // 5 minutes
+          },
+          message: 'Upload URL generated successfully'
+        });
+
+      } catch (storageError) {
+        console.error('Object storage error:', storageError);
+        res.status(500).json({ 
+          error: 'Failed to generate upload URL',
+          code: 'STORAGE_ERROR'
+        });
+      }
+
+    } catch (error) {
+      console.error('Error handling file upload:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Get download URL for job files - GET /api/geo-jobs/:id/download/:fileType
+  app.get('/api/geo-jobs/:id/download/:fileType', globalSecurityMonitor, generalRateLimit, authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const user = req.user!;
+      const jobId = req.params.id;
+      const fileType = req.params.fileType; // 'input' or 'output'
+
+      // Check if job exists and user has access
+      const job = await storage.getGeoJob(jobId);
+      if (!job) {
+        return res.status(404).json({ error: 'Geo job not found' });
+      }
+
+      // Check ownership or admin access
+      const userRoles = user.roleCodes || [];
+      const isAdmin = userRoles.includes('ADMIN');
+      const isOwner = job.ownerId === user.id;
+
+      if (!isAdmin && !isOwner) {
+        return res.status(403).json({ 
+          error: 'Access denied to download files for this geo job',
+          code: 'OWNERSHIP_VIOLATION' 
+        });
+      }
+
+      let fileKeys: string[];
+      if (fileType === 'input') {
+        fileKeys = job.inputKeys || [];
+      } else if (fileType === 'output') {
+        fileKeys = job.outputKeys || [];
+        // Can only download output files from completed jobs
+        if (job.status !== 'completed') {
+          return res.status(400).json({ 
+            error: 'Output files only available for completed jobs',
+            code: 'JOB_NOT_COMPLETED'
+          });
+        }
+      } else {
+        return res.status(400).json({ 
+          error: 'Invalid file type. Use "input" or "output"',
+          code: 'INVALID_FILE_TYPE'
+        });
+      }
+
+      if (fileKeys.length === 0) {
+        return res.status(404).json({ 
+          error: `No ${fileType} files found for this job`,
+          code: 'NO_FILES_FOUND'
+        });
+      }
+
+      try {
+        const objectStorage = new ObjectStorageService();
+        
+        // Generate download URLs for all files
+        const downloadUrls = await Promise.all(
+          fileKeys.map(async (fileKey) => {
+            try {
+              const downloadUrl = await objectStorage.generateDownloadUrl(
+                fileKey,
+                300 // 5 minutes expiry
+              );
+              return {
+                fileKey,
+                fileName: fileKey.split('/').pop() || fileKey,
+                downloadUrl,
+                expiresIn: 300
+              };
+            } catch (error) {
+              console.error(`Failed to generate download URL for ${fileKey}:`, error);
+              return {
+                fileKey,
+                fileName: fileKey.split('/').pop() || fileKey,
+                error: 'Failed to generate download URL'
+              };
+            }
+          })
+        );
+
+        res.json({
+          success: true,
+          data: {
+            fileType,
+            files: downloadUrls
+          },
+          message: `${fileType} files download URLs generated`
+        });
+
+      } catch (storageError) {
+        console.error('Object storage error:', storageError);
+        res.status(500).json({ 
+          error: 'Failed to generate download URLs',
+          code: 'STORAGE_ERROR'
+        });
+      }
+
+    } catch (error) {
+      console.error('Error handling file download:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // List files for a geo job - GET /api/geo-jobs/:id/files
+  app.get('/api/geo-jobs/:id/files', globalSecurityMonitor, generalRateLimit, authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const user = req.user!;
+      const jobId = req.params.id;
+
+      // Check if job exists and user has access
+      const job = await storage.getGeoJob(jobId);
+      if (!job) {
+        return res.status(404).json({ error: 'Geo job not found' });
+      }
+
+      // Check ownership or admin access
+      const userRoles = user.roleCodes || [];
+      const isAdmin = userRoles.includes('ADMIN');
+      const isOwner = job.ownerId === user.id;
+
+      if (!isAdmin && !isOwner) {
+        return res.status(403).json({ 
+          error: 'Access denied to view files for this geo job',
+          code: 'OWNERSHIP_VIOLATION' 
+        });
+      }
+
+      const inputFiles = (job.inputKeys || []).map(key => ({
+        type: 'input',
+        fileKey: key,
+        fileName: key.split('/').pop() || key
+      }));
+
+      const outputFiles = (job.outputKeys || []).map(key => ({
+        type: 'output',
+        fileKey: key,
+        fileName: key.split('/').pop() || key
+      }));
+
+      res.json({
+        success: true,
+        data: {
+          files: [
+            ...inputFiles,
+            ...outputFiles
+          ],
+          summary: {
+            inputCount: inputFiles.length,
+            outputCount: outputFiles.length,
+            totalCount: inputFiles.length + outputFiles.length
+          }
+        }
+      });
+
+    } catch (error) {
+      console.error('Error listing job files:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Delete file from geo job - DELETE /api/geo-jobs/:id/files/:fileKey
+  app.delete('/api/geo-jobs/:id/files/:fileKey', globalSecurityMonitor, generalRateLimit, authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const user = req.user!;
+      const jobId = req.params.id;
+      const fileKey = decodeURIComponent(req.params.fileKey);
+
+      // Check if job exists and user has access
+      const job = await storage.getGeoJob(jobId);
+      if (!job) {
+        return res.status(404).json({ error: 'Geo job not found' });
+      }
+
+      // Check ownership or admin access
+      const userRoles = user.roleCodes || [];
+      const isAdmin = userRoles.includes('ADMIN');
+      const isOwner = job.ownerId === user.id;
+
+      if (!isAdmin && !isOwner) {
+        return res.status(403).json({ 
+          error: 'Access denied to delete files for this geo job',
+          code: 'OWNERSHIP_VIOLATION' 
+        });
+      }
+
+      // Can only delete input files from queued jobs
+      if (job.status !== 'queued') {
+        return res.status(400).json({ 
+          error: `Cannot delete files from job in ${job.status} status`,
+          code: 'INVALID_STATUS' 
+        });
+      }
+
+      // Check if file belongs to this job
+      const allFileKeys = [...(job.inputKeys || []), ...(job.outputKeys || [])];
+      if (!allFileKeys.includes(fileKey)) {
+        return res.status(404).json({ 
+          error: 'File not found in this job',
+          code: 'FILE_NOT_FOUND'
+        });
+      }
+
+      try {
+        const objectStorage = new ObjectStorageService();
+        
+        // Delete file from object storage
+        await objectStorage.deleteObject(fileKey);
+
+        // Update job to remove file key
+        const updatedInputKeys = (job.inputKeys || []).filter(key => key !== fileKey);
+        const updatedOutputKeys = (job.outputKeys || []).filter(key => key !== fileKey);
+
+        await storage.updateGeoJob(jobId, {
+          inputKeys: updatedInputKeys,
+          outputKeys: updatedOutputKeys
+        });
+
+        // Create job event for file deletion
+        await storage.createGeoJobEvent({
+          jobId: jobId,
+          eventType: 'file_deleted',
+          message: `File deleted: ${fileKey.split('/').pop()}`,
+          payload: { fileKey }
+        });
+
+        res.json({
+          success: true,
+          message: 'File deleted successfully'
+        });
+
+      } catch (storageError) {
+        console.error('Object storage error:', storageError);
+        res.status(500).json({ 
+          error: 'Failed to delete file',
+          code: 'STORAGE_ERROR'
+        });
+      }
+
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
