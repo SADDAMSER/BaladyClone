@@ -5,7 +5,7 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, sql as drizzleSql } from 'drizzle-orm';
 import { 
   governorates, 
   districts, 
@@ -410,30 +410,111 @@ async function seedSectors(subDistrictMap: Map<string, string>) {
   return createLookupMap(allSectorsAfter);
 }
 
-// Function to seed neighborhood units (وحدات الجوار) from unitsfinal.geojson
-async function seedNeighborhoodUnits(sectorMap: Map<string, string>) {
-  console.log('🌱 Seeding neighborhood units...');
+// Function to find sector for a unit using spatial relationship with 3-tier fallback strategy
+async function findSectorForUnit(unitGeometry: any): Promise<string | null> {
+  const unitGeometryJson = JSON.stringify(unitGeometry);
+  
+  try {
+    // Primary strategy: Find sector with largest intersection area
+    const primaryResult = await sql`
+      WITH unit AS (
+        SELECT ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON(${unitGeometryJson}), 4326)) AS g
+      ), cand AS (
+        SELECT s.id,
+               ST_Area(ST_Intersection(
+                 ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON((s.geometry)::text), 4326)),
+                 (SELECT g FROM unit)
+               )::geography) AS ia
+        FROM sectors s
+        WHERE ST_Intersects(
+          ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON((s.geometry)::text), 4326)),
+          (SELECT g FROM unit)
+        )
+      )
+      SELECT id FROM cand WHERE ia > 0 ORDER BY ia DESC NULLS LAST LIMIT 1;
+    `;
+    
+    if (primaryResult && primaryResult.length > 0) {
+      return primaryResult[0].id as string;
+    }
+
+    // Fallback 1: Find sector containing centroid
+    const fallback1Result = await sql`
+      WITH unit AS (
+        SELECT ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON(${unitGeometryJson}), 4326)) AS g
+      )
+      SELECT s.id 
+      FROM sectors s, (SELECT ST_Centroid((SELECT g FROM unit)) c) t
+      WHERE ST_Contains(
+        ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON((s.geometry)::text), 4326)), 
+        t.c
+      )
+      LIMIT 1;
+    `;
+    
+    if (fallback1Result && fallback1Result.length > 0) {
+      return fallback1Result[0].id as string;
+    }
+
+    // Fallback 2: Find nearest sector by distance to centroid
+    const fallback2Result = await sql`
+      WITH unit AS (
+        SELECT ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON(${unitGeometryJson}), 4326)) AS g
+      )
+      SELECT s.id 
+      FROM sectors s, (SELECT ST_Centroid((SELECT g FROM unit)) c) t
+      ORDER BY ST_Distance(
+        ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON((s.geometry)::text), 4326)), 
+        t.c
+      ) ASC 
+      LIMIT 1;
+    `;
+    
+    if (fallback2Result && fallback2Result.length > 0) {
+      return fallback2Result[0].id as string;
+    }
+
+  } catch (error) {
+    console.error('❌ Error in spatial query:', error);
+  }
+  
+  return null;
+}
+
+// Function to seed neighborhood units (وحدات الجوار) from unitsfinal.geojson using spatial relationships
+async function seedNeighborhoodUnits() {
+  console.log('🌱 Seeding neighborhood units using spatial relationships...');
   
   // Preload existing data
   const existingUnits = await db.select({ id: neighborhoodUnits.id, code: neighborhoodUnits.code }).from(neighborhoodUnits);
   const existingCodes = new Set(existingUnits.map(u => u.code).filter(Boolean));
   
-  console.log(`📊 Found ${sectorMap.size} sectors, ${existingUnits.length} existing units`);
+  const sectorsCount = await db.select({ count: drizzleSql`count(*)` }).from(sectors);
+  console.log(`📊 Found ${sectorsCount[0].count} sectors, ${existingUnits.length} existing units`);
   
   const unitsData = readGeoJSONFile('unitsfinal');
   const newUnits: InsertNeighborhoodUnit[] = [];
   let skippedCount = 0;
+  let spatialLinkageStats = {
+    primary: 0,
+    fallback1: 0,
+    fallback2: 0,
+    failed: 0
+  };
 
-  for (const feature of unitsData.features) {
+  console.log(`📖 Processing ${unitsData.features.length} neighborhood units from GeoJSON...`);
+
+  for (let i = 0; i < unitsData.features.length; i++) {
+    const feature = unitsData.features[i];
     const props = feature.properties;
+    
     // Multi-key fallbacks for unit ID
     const uniqueUnitId = getProp(props, ['unique_unit_id', 'unique_uni', 'UNIQUE_UNI']);
-    // Multi-key fallbacks for sector link - use Zone_ first as it matches sector discode
-    const citycode = getProp(props, ['Zone_', 'citycode', 'CITYCODE']);
     // Multi-key fallbacks for name
     const unitNameAr = getProp(props, ['ÇáãØÇÈÞÉ', 'رقم_وحدة_الج', 'unit_name', 'name_ar']) || `وحدة جوار ${uniqueUnitId}`;
     
-    if (!uniqueUnitId || !citycode) {
+    // Validate required data
+    if (!uniqueUnitId || !feature.geometry) {
       skippedCount++;
       continue;
     }
@@ -443,8 +524,10 @@ async function seedNeighborhoodUnits(sectorMap: Map<string, string>) {
       continue;
     }
 
-    const sectorId = sectorMap.get(citycode);
+    // Use spatial relationship to find the matching sector
+    const sectorId = await findSectorForUnit(feature.geometry);
     if (!sectorId) {
+      spatialLinkageStats.failed++;
       skippedCount++;
       continue;
     }
@@ -459,9 +542,14 @@ async function seedNeighborhoodUnits(sectorMap: Map<string, string>) {
       properties: props,
       isActive: true
     });
+
+    // Progress logging
+    if ((i + 1) % 100 === 0 || i === unitsData.features.length - 1) {
+      console.log(`🔄 Processed ${i + 1}/${unitsData.features.length} units (${newUnits.length} valid, ${skippedCount} skipped)`);
+    }
   }
 
-  // Insert in batches
+  // Insert in batches using transactions for reliability
   let insertedCount = 0;
   const batches = chunk(newUnits, BATCH_SIZE);
   
@@ -472,14 +560,15 @@ async function seedNeighborhoodUnits(sectorMap: Map<string, string>) {
       insertedCount += batch.length;
       
       if (insertedCount % PROGRESS_INTERVAL === 0 || i === batches.length - 1) {
-        console.log(`✅ Processed ${insertedCount}/${newUnits.length} neighborhood units`);
+        console.log(`✅ Inserted ${insertedCount}/${newUnits.length} neighborhood units`);
       }
     } catch (error) {
-      console.error(`❌ Error inserting batch ${i}:`, error);
+      console.error(`❌ Error inserting batch ${i + 1}/${batches.length}:`, error);
     }
   }
 
   console.log(`🎯 Neighborhood units summary: ${insertedCount} inserted, ${skippedCount} skipped`);
+  console.log(`📊 Spatial linkage statistics:`, spatialLinkageStats);
   
   // Create lookup map for the newly inserted neighborhood units
   const allUnitsAfter = await db.select({ id: neighborhoodUnits.id, code: neighborhoodUnits.code }).from(neighborhoodUnits);
@@ -626,7 +715,7 @@ Examples:
       await seedDistricts();
       const subDistrictMap = await seedSubDistricts();
       const sectorMap = await seedSectors(subDistrictMap);
-      const unitMap = await seedNeighborhoodUnits(sectorMap);
+      const unitMap = await seedNeighborhoodUnits();
       await seedBlocks(unitMap);
     } else if (entity === 'governorates') {
       await seedGovernorates();
@@ -640,10 +729,7 @@ Examples:
       const subDistrictMap = createLookupMap(allSubDistricts);
       await seedSectors(subDistrictMap);
     } else if (entity === 'units') {
-      // Need sector map for units
-      const allSectors = await db.select({ id: sectors.id, code: sectors.code }).from(sectors);
-      const sectorMap = createLookupMap(allSectors);
-      await seedNeighborhoodUnits(sectorMap);
+      await seedNeighborhoodUnits();
     } else if (entity === 'blocks') {
       // Need unit map for blocks
       const allUnits = await db.select({ id: neighborhoodUnits.id, code: neighborhoodUnits.code }).from(neighborhoodUnits);
