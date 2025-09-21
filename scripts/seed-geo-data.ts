@@ -326,7 +326,22 @@ async function seedSectors(subDistrictMap: Map<string, string>) {
   const existingSectors = await db.select({ id: sectors.id, code: sectors.code }).from(sectors);
   const existingCodes = new Set(existingSectors.map(s => s.code).filter(Boolean));
   
-  console.log(`📊 Found ${subDistrictMap.size} sub-districts, ${existingSectors.length} existing sectors`);
+  // Build enhanced sub-district lookup map by azalcode from properties
+  const allSubDistricts = await db.select({ 
+    id: subDistricts.id, 
+    code: subDistricts.code, 
+    properties: subDistricts.properties 
+  }).from(subDistricts);
+  
+  const azalcodeToIdMap = new Map<string, string>();
+  for (const sd of allSubDistricts) {
+    const azalcode = (sd.properties as any)?.azalcode;
+    if (azalcode) {
+      azalcodeToIdMap.set(String(azalcode), sd.id);
+    }
+  }
+  
+  console.log(`📊 Found ${azalcodeToIdMap.size} sub-districts with azalcode, ${existingSectors.length} existing sectors`);
   
   const sectorsData = readGeoJSONFile('sctorfinal');
   const newSectors: InsertSector[] = [];
@@ -335,33 +350,34 @@ async function seedSectors(subDistrictMap: Map<string, string>) {
   for (const feature of sectorsData.features) {
     const props = feature.properties;
     // Multi-key fallbacks for sector code
-    const citycode = getProp(props, ['citycode', 'CITYCODE', 'Zone_']);
-    // Multi-key fallbacks for sub-district link
-    const azalcode = getProp(props, ['azalcode', 'AZALCODE', 'admin3Pcod', 'admin3pcod']);
+    const discode = getProp(props, ['discode', 'DISCODE', 'Zone_', 'TARGET_FID']) || getProp(props, ['citycode', 'CITYCODE']);
+    // Multi-key fallbacks for sub-district link via azalcode
+    const azalcode = getProp(props, ['azalcode', 'AZALCODE']);
     // Multi-key fallbacks for name
-    const admin2Name = getProp(props, ['admin2name', 'admin2na_1', 'Zone_', 'NAME']) || `قطاع ${citycode}`;
+    const sectorName = getProp(props, ['admin3Name', 'admin2name', 'admin2na_1']) || `قطاع ${discode}`;
     
-    if (!citycode || !azalcode) {
+    if (!discode || !azalcode) {
       skippedCount++;
       continue;
     }
 
-    if (existingCodes.has(citycode)) {
+    if (existingCodes.has(String(discode))) {
       skippedCount++;
       continue;
     }
 
-    const subDistrictId = subDistrictMap.get(azalcode);
+    // Look up sub-district by azalcode from properties
+    const subDistrictId = azalcodeToIdMap.get(String(azalcode));
     if (!subDistrictId) {
       skippedCount++;
       continue;
     }
 
     newSectors.push({
-      code: citycode,
-      nameAr: admin2Name || `قطاع ${citycode}`,
-      nameEn: props.admin2name || `Sector ${citycode}`,
-      subDistrictId: subDistrictId, // مرتبط بالعزلة الآن
+      code: String(discode),
+      nameAr: sectorName || `قطاع ${discode}`,
+      nameEn: props.admin3Name || props.admin2name || `Sector ${discode}`,
+      subDistrictId: subDistrictId, // مرتبط بالعزلة عبر azalcode
       sectorType: 'planning',
       geometry: feature.geometry,
       properties: props,
