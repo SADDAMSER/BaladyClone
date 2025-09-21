@@ -1,0 +1,103 @@
+مقترح خطة تنفيذية: المرحلة الأولى - هيكل الخدمة الأساسي وإدارة المهام
+الهدف الرئيسي: بناء الهيكل الأساسي لـ "محرك المعالجة الجغرافية" وتفعيل آلية إدارة المهام عبر قاعدة البيانات، مما يمهد الطريق للتكامل الكامل في المراحل اللاحقة.
+المخرجات النهائية لهذه المرحلة:
+تطبيق التغييرات على مخطط قاعدة البيانات ليشمل جدول geo_jobs.
+تطبيق FastAPI أساسي مع نقاط نهاية لإدارة المهام.
+"عامل" (Worker) بسيط قادر على التعرف على المهام الجديدة وتحديث حالتها (بدون تنفيذ منطق المعالجة الفعلي بعد).
+الجزء الأول: تحديث قاعدة البيانات (Database Schema)
+المهمة: إضافة جدول geo_jobs إلى مخطط قاعدة البيانات ليكون بمثابة "لوحة التحكم" المركزية لجميع المهام الجغرافية.
+خطوات التنفيذ:
+تعديل ملف shared/schema.ts:
+افتح الملف وأضف الكود التالي لتعريف الجدول الجديد ونوع الحالة (Enum). يفضل إضافته بعد تعريف الجداول الأخرى وقبل تصدير الأنواع (Types).
+TypeScript
+// ... (بعد تعريف الجداول الأخرى)
+
+export const geoJobStatus = pgEnum('geo_job_status', [
+  'queued', 
+  'running', 
+  'completed', 
+  'failed'
+]);
+
+export const geoJobs = pgTable('geo_jobs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  
+  // الربط بوحدة الجوار
+  neighborhoodUnitId: uuid('neighborhood_unit_id')
+    .notNull()
+    .references(() => neighborhoodUnits.id, { onDelete: 'cascade' }),
+
+  taskType: text('task_type').notNull(), // e.g., 'GEOTIFF_PROCESSING'
+  status: geoJobStatus('status').notNull().default('queued'),
+  
+  inputPayload: jsonb('input_payload').notNull(), // لتخزين رابط ملف الإدخال والخيارات
+  outputPayload: jsonb('output_payload'), // لتخزين روابط ملفات الإخراج
+  
+  progress: integer('progress').default(0),
+  message: text('message'),
+  
+  errorDetails: text('error_details'), // لتخزين تفاصيل الأخطاء
+  
+  ownerId: uuid('owner_id').references(() => users.id, { onDelete: 'set null' }),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  startedAt: timestamp('started_at'),
+  completedAt: timestamp('completed_at'),
+});
+
+export type GeoJob = typeof geoJobs.$inferSelect;
+export type InsertGeoJob = typeof geoJobs.$inferInsert;
+تطبيق التغييرات على قاعدة البيانات:
+بعد حفظ التعديلات على schema.ts، قم بتشغيل الأمر التالي في الطرفية (Terminal) لمزامنة التغييرات مع قاعدة البيانات:
+Bash
+npm run db:push
+التحقق من النجاح:
+تأكد من أن الأمر تم بنجاح دون أخطاء.
+افتح pgAdmin وتحقق من وجود جدول جديد باسم geo_jobs في قاعدة بياناتك، وتأكد من أنه يحتوي على جميع الحقول المذكورة أعلاه.
+الجزء الثاني: بناء الواجهة البرمجية الأساسية (API Skeleton)
+المهمة: إنشاء تطبيق FastAPI مع نقاط النهاية الأساسية لإدارة المهام، بناءً على ما تم إنجازه في إثبات المفهوم (PoC).
+خطوات التنفيذ:
+إنشاء هيكل المشروع:
+قم بإنشاء مجلد جديد للمشروع باسم geoprocessing-service.
+انسخ محتويات مشروع إثبات المفهوم (geotiff-processor-poc) إلى هذا المجلد الجديد.
+أنشئ مجلدًا جديدًا باسم api داخل geoprocessing-service.
+إنشاء ملفات الـ API:
+api/app.py: أنشئ هذا الملف ليكون نقطة الدخول للتطبيق.
+Python
+from fastapi import FastAPI
+
+app = FastAPI(title="Geoprocessing Service")
+
+@app.get("/health", tags=["System"])
+def health_check():
+    return {"status": "healthy"}
+
+# سيتم إضافة نقاط النهاية الأخرى هنا لاحقًا
+api/models.py: أنشئ هذا الملف لتعريف نماذج البيانات باستخدام Pydantic.
+Python
+from pydantic import BaseModel, HttpUrl
+from typing import List, Optional
+from uuid import UUID
+
+class JobSubmissionRequest(BaseModel):
+    neighborhoodUnitId: UUID
+    fileUrl: HttpUrl
+    taskType: str = "GEOTIFF_PROCESSING"
+
+class JobSubmissionResponse(BaseModel):
+    success: bool = True
+    message: str = "Job submitted successfully"
+    taskId: UUID
+تحديث requirements.txt:
+أضف المكتبات اللازمة لـ FastAPI:
+Plain Text
+# ... (المكتبات الموجودة من الـ PoC)
+fastapi>=0.100.0
+uvicorn[standard]>=0.22.0
+pydantic>=2.0.0
+التشغيل والتحقق:
+ثبت المكتبات الجديدة: pip install -r requirements.txt.
+شغل الخدمة: uvicorn api.app:app --reload --port 8001.
+افتح المتصفح على http://localhost:8001/health. يجب أن ترى {"status": "healthy"}.
+هذه الخطة التفصيلية للمرحلة الأولى تضع الأساس لكل ما هو قادم. إنها قابلة للتنفيذ بشكل مباشر وتنتج مخرجات ملموسة يمكن التحقق منها.
+هل هذا المقترح للمرحلة الأولى واضح وشامل بما فيه الكفاية؟
