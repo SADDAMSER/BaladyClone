@@ -45,7 +45,7 @@ const sql = postgres(connectionString);
 const db = drizzle(sql);
 
 // Configuration
-const BATCH_SIZE = 500;
+const BATCH_SIZE = 1500;
 const PROGRESS_INTERVAL = 100;
 
 // Types for GeoJSON features
@@ -254,20 +254,23 @@ async function populateBlocksStage() {
       }
 
       if (insertData.length > 0) {
-        // Insert into staging table with PostGIS geometry conversion
-        for (const item of insertData) {
-          await sql`
-            INSERT INTO blocks_stage (source_id, unit_hint, block_type, properties, geometry, geom)
-            VALUES (
-              ${item.source_id},
-              ${item.unit_hint},
-              ${item.block_type},
-              ${item.properties}::JSONB,
-              ${item.geometry}::JSONB,
-              ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON(${item.geometry}), 4326))
-            )
-          `;
-        }
+        // Bulk insert with PostGIS geometry conversion
+        const values = insertData.map((item, index) => 
+          `($${index * 5 + 1}, $${index * 5 + 2}, $${index * 5 + 3}, $${index * 5 + 4}::JSONB, $${index * 5 + 5}::JSONB, ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON($${index * 5 + 5}), 4326)))`
+        ).join(', ');
+        
+        const queryParams = insertData.flatMap(item => [
+          item.source_id,
+          item.unit_hint,
+          item.block_type,
+          item.properties,
+          item.geometry
+        ]);
+        
+        await sql.unsafe(`
+          INSERT INTO blocks_stage (source_id, unit_hint, block_type, properties, geometry, geom)
+          VALUES ${values}
+        `, queryParams);
 
         processedCount += insertData.length;
         
