@@ -428,8 +428,8 @@ async function seedNeighborhoodUnits(sectorMap: Map<string, string>) {
     const props = feature.properties;
     // Multi-key fallbacks for unit ID
     const uniqueUnitId = getProp(props, ['unique_unit_id', 'unique_uni', 'UNIQUE_UNI']);
-    // Multi-key fallbacks for sector link
-    const citycode = getProp(props, ['citycode', 'CITYCODE', 'Zone_']);
+    // Multi-key fallbacks for sector link - use Zone_ first as it matches sector discode
+    const citycode = getProp(props, ['Zone_', 'citycode', 'CITYCODE']);
     // Multi-key fallbacks for name
     const unitNameAr = getProp(props, ['ÇáãØÇÈÞÉ', 'رقم_وحدة_الج', 'unit_name', 'name_ar']) || `وحدة جوار ${uniqueUnitId}`;
     
