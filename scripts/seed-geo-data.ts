@@ -410,8 +410,37 @@ async function seedSectors(subDistrictMap: Map<string, string>) {
   return createLookupMap(allSectorsAfter);
 }
 
+// Function to validate geometry data before spatial operations
+async function validateGeometry(geometry: any, unitId: string): Promise<{ isValid: boolean; reason?: string }> {
+  if (!geometry) {
+    return { isValid: false, reason: 'Missing geometry' };
+  }
+  
+  if (!geometry.type || !geometry.coordinates) {
+    return { isValid: false, reason: 'Invalid GeoJSON structure' };
+  }
+  
+  try {
+    const geometryJson = JSON.stringify(geometry);
+    const validationResult = await sql`
+      SELECT ST_IsValid(ST_GeomFromGeoJSON(${geometryJson})) as is_valid,
+             ST_IsValidReason(ST_GeomFromGeoJSON(${geometryJson})) as reason
+    `;
+    
+    if (validationResult && validationResult.length > 0) {
+      const isValid = validationResult[0].is_valid;
+      const reason = validationResult[0].reason;
+      return { isValid, reason: isValid ? undefined : reason };
+    }
+  } catch (error) {
+    return { isValid: false, reason: `Validation query failed: ${error}` };
+  }
+  
+  return { isValid: false, reason: 'Unknown validation error' };
+}
+
 // Function to find sector for a unit using spatial relationship with 3-tier fallback strategy
-async function findSectorForUnit(unitGeometry: any): Promise<string | null> {
+async function findSectorForUnit(unitGeometry: any, unitId: string, spatialStats: any): Promise<string | null> {
   const unitGeometryJson = JSON.stringify(unitGeometry);
   
   try {
@@ -435,6 +464,7 @@ async function findSectorForUnit(unitGeometry: any): Promise<string | null> {
     `;
     
     if (primaryResult && primaryResult.length > 0) {
+      spatialStats.primary++;
       return primaryResult[0].id as string;
     }
 
@@ -453,6 +483,8 @@ async function findSectorForUnit(unitGeometry: any): Promise<string | null> {
     `;
     
     if (fallback1Result && fallback1Result.length > 0) {
+      spatialStats.fallback1++;
+      console.log(`🔄 Unit ${unitId}: Used centroid containment fallback`);
       return fallback1Result[0].id as string;
     }
 
@@ -471,11 +503,18 @@ async function findSectorForUnit(unitGeometry: any): Promise<string | null> {
     `;
     
     if (fallback2Result && fallback2Result.length > 0) {
+      spatialStats.fallback2++;
+      console.log(`🔄 Unit ${unitId}: Used nearest distance fallback`);
       return fallback2Result[0].id as string;
     }
 
+    // All fallbacks failed
+    spatialStats.failed++;
+    console.error(`❌ Unit ${unitId}: All spatial strategies failed`);
+
   } catch (error) {
-    console.error('❌ Error in spatial query:', error);
+    spatialStats.errors++;
+    console.error(`❌ Unit ${unitId}: Spatial query error:`, error);
   }
   
   return null;
@@ -499,7 +538,10 @@ async function seedNeighborhoodUnits() {
     primary: 0,
     fallback1: 0,
     fallback2: 0,
-    failed: 0
+    failed: 0,
+    errors: 0,
+    invalidGeometry: 0,
+    repaired: 0
   };
 
   console.log(`📖 Processing ${unitsData.features.length} neighborhood units from GeoJSON...`);
@@ -524,10 +566,18 @@ async function seedNeighborhoodUnits() {
       continue;
     }
 
+    // Validate geometry before spatial operations
+    const geometryValidation = await validateGeometry(feature.geometry, uniqueUnitId);
+    if (!geometryValidation.isValid) {
+      console.warn(`⚠️ Unit ${uniqueUnitId}: Invalid geometry - ${geometryValidation.reason}`);
+      spatialLinkageStats.invalidGeometry++;
+      skippedCount++;
+      continue;
+    }
+
     // Use spatial relationship to find the matching sector
-    const sectorId = await findSectorForUnit(feature.geometry);
+    const sectorId = await findSectorForUnit(feature.geometry, uniqueUnitId, spatialLinkageStats);
     if (!sectorId) {
-      spatialLinkageStats.failed++;
       skippedCount++;
       continue;
     }
