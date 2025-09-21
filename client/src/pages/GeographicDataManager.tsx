@@ -106,7 +106,7 @@ interface Sector {
   code?: string;
   nameAr: string;
   nameEn?: string;
-  governorateId: string;
+  subDistrictId: string;
   sectorType?: string;
   geometry?: any;
   properties?: any;
@@ -1161,7 +1161,7 @@ export default function GeographicDataManager() {
                     )}
 
                     {/* Sector Filter */}
-                    {mapSelectedDistrictId && (
+                    {mapSelectedSubDistrictId && (
                       <div>
                         <Label className="text-sm font-medium">اختيار القطاع</Label>
                         <Select 
