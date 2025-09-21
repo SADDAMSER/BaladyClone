@@ -354,7 +354,7 @@ async function seedSectors(subDistrictMap: Map<string, string>) {
     // Multi-key fallbacks for sub-district link via azalcode
     const azalcode = getProp(props, ['azalcode', 'AZALCODE']);
     // Multi-key fallbacks for name
-    const sectorName = getProp(props, ['admin3Name', 'admin2name', 'admin2na_1']) || `قطاع ${discode}`;
+    const sectorName = getProp(props, ['Zone_', 'admin3Name', 'admin2name', 'admin2na_1']) || `قطاع ${discode}`;
     
     if (!discode || !azalcode) {
       skippedCount++;
