@@ -131,9 +131,12 @@ async function setupStagingTables() {
     await sql`CREATE EXTENSION IF NOT EXISTS postgis;`;
     console.log('✅ PostGIS extension enabled');
 
+    // Drop existing tables first
+    await sql`DROP TABLE IF EXISTS blocks_stage CASCADE;`;
+    await sql`DROP TABLE IF EXISTS neighborhood_units_geom CASCADE;`;
+
     // Create blocks_stage table with proper geometry column
     await sql`
-      DROP TABLE IF EXISTS blocks_stage CASCADE;
       CREATE TABLE blocks_stage (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         source_id TEXT NOT NULL,
@@ -155,7 +158,6 @@ async function setupStagingTables() {
 
     // Create neighborhood_units_geom table  
     await sql`
-      DROP TABLE IF EXISTS neighborhood_units_geom CASCADE;
       CREATE TABLE neighborhood_units_geom (
         id UUID PRIMARY KEY,
         code TEXT,
@@ -199,7 +201,7 @@ async function populateNeighborhoodUnitsGeom() {
         ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON(geometry::text), 4326)) as geom
       FROM neighborhood_units
       WHERE geometry IS NOT NULL
-        AND isActive = true;
+        AND is_active = true;
     `;
 
     console.log(`✅ Populated ${result.count} neighborhood units with spatial geometry`);
