@@ -2196,9 +2196,9 @@ export class DatabaseStorage implements IStorage {
   async updateHarat(id: string, updates: Partial<InsertHarat>): Promise<Harat> { throw new Error("Not implemented yet"); }
   async deleteHarat(id: string): Promise<void> { throw new Error("Not implemented yet"); }
   
-  async getSectors(governorateId?: string): Promise<Sector[]> { 
-    if (governorateId) {
-      return await db.select().from(sectors).where(eq(sectors.governorateId, sql<string>`${governorateId}::uuid`));
+  async getSectors(subDistrictId?: string): Promise<Sector[]> { 
+    if (subDistrictId) {
+      return await db.select().from(sectors).where(eq(sectors.subDistrictId, sql<string>`${subDistrictId}::uuid`));
     }
     return await db.select().from(sectors);
   }
@@ -2219,17 +2219,8 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(sectors).where(eq(sectors.governorateId, district.governorateId));
   }
   async getSectorsBySubDistrictId(subDistrictId: string): Promise<Sector[]> {
-    // Get the sub-district and its district to find the governorate
-    const [subDistrict] = await db.select().from(subDistricts).where(eq(subDistricts.id, sql<string>`${subDistrictId}::uuid`));
-    if (!subDistrict) {
-      return [];
-    }
-    const [district] = await db.select().from(districts).where(eq(districts.id, subDistrict.districtId));
-    if (!district) {
-      return [];
-    }
-    // Return all sectors in the same governorate
-    return await db.select().from(sectors).where(eq(sectors.governorateId, district.governorateId));
+    // Return sectors that belong to the specific sub-district
+    return await db.select().from(sectors).where(eq(sectors.subDistrictId, sql<string>`${subDistrictId}::uuid`));
   }
   async createSector(sector: InsertSector): Promise<Sector> { throw new Error("Not implemented yet"); }
   async updateSector(id: string, updates: Partial<InsertSector>): Promise<Sector> { throw new Error("Not implemented yet"); }
