@@ -1565,8 +1565,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Sectors endpoints (Geographic data - public access for read operations)
   app.get("/api/sectors", async (req, res) => {
     try {
-      const { governorateId } = req.query;
-      const sectors = await storage.getSectors(governorateId as string);
+      const { governorateId, subDistrictId } = req.query;
+      
+      let sectors;
+      if (subDistrictId) {
+        // Filter by sub-district if subDistrictId is provided
+        sectors = await storage.getSectorsBySubDistrictId(subDistrictId as string);
+      } else {
+        // Default behavior - filter by governorate or get all
+        sectors = await storage.getSectors(governorateId as string);
+      }
+      
       res.json(sectors);
     } catch (error) {
       res.status(500).json({ message: "Internal server error" });
