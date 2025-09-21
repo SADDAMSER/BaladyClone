@@ -17,6 +17,8 @@ import {
   // Mobile Survey System - Phase 4
   mobileDeviceRegistrations, mobileSurveySessions, mobileSurveyPoints,
   mobileSurveyGeometries, mobileFieldVisits, mobileSurveyAttachments, mobileSyncCursors,
+  // Geoprocessing Queue System - Phase 1
+  geoJobs, geoJobEvents,
   type User, type InsertUser, type Department, type InsertDepartment,
   type Position, type InsertPosition, type LawRegulation, type InsertLawRegulation,
   type LawSection, type InsertLawSection, type LawArticle, type InsertLawArticle,
@@ -70,7 +72,10 @@ import {
   type MobileSurveyGeometry, type InsertMobileSurveyGeometry,
   type MobileFieldVisit, type InsertMobileFieldVisit,
   type MobileSurveyAttachment, type InsertMobileSurveyAttachment,
-  type MobileSyncCursor, type InsertMobileSyncCursor
+  type MobileSyncCursor, type InsertMobileSyncCursor,
+  // Geoprocessing Queue System types - Phase 1
+  type GeoJob, type InsertGeoJob,
+  type GeoJobEvent, type InsertGeoJobEvent
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, like, ilike, and, or, desc, asc, sql, count, inArray } from "drizzle-orm";
@@ -1135,6 +1140,54 @@ export interface IStorage {
     allowedOperations: ('read' | 'create' | 'update' | 'delete')[];
     reason?: string;
   }>;
+
+  // =============================================
+  // GEOPROCESSING QUEUE SYSTEM - Phase 1
+  // =============================================
+
+  // Geo Jobs management
+  getGeoJobs(filters?: {
+    status?: string;
+    taskType?: string;
+    ownerId?: string;
+    targetType?: string;
+    targetId?: string;
+    neighborhoodUnitId?: string;
+    priority?: number;
+  }): Promise<GeoJob[]>;
+  getGeoJob(id: string): Promise<GeoJob | undefined>;
+  getGeoJobByIdempotencyKey(key: string): Promise<GeoJob | undefined>;
+  createGeoJob(job: InsertGeoJob): Promise<GeoJob>;
+  updateGeoJob(id: string, updates: Partial<InsertGeoJob>): Promise<GeoJob>;
+  deleteGeoJob(id: string): Promise<void>;
+
+  // Queue operations for Python Worker
+  claimNextGeoJob(workerId: string): Promise<GeoJob | undefined>;
+  updateGeoJobProgress(id: string, progress: number, message?: string): Promise<GeoJob>;
+  updateGeoJobHeartbeat(id: string, workerId: string): Promise<GeoJob>;
+  completeGeoJob(id: string, outputPayload: any, outputKeys: string[]): Promise<GeoJob>;
+  failGeoJob(id: string, error: any): Promise<GeoJob>;
+  cancelGeoJob(id: string, reason?: string): Promise<GeoJob>;
+  
+  // Geo Job Events management
+  getGeoJobEvents(filters?: {
+    jobId?: string;
+    eventType?: string;
+    workerId?: string;
+    fromDate?: Date;
+    toDate?: Date;
+  }): Promise<GeoJobEvent[]>;
+  createGeoJobEvent(event: InsertGeoJobEvent): Promise<GeoJobEvent>;
+
+  // Queue monitoring and analytics
+  getGeoJobQueueStats(): Promise<{
+    queued: number;
+    running: number;
+    completed: number;
+    failed: number;
+    avgProcessingTimeMs: number;
+  }>;
+  getWorkerPerformanceStats(workerId?: string): Promise<any[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -7773,6 +7826,446 @@ export class DatabaseStorage implements IStorage {
       return result;
     } catch (error) {
       console.error('Failed to get session attachments:', error);
+      return [];
+    }
+  }
+
+  // =============================================
+  // GEOPROCESSING QUEUE SYSTEM IMPLEMENTATION
+  // =============================================
+
+  // Geo Jobs management
+  async getGeoJobs(filters?: {
+    status?: string;
+    taskType?: string;
+    ownerId?: string;
+    targetType?: string;
+    targetId?: string;
+    neighborhoodUnitId?: string;
+    priority?: number;
+  }): Promise<GeoJob[]> {
+    try {
+      let query = db.select().from(geoJobs);
+      const conditions = [];
+
+      if (filters?.status) {
+        conditions.push(eq(geoJobs.status, filters.status as any));
+      }
+      if (filters?.taskType) {
+        conditions.push(eq(geoJobs.taskType, filters.taskType));
+      }
+      if (filters?.ownerId) {
+        conditions.push(eq(geoJobs.ownerId, filters.ownerId));
+      }
+      if (filters?.targetType) {
+        conditions.push(eq(geoJobs.targetType, filters.targetType as any));
+      }
+      if (filters?.targetId) {
+        conditions.push(eq(geoJobs.targetId, filters.targetId));
+      }
+      if (filters?.neighborhoodUnitId) {
+        conditions.push(eq(geoJobs.neighborhoodUnitId, filters.neighborhoodUnitId));
+      }
+      if (filters?.priority) {
+        conditions.push(eq(geoJobs.priority, filters.priority));
+      }
+
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+
+      return await query.orderBy(asc(geoJobs.priority), asc(geoJobs.createdAt));
+    } catch (error) {
+      console.error('Failed to get geo jobs:', error);
+      return [];
+    }
+  }
+
+  async getGeoJob(id: string): Promise<GeoJob | undefined> {
+    try {
+      const [job] = await db.select().from(geoJobs).where(eq(geoJobs.id, id));
+      return job || undefined;
+    } catch (error) {
+      console.error('Failed to get geo job:', error);
+      return undefined;
+    }
+  }
+
+  async getGeoJobByIdempotencyKey(key: string): Promise<GeoJob | undefined> {
+    try {
+      const [job] = await db.select().from(geoJobs).where(eq(geoJobs.idempotencyKey, key));
+      return job || undefined;
+    } catch (error) {
+      console.error('Failed to get geo job by idempotency key:', error);
+      return undefined;
+    }
+  }
+
+  async createGeoJob(job: InsertGeoJob): Promise<GeoJob> {
+    try {
+      const [newJob] = await db.insert(geoJobs).values(job).returning();
+      
+      // Create initial job event
+      await this.createGeoJobEvent({
+        jobId: newJob.id,
+        eventType: 'status_change',
+        fromStatus: null,
+        toStatus: newJob.status,
+        message: 'Job created successfully'
+      });
+
+      return newJob;
+    } catch (error) {
+      console.error('Failed to create geo job:', error);
+      throw error;
+    }
+  }
+
+  async updateGeoJob(id: string, updates: Partial<InsertGeoJob>): Promise<GeoJob> {
+    try {
+      const [updatedJob] = await db.update(geoJobs)
+        .set(updates)
+        .where(eq(geoJobs.id, id))
+        .returning();
+
+      if (!updatedJob) {
+        throw new Error('Geo job not found');
+      }
+
+      return updatedJob;
+    } catch (error) {
+      console.error('Failed to update geo job:', error);
+      throw error;
+    }
+  }
+
+  async deleteGeoJob(id: string): Promise<void> {
+    try {
+      await db.delete(geoJobs).where(eq(geoJobs.id, id));
+    } catch (error) {
+      console.error('Failed to delete geo job:', error);
+      throw error;
+    }
+  }
+
+  // CRITICAL: Job claiming with SKIP LOCKED for worker polling
+  async claimNextGeoJob(workerId: string): Promise<GeoJob | undefined> {
+    try {
+      // Use raw SQL for FOR UPDATE SKIP LOCKED
+      const result = await db.execute(sql`
+        UPDATE geo_jobs 
+        SET 
+          status = 'running',
+          locked_by = ${workerId},
+          locked_at = NOW(),
+          heartbeat_at = NOW(),
+          started_at = NOW()
+        WHERE id = (
+          SELECT id FROM geo_jobs 
+          WHERE status = 'queued' 
+          AND (scheduled_at IS NULL OR scheduled_at <= NOW())
+          ORDER BY priority ASC, created_at ASC
+          FOR UPDATE SKIP LOCKED
+          LIMIT 1
+        )
+        RETURNING *;
+      `);
+
+      if (result.rows.length === 0) {
+        return undefined;
+      }
+
+      const claimedJob = result.rows[0] as any;
+
+      // Create job event for worker assignment
+      await this.createGeoJobEvent({
+        jobId: claimedJob.id,
+        eventType: 'worker_assigned',
+        fromStatus: 'queued',
+        toStatus: 'running',
+        message: `Job claimed by worker ${workerId}`,
+        workerId
+      });
+
+      return claimedJob;
+    } catch (error) {
+      console.error('Failed to claim next geo job:', error);
+      return undefined;
+    }
+  }
+
+  async updateGeoJobProgress(id: string, progress: number, message?: string): Promise<GeoJob> {
+    try {
+      const [updatedJob] = await db.update(geoJobs)
+        .set({ 
+          progress, 
+          message,
+          heartbeatAt: new Date()
+        })
+        .where(eq(geoJobs.id, id))
+        .returning();
+
+      if (!updatedJob) {
+        throw new Error('Geo job not found');
+      }
+
+      // Create progress event
+      await this.createGeoJobEvent({
+        jobId: id,
+        eventType: 'progress_update',
+        toStatus: updatedJob.status,
+        message: message || `Progress updated to ${progress}%`,
+        workerId: updatedJob.lockedBy
+      });
+
+      return updatedJob;
+    } catch (error) {
+      console.error('Failed to update geo job progress:', error);
+      throw error;
+    }
+  }
+
+  async updateGeoJobHeartbeat(id: string, workerId: string): Promise<GeoJob> {
+    try {
+      const [updatedJob] = await db.update(geoJobs)
+        .set({ heartbeatAt: new Date() })
+        .where(and(eq(geoJobs.id, id), eq(geoJobs.lockedBy, workerId)))
+        .returning();
+
+      if (!updatedJob) {
+        throw new Error('Geo job not found or not owned by worker');
+      }
+
+      return updatedJob;
+    } catch (error) {
+      console.error('Failed to update geo job heartbeat:', error);
+      throw error;
+    }
+  }
+
+  async completeGeoJob(id: string, outputPayload: any, outputKeys: string[]): Promise<GeoJob> {
+    try {
+      const [completedJob] = await db.update(geoJobs)
+        .set({
+          status: 'completed',
+          progress: 100,
+          outputPayload,
+          outputKeys,
+          completedAt: new Date(),
+          lockedBy: null,
+          lockedAt: null
+        })
+        .where(eq(geoJobs.id, id))
+        .returning();
+
+      if (!completedJob) {
+        throw new Error('Geo job not found');
+      }
+
+      // Create completion event
+      await this.createGeoJobEvent({
+        jobId: id,
+        eventType: 'status_change',
+        fromStatus: 'running',
+        toStatus: 'completed',
+        message: 'Job completed successfully',
+        workerId: completedJob.lockedBy
+      });
+
+      return completedJob;
+    } catch (error) {
+      console.error('Failed to complete geo job:', error);
+      throw error;
+    }
+  }
+
+  async failGeoJob(id: string, error: any): Promise<GeoJob> {
+    try {
+      const [failedJob] = await db.update(geoJobs)
+        .set({
+          status: 'failed',
+          error,
+          completedAt: new Date(),
+          lockedBy: null,
+          lockedAt: null
+        })
+        .where(eq(geoJobs.id, id))
+        .returning();
+
+      if (!failedJob) {
+        throw new Error('Geo job not found');
+      }
+
+      // Create failure event
+      await this.createGeoJobEvent({
+        jobId: id,
+        eventType: 'error',
+        fromStatus: 'running',
+        toStatus: 'failed',
+        message: 'Job failed with error',
+        payload: { error },
+        workerId: failedJob.lockedBy
+      });
+
+      return failedJob;
+    } catch (error) {
+      console.error('Failed to fail geo job:', error);
+      throw error;
+    }
+  }
+
+  async cancelGeoJob(id: string, reason?: string): Promise<GeoJob> {
+    try {
+      const [cancelledJob] = await db.update(geoJobs)
+        .set({
+          status: 'cancelled',
+          message: reason || 'Job cancelled',
+          completedAt: new Date(),
+          lockedBy: null,
+          lockedAt: null
+        })
+        .where(eq(geoJobs.id, id))
+        .returning();
+
+      if (!cancelledJob) {
+        throw new Error('Geo job not found');
+      }
+
+      // Create cancellation event
+      await this.createGeoJobEvent({
+        jobId: id,
+        eventType: 'status_change',
+        fromStatus: cancelledJob.status,
+        toStatus: 'cancelled',
+        message: reason || 'Job cancelled',
+        workerId: cancelledJob.lockedBy
+      });
+
+      return cancelledJob;
+    } catch (error) {
+      console.error('Failed to cancel geo job:', error);
+      throw error;
+    }
+  }
+
+  // Geo Job Events management
+  async getGeoJobEvents(filters?: {
+    jobId?: string;
+    eventType?: string;
+    workerId?: string;
+    fromDate?: Date;
+    toDate?: Date;
+  }): Promise<GeoJobEvent[]> {
+    try {
+      let query = db.select().from(geoJobEvents);
+      const conditions = [];
+
+      if (filters?.jobId) {
+        conditions.push(eq(geoJobEvents.jobId, filters.jobId));
+      }
+      if (filters?.eventType) {
+        conditions.push(eq(geoJobEvents.eventType, filters.eventType));
+      }
+      if (filters?.workerId) {
+        conditions.push(eq(geoJobEvents.workerId, filters.workerId));
+      }
+      if (filters?.fromDate) {
+        conditions.push(sql`${geoJobEvents.createdAt} >= ${filters.fromDate}`);
+      }
+      if (filters?.toDate) {
+        conditions.push(sql`${geoJobEvents.createdAt} <= ${filters.toDate}`);
+      }
+
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+
+      return await query.orderBy(desc(geoJobEvents.createdAt));
+    } catch (error) {
+      console.error('Failed to get geo job events:', error);
+      return [];
+    }
+  }
+
+  async createGeoJobEvent(event: InsertGeoJobEvent): Promise<GeoJobEvent> {
+    try {
+      const [newEvent] = await db.insert(geoJobEvents).values(event).returning();
+      return newEvent;
+    } catch (error) {
+      console.error('Failed to create geo job event:', error);
+      throw error;
+    }
+  }
+
+  // Queue monitoring and analytics
+  async getGeoJobQueueStats(): Promise<{
+    queued: number;
+    running: number;
+    completed: number;
+    failed: number;
+    avgProcessingTimeMs: number;
+  }> {
+    try {
+      const [stats] = await db.execute(sql`
+        SELECT 
+          COUNT(CASE WHEN status = 'queued' THEN 1 END) as queued,
+          COUNT(CASE WHEN status = 'running' THEN 1 END) as running,
+          COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed,
+          COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed,
+          COALESCE(AVG(
+            CASE WHEN status = 'completed' AND started_at IS NOT NULL AND completed_at IS NOT NULL 
+            THEN EXTRACT(EPOCH FROM (completed_at - started_at)) * 1000 
+            END
+          ), 0) as avg_processing_time_ms
+        FROM geo_jobs
+        WHERE created_at >= NOW() - INTERVAL '24 hours'
+      `);
+
+      return {
+        queued: Number(stats.rows[0]?.queued || 0),
+        running: Number(stats.rows[0]?.running || 0),
+        completed: Number(stats.rows[0]?.completed || 0),
+        failed: Number(stats.rows[0]?.failed || 0),
+        avgProcessingTimeMs: Number(stats.rows[0]?.avg_processing_time_ms || 0)
+      };
+    } catch (error) {
+      console.error('Failed to get geo job queue stats:', error);
+      return {
+        queued: 0,
+        running: 0,
+        completed: 0,
+        failed: 0,
+        avgProcessingTimeMs: 0
+      };
+    }
+  }
+
+  async getWorkerPerformanceStats(workerId?: string): Promise<any[]> {
+    try {
+      const condition = workerId ? sql`AND locked_by = ${workerId}` : sql``;
+      
+      const result = await db.execute(sql`
+        SELECT 
+          locked_by as worker_id,
+          COUNT(*) as total_jobs,
+          COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_jobs,
+          COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_jobs,
+          AVG(
+            CASE WHEN status = 'completed' AND started_at IS NOT NULL AND completed_at IS NOT NULL 
+            THEN EXTRACT(EPOCH FROM (completed_at - started_at)) * 1000 
+            END
+          ) as avg_processing_time_ms
+        FROM geo_jobs 
+        WHERE locked_by IS NOT NULL 
+        AND created_at >= NOW() - INTERVAL '24 hours'
+        ${condition}
+        GROUP BY locked_by
+        ORDER BY total_jobs DESC
+      `);
+
+      return result.rows;
+    } catch (error) {
+      console.error('Failed to get worker performance stats:', error);
       return [];
     }
   }
