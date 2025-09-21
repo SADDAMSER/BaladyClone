@@ -1657,8 +1657,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/neighborhood-units", async (req, res) => {
     try {
       const { neighborhoodId, sectorId } = req.query;
-      const filters = neighborhoodId || sectorId ? { neighborhoodId: neighborhoodId as string, sectorId: sectorId as string } : undefined;
-      const neighborhoodUnits = await storage.getNeighborhoodUnits(filters);
+      
+      let neighborhoodUnits;
+      if (sectorId) {
+        // Filter by sector if sectorId is provided
+        neighborhoodUnits = await storage.getNeighborhoodUnitsBySectorId(sectorId as string);
+      } else if (neighborhoodId) {
+        // Filter by neighborhood if neighborhoodId is provided
+        neighborhoodUnits = await storage.getNeighborhoodUnitsByNeighborhoodId(neighborhoodId as string);
+      } else {
+        // Default behavior - get all neighborhood units
+        neighborhoodUnits = await storage.getNeighborhoodUnits();
+      }
+      
       res.json(neighborhoodUnits);
     } catch (error) {
       res.status(500).json({ message: "Internal server error" });
