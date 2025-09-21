@@ -26,7 +26,9 @@ import {
   // Enhanced LBAC Hardening schemas - Phase 6
   insertPermissionGeographicConstraintsSchema, insertTemporaryPermissionDelegationsSchema,
   insertGeographicRoleTemplatesSchema, insertUserGeographicAssignmentHistorySchema,
-  insertLbacAccessAuditLogSchema
+  insertLbacAccessAuditLogSchema,
+  // Geoprocessing Queue System schemas - Phase 1
+  insertGeoJobSchema, insertGeoJobEventSchema
 } from "@shared/schema";
 import { DEFAULT_PERMISSIONS } from "@shared/defaults";
 import { PaginationParams, validatePaginationParams } from "./pagination";
@@ -6835,6 +6837,423 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
     } catch (error) {
       console.error('Error fetching session attachments:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // =============================================
+  // GEOPROCESSING QUEUE SYSTEM API ENDPOINTS
+  // =============================================
+
+  // Create new geo job - POST /api/geo-jobs
+  app.post('/api/geo-jobs', globalSecurityMonitor, generalRateLimit, authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const user = req.user!;
+      
+      // Validate request body using Zod
+      const validatedJob = insertGeoJobSchema.parse({
+        ...req.body,
+        ownerId: user.id, // Set owner to current user
+        createdBy: user.id,
+        idempotencyKey: req.body.idempotencyKey || crypto.randomUUID()
+      });
+
+      // Check for duplicate idempotency key
+      const existingJob = await storage.getGeoJobByIdempotencyKey(validatedJob.idempotencyKey);
+      if (existingJob) {
+        return res.json({
+          success: true,
+          data: { job: existingJob },
+          message: 'Job already exists with this idempotency key'
+        });
+      }
+
+      // RBAC Check - ensure user can create geo jobs
+      const userRoles = user.roleCodes || [];
+      const canCreateGeoJobs = userRoles.some((role: string) => 
+        ['ADMIN', 'EMPLOYEE', 'MANAGER', 'SURVEYING_MANAGER'].includes(role)
+      );
+      
+      if (!canCreateGeoJobs) {
+        return res.status(403).json({ 
+          error: 'Insufficient permissions to create geo jobs',
+          code: 'RBAC_VIOLATION' 
+        });
+      }
+
+      // Create the job
+      const newJob = await storage.createGeoJob(validatedJob);
+
+      res.status(201).json({
+        success: true,
+        data: { job: newJob },
+        message: 'Geo job created successfully'
+      });
+
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          error: 'Validation failed',
+          details: error.errors
+        });
+      }
+      
+      console.error('Error creating geo job:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Get geo jobs - GET /api/geo-jobs
+  app.get('/api/geo-jobs', globalSecurityMonitor, generalRateLimit, authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const user = req.user!;
+      
+      // Extract filters from query params
+      const filters: any = {};
+      if (req.query.status) filters.status = req.query.status as string;
+      if (req.query.taskType) filters.taskType = req.query.taskType as string;
+      if (req.query.targetType) filters.targetType = req.query.targetType as string;
+      if (req.query.targetId) filters.targetId = req.query.targetId as string;
+      if (req.query.neighborhoodUnitId) filters.neighborhoodUnitId = req.query.neighborhoodUnitId as string;
+      if (req.query.priority) filters.priority = parseInt(req.query.priority as string);
+
+      // Apply ownership filter for non-admin users
+      const userRoles = user.roleCodes || [];
+      const isAdmin = userRoles.includes('ADMIN');
+      
+      if (!isAdmin) {
+        filters.ownerId = user.id;
+      }
+
+      const jobs = await storage.getGeoJobs(filters);
+
+      res.json({
+        success: true,
+        data: { 
+          jobs,
+          total: jobs.length 
+        }
+      });
+
+    } catch (error) {
+      console.error('Error fetching geo jobs:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Get specific geo job - GET /api/geo-jobs/:id
+  app.get('/api/geo-jobs/:id', globalSecurityMonitor, generalRateLimit, authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const user = req.user!;
+      const jobId = req.params.id;
+
+      const job = await storage.getGeoJob(jobId);
+      
+      if (!job) {
+        return res.status(404).json({ error: 'Geo job not found' });
+      }
+
+      // Check ownership or admin access
+      const userRoles = user.roleCodes || [];
+      const isAdmin = userRoles.includes('ADMIN');
+      const isOwner = job.ownerId === user.id;
+
+      if (!isAdmin && !isOwner) {
+        return res.status(403).json({ 
+          error: 'Access denied to this geo job',
+          code: 'OWNERSHIP_VIOLATION' 
+        });
+      }
+
+      res.json({
+        success: true,
+        data: { job }
+      });
+
+    } catch (error) {
+      console.error('Error fetching geo job:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Cancel geo job - PATCH /api/geo-jobs/:id/cancel
+  app.patch('/api/geo-jobs/:id/cancel', globalSecurityMonitor, generalRateLimit, authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const user = req.user!;
+      const jobId = req.params.id;
+      const reason = req.body.reason || 'Cancelled by user';
+
+      const job = await storage.getGeoJob(jobId);
+      
+      if (!job) {
+        return res.status(404).json({ error: 'Geo job not found' });
+      }
+
+      // Check ownership or admin access
+      const userRoles = user.roleCodes || [];
+      const isAdmin = userRoles.includes('ADMIN');
+      const isOwner = job.ownerId === user.id;
+
+      if (!isAdmin && !isOwner) {
+        return res.status(403).json({ 
+          error: 'Access denied to cancel this geo job',
+          code: 'OWNERSHIP_VIOLATION' 
+        });
+      }
+
+      // Can only cancel queued or running jobs
+      if (!['queued', 'running'].includes(job.status)) {
+        return res.status(400).json({ 
+          error: `Cannot cancel job in ${job.status} status`,
+          code: 'INVALID_STATUS' 
+        });
+      }
+
+      const cancelledJob = await storage.cancelGeoJob(jobId, reason);
+
+      res.json({
+        success: true,
+        data: { job: cancelledJob },
+        message: 'Geo job cancelled successfully'
+      });
+
+    } catch (error) {
+      console.error('Error cancelling geo job:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Get geo job events - GET /api/geo-jobs/:id/events
+  app.get('/api/geo-jobs/:id/events', globalSecurityMonitor, generalRateLimit, authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const user = req.user!;
+      const jobId = req.params.id;
+
+      const job = await storage.getGeoJob(jobId);
+      
+      if (!job) {
+        return res.status(404).json({ error: 'Geo job not found' });
+      }
+
+      // Check ownership or admin access
+      const userRoles = user.roleCodes || [];
+      const isAdmin = userRoles.includes('ADMIN');
+      const isOwner = job.ownerId === user.id;
+
+      if (!isAdmin && !isOwner) {
+        return res.status(403).json({ 
+          error: 'Access denied to view events for this geo job',
+          code: 'OWNERSHIP_VIOLATION' 
+        });
+      }
+
+      const events = await storage.getGeoJobEvents({ jobId });
+
+      res.json({
+        success: true,
+        data: { 
+          events,
+          total: events.length 
+        }
+      });
+
+    } catch (error) {
+      console.error('Error fetching geo job events:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Get queue statistics - GET /api/geo-jobs/stats
+  app.get('/api/geo-jobs/stats', globalSecurityMonitor, generalRateLimit, authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const user = req.user!;
+      
+      // Only allow admins and managers to view system stats
+      const userRoles = user.roleCodes || [];
+      const canViewStats = userRoles.some((role: string) => 
+        ['ADMIN', 'MANAGER', 'SURVEYING_MANAGER'].includes(role)
+      );
+      
+      if (!canViewStats) {
+        return res.status(403).json({ 
+          error: 'Insufficient permissions to view queue statistics',
+          code: 'RBAC_VIOLATION' 
+        });
+      }
+
+      const stats = await storage.getGeoJobQueueStats();
+
+      res.json({
+        success: true,
+        data: { stats }
+      });
+
+    } catch (error) {
+      console.error('Error fetching queue stats:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Get worker performance stats - GET /api/geo-jobs/workers/stats
+  app.get('/api/geo-jobs/workers/stats', globalSecurityMonitor, generalRateLimit, authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const user = req.user!;
+      
+      // Only allow admins to view worker stats
+      const userRoles = user.roleCodes || [];
+      const isAdmin = userRoles.includes('ADMIN');
+      
+      if (!isAdmin) {
+        return res.status(403).json({ 
+          error: 'Insufficient permissions to view worker statistics',
+          code: 'RBAC_VIOLATION' 
+        });
+      }
+
+      const workerId = req.query.workerId as string | undefined;
+      const workerStats = await storage.getWorkerPerformanceStats(workerId);
+
+      res.json({
+        success: true,
+        data: { 
+          workers: workerStats,
+          total: workerStats.length 
+        }
+      });
+
+    } catch (error) {
+      console.error('Error fetching worker stats:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // =============================================
+  // PYTHON WORKER POLLING ENDPOINT (Internal)
+  // =============================================
+
+  // Claim next job for worker - POST /api/internal/geo-jobs/claim
+  // This endpoint is used by Python workers to poll for jobs
+  app.post('/api/internal/geo-jobs/claim', globalSecurityMonitor, async (req: Request, res: Response) => {
+    try {
+      const { workerId } = req.body;
+      
+      if (!workerId) {
+        return res.status(400).json({ error: 'workerId is required' });
+      }
+
+      // Simple authentication for internal services
+      // In production, this should use service-to-service authentication
+      const authHeader = req.headers['authorization'];
+      if (!authHeader || !authHeader.startsWith('Worker ')) {
+        return res.status(401).json({ error: 'Invalid worker authentication' });
+      }
+
+      const claimedJob = await storage.claimNextGeoJob(workerId);
+
+      if (!claimedJob) {
+        return res.json({
+          success: true,
+          data: { job: null },
+          message: 'No jobs available'
+        });
+      }
+
+      res.json({
+        success: true,
+        data: { job: claimedJob },
+        message: 'Job claimed successfully'
+      });
+
+    } catch (error) {
+      console.error('Error claiming geo job:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Update job progress - PATCH /api/internal/geo-jobs/:id/progress
+  app.patch('/api/internal/geo-jobs/:id/progress', globalSecurityMonitor, async (req: Request, res: Response) => {
+    try {
+      const jobId = req.params.id;
+      const { progress, message, workerId } = req.body;
+
+      if (typeof progress !== 'number' || progress < 0 || progress > 100) {
+        return res.status(400).json({ error: 'Invalid progress value' });
+      }
+
+      const updatedJob = await storage.updateGeoJobProgress(jobId, progress, message);
+
+      res.json({
+        success: true,
+        data: { job: updatedJob },
+        message: 'Progress updated successfully'
+      });
+
+    } catch (error) {
+      console.error('Error updating job progress:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Update heartbeat - PATCH /api/internal/geo-jobs/:id/heartbeat
+  app.patch('/api/internal/geo-jobs/:id/heartbeat', globalSecurityMonitor, async (req: Request, res: Response) => {
+    try {
+      const jobId = req.params.id;
+      const { workerId } = req.body;
+
+      if (!workerId) {
+        return res.status(400).json({ error: 'workerId is required' });
+      }
+
+      const updatedJob = await storage.updateGeoJobHeartbeat(jobId, workerId);
+
+      res.json({
+        success: true,
+        data: { job: updatedJob },
+        message: 'Heartbeat updated successfully'
+      });
+
+    } catch (error) {
+      console.error('Error updating heartbeat:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Complete job - PATCH /api/internal/geo-jobs/:id/complete
+  app.patch('/api/internal/geo-jobs/:id/complete', globalSecurityMonitor, async (req: Request, res: Response) => {
+    try {
+      const jobId = req.params.id;
+      const { outputPayload, outputKeys } = req.body;
+
+      const completedJob = await storage.completeGeoJob(jobId, outputPayload, outputKeys);
+
+      res.json({
+        success: true,
+        data: { job: completedJob },
+        message: 'Job completed successfully'
+      });
+
+    } catch (error) {
+      console.error('Error completing job:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Fail job - PATCH /api/internal/geo-jobs/:id/fail
+  app.patch('/api/internal/geo-jobs/:id/fail', globalSecurityMonitor, async (req: Request, res: Response) => {
+    try {
+      const jobId = req.params.id;
+      const { error: jobError } = req.body;
+
+      const failedJob = await storage.failGeoJob(jobId, jobError);
+
+      res.json({
+        success: true,
+        data: { job: failedJob },
+        message: 'Job marked as failed'
+      });
+
+    } catch (error) {
+      console.error('Error failing job:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
