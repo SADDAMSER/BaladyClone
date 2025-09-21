@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean, timestamp, jsonb, decimal, uuid, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean, timestamp, jsonb, decimal, uuid, index, uniqueIndex, pgEnum, smallint } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -4137,5 +4137,197 @@ export const insertMobileSyncCursorSchema = createInsertSchema(mobileSyncCursors
 
 export type MobileSyncCursor = typeof mobileSyncCursors.$inferSelect;
 export type InsertMobileSyncCursor = z.infer<typeof insertMobileSyncCursorSchema>;
+
+// =============================================
+// GEOPROCESSING QUEUE SYSTEM - Phase 1
+// =============================================
+
+// Geo Job Status Enum
+export const geoJobStatus = pgEnum('geo_job_status', [
+  'queued', 
+  'running', 
+  'completed', 
+  'failed',
+  'cancelled'
+]);
+
+// Target Type Enum for flexible geographic targeting
+export const geoTargetType = pgEnum('geo_target_type', [
+  'governorate',
+  'district', 
+  'subDistrict',
+  'neighborhood',
+  'neighborhoodUnit',
+  'block',
+  'plot',
+  'tile',
+  'none'
+]);
+
+// Geo Jobs - Production-grade Job Queue
+export const geoJobs = pgTable('geo_jobs', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Job queue management fields
+  priority: smallint('priority').default(100), // Lower = higher priority
+  scheduledAt: timestamp('scheduled_at').default(sql`CURRENT_TIMESTAMP`),
+  attempts: integer('attempts').default(0),
+  maxAttempts: integer('max_attempts').default(3),
+  lockedBy: text('locked_by'), // Worker ID that claimed this job
+  lockedAt: timestamp('locked_at'),
+  heartbeatAt: timestamp('heartbeat_at'),
+  idempotencyKey: text('idempotency_key').unique(),
+  correlationId: text('correlation_id'), // For tracing across systems
+  
+  // Task definition
+  taskType: text('task_type').notNull(), // 'GEOTIFF_PROCESSING', 'RASTER_ANALYSIS', etc.
+  taskVersion: text('task_version').default('1.0'),
+  codeVersion: text('code_version'), // For tracking which worker version processed this
+  status: geoJobStatus('status').notNull().default('queued'),
+  
+  // Flexible geographic targeting
+  targetType: geoTargetType('target_type').default('none'),
+  targetId: uuid('target_id'), // ID of the target entity
+  
+  // Legacy neighborhood unit reference (kept for common use case)
+  neighborhoodUnitId: uuid('neighborhood_unit_id')
+    .references(() => neighborhoodUnits.id, { onDelete: 'cascade' }),
+
+  // File storage (Object Storage integration)
+  inputKey: text('input_key').notNull(), // Object storage key for input file
+  outputKeys: text('output_keys').array().default(sql`'{}'`), // Array of output file keys
+  
+  // Payload data
+  inputPayload: jsonb('input_payload').notNull(), // Task parameters
+  outputPayload: jsonb('output_payload'), // Results and metadata
+  
+  // Progress tracking
+  progress: integer('progress').default(0), // 0-100
+  message: text('message'), // Current status message
+  
+  // Error handling  
+  error: jsonb('error'), // Structured error: {class, message, stack, context}
+  
+  // Ownership and security
+  ownerId: uuid('owner_id').references(() => users.id, { onDelete: 'set null' }),
+
+  // Timestamps
+  createdAt: timestamp('created_at').default(sql`CURRENT_TIMESTAMP`).notNull(),
+  startedAt: timestamp('started_at'),
+  completedAt: timestamp('completed_at'),
+}, (table) => ({
+  // Primary queue index for job polling
+  statusPriorityScheduledIndex: index('geo_jobs_status_priority_scheduled_idx')
+    .on(table.status, table.priority, table.scheduledAt, table.createdAt),
+  
+  // Geographic targeting index
+  targetTypeIdIndex: index('geo_jobs_target_type_id_idx')
+    .on(table.targetType, table.targetId),
+  
+  // Owner access index
+  ownerCreatedIndex: index('geo_jobs_owner_created_idx')
+    .on(table.ownerId, table.createdAt),
+  
+  // Correlation ID index for distributed tracing
+  correlationIdIndex: index('geo_jobs_correlation_id_idx')
+    .on(table.correlationId),
+  
+  // Partial index for active jobs only (performance optimization)
+  activeJobsIndex: sql`CREATE INDEX CONCURRENTLY IF NOT EXISTS geo_jobs_active_idx ON geo_jobs (status, priority, scheduled_at) WHERE status IN ('queued', 'running')`,
+  
+  // Constraints
+  progressRange: sql`CONSTRAINT geo_jobs_progress_range CHECK (progress >= 0 AND progress <= 100)`,
+  attemtsRange: sql`CONSTRAINT geo_jobs_attempts_range CHECK (attempts >= 0 AND attempts <= max_attempts)`,
+  statusAttemptsConsistency: sql`CONSTRAINT geo_jobs_status_attempts_consistency CHECK (
+    (status = 'failed' AND attempts >= max_attempts) OR 
+    (status != 'failed') OR 
+    (status = 'failed' AND max_attempts = 0)
+  )`,
+  heartbeatConsistency: sql`CONSTRAINT geo_jobs_heartbeat_consistency CHECK (
+    (status = 'running' AND locked_by IS NOT NULL AND locked_at IS NOT NULL) OR 
+    (status != 'running')
+  )`
+}));
+
+// Geo Job Events - Audit Trail and Observability
+export const geoJobEvents = pgTable('geo_job_events', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  
+  jobId: uuid('job_id')
+    .references(() => geoJobs.id, { onDelete: 'cascade' })
+    .notNull(),
+  
+  // State transition tracking
+  fromStatus: text('from_status'), // Previous status (null for initial events)
+  toStatus: text('to_status').notNull(), // New status
+  
+  // Event details
+  eventType: text('event_type').notNull(), // 'status_change', 'progress_update', 'error', 'heartbeat'
+  message: text('message'),
+  payload: jsonb('payload'), // Additional event data
+  
+  // Worker information
+  workerId: text('worker_id'), // Which worker generated this event
+  workerVersion: text('worker_version'),
+  
+  // Performance metrics
+  processingTimeMs: integer('processing_time_ms'),
+  memoryUsageMb: integer('memory_usage_mb'),
+  
+  createdAt: timestamp('created_at').default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  // Job events index for audit queries
+  jobIdCreatedIndex: index('geo_job_events_job_id_created_idx')
+    .on(table.jobId, table.createdAt),
+  
+  // Event type analysis index
+  eventTypeCreatedIndex: index('geo_job_events_event_type_created_idx')
+    .on(table.eventType, table.createdAt),
+  
+  // Worker performance analysis index
+  workerIdCreatedIndex: index('geo_job_events_worker_id_created_idx')
+    .on(table.workerId, table.createdAt)
+}));
+
+// Zod Schemas for Geo Jobs
+export const insertGeoJobSchema = createInsertSchema(geoJobs).omit({
+  id: true,
+  attempts: true,
+  lockedBy: true,
+  lockedAt: true,
+  heartbeatAt: true,
+  startedAt: true,
+  completedAt: true,
+  createdAt: true,
+}).extend({
+  taskType: z.enum(['GEOTIFF_PROCESSING', 'RASTER_ANALYSIS', 'TILE_GENERATION']),
+  status: z.enum(['queued', 'running', 'completed', 'failed', 'cancelled']).default('queued'),
+  targetType: z.enum(['governorate', 'district', 'subDistrict', 'neighborhood', 'neighborhoodUnit', 'block', 'plot', 'tile', 'none']).default('none'),
+  priority: z.number().int().min(1).max(1000).default(100),
+  maxAttempts: z.number().int().min(1).max(10).default(3),
+  progress: z.number().int().min(0).max(100).default(0),
+  inputKey: z.string().min(1, "Input key is required"),
+  outputKeys: z.array(z.string()).default([]),
+  inputPayload: z.record(z.any()),
+  outputPayload: z.record(z.any()).optional(),
+});
+
+export const insertGeoJobEventSchema = createInsertSchema(geoJobEvents).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  eventType: z.enum(['status_change', 'progress_update', 'error', 'heartbeat', 'worker_assigned']),
+  toStatus: z.enum(['queued', 'running', 'completed', 'failed', 'cancelled']),
+  fromStatus: z.enum(['queued', 'running', 'completed', 'failed', 'cancelled']).optional(),
+  message: z.string().optional(),
+  payload: z.record(z.any()).optional(),
+  processingTimeMs: z.number().int().min(0).optional(),
+  memoryUsageMb: z.number().int().min(0).optional(),
+});
+
+export type GeoJob = typeof geoJobs.$inferSelect;
+export type InsertGeoJob = z.infer<typeof insertGeoJobSchema>;
+export type GeoJobEvent = typeof geoJobEvents.$inferSelect;
+export type InsertGeoJobEvent = z.infer<typeof insertGeoJobEventSchema>;
 
 
