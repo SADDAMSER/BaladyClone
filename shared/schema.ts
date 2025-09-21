@@ -860,7 +860,7 @@ export const neighborhoodUnits = pgTable("neighborhood_units", {
 // Blocks table (القطع) - child of neighborhood_units
 export const blocks = pgTable("blocks", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  code: text("code"),
+  code: text("code").unique(), // فريد للنظام الجديد
   nameAr: text("name_ar").notNull(),
   nameEn: text("name_en"),
   neighborhoodUnitId: uuid("neighborhood_unit_id")
@@ -873,6 +873,29 @@ export const blocks = pgTable("blocks", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
 });
+
+// Staging table للبلوكات - لتحسين الأداء المكاني
+export const blocksStage = pgTable("blocks_stage", (columns) => ({
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  sourceId: text("source_id").notNull(), // من ملف GeoJSON
+  unitHint: text("unit_hint"), // unique_unit_id من الملف إن وجد  
+  blockType: text("block_type"),
+  properties: jsonb("properties"),
+  geometry: jsonb("geometry"), // هندسة GeoJSON الأصلية
+  neighborhoodUnitId: uuid("neighborhood_unit_id"), // سيملأ بالربط المكاني
+  finalCode: text("final_code"), // الكود النهائي المولد
+  spatialStrategy: text("spatial_strategy"), // intersection/centroid/nearest
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+}));
+
+// جدول مرحلي لتسريع الاستعلامات على وحدات الجوار
+export const neighborhoodUnitsGeom = pgTable("neighborhood_units_geom", (columns) => ({
+  id: uuid("id").primaryKey(),
+  code: text("code"),
+  nameAr: text("name_ar"),
+  geometry: jsonb("geometry"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+}));
 
 // Plots table (قطع الأراضي) - child of blocks - CRITICAL FOR CONSTRUCTION!
 export const plots = pgTable("plots", {
@@ -2400,6 +2423,22 @@ export const insertBlockSchema = createInsertSchema(blocks).omit({
 
 export type Block = typeof blocks.$inferSelect;
 export type InsertBlock = z.infer<typeof insertBlockSchema>;
+
+// Staging table schemas
+export const insertBlockStageSchema = createInsertSchema(blocksStage).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type BlockStage = typeof blocksStage.$inferSelect;
+export type InsertBlockStage = z.infer<typeof insertBlockStageSchema>;
+
+export const insertNeighborhoodUnitGeomSchema = createInsertSchema(neighborhoodUnitsGeom).omit({
+  createdAt: true,
+});
+
+export type NeighborhoodUnitGeom = typeof neighborhoodUnitsGeom.$inferSelect;
+export type InsertNeighborhoodUnitGeom = z.infer<typeof insertNeighborhoodUnitGeomSchema>;
 
 // Plots schemas - CRITICAL FOR CONSTRUCTION INDUSTRY!
 export const insertPlotSchema = createInsertSchema(plots).omit({

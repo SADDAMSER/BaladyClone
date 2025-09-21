@@ -14,18 +14,25 @@ import {
   sectors, 
   neighborhoodUnits, 
   blocks,
+  blocksStage,
+  neighborhoodUnitsGeom,
   insertGovernorateSchema,
   insertDistrictSchema,
   insertSubDistrictSchema,
   insertSectorSchema,
   insertNeighborhoodUnitSchema,
   insertBlockSchema,
+  insertBlockStageSchema,
+  insertNeighborhoodUnitGeomSchema,
   type InsertGovernorate,
   type InsertDistrict,
   type InsertSubDistrict,
   type InsertSector,
   type InsertNeighborhoodUnit,
-  type InsertBlock
+  type InsertBlock,
+  type InsertBlockStage,
+  type InsertNeighborhoodUnitGeom,
+  type NeighborhoodUnit
 } from '../shared/schema';
 
 // Database connection
@@ -104,6 +111,443 @@ function chunk<T>(array: T[], size: number): T[][] {
     chunks.push(array.slice(i, i + size));
   }
   return chunks;
+}
+
+// Statistics tracking for spatial operations
+interface SpatialStats {
+  intersection: number;
+  centroid: number; 
+  nearest: number;
+  failed: number;
+  total: number;
+}
+
+// Helper function to setup staging tables with PostGIS
+async function setupStagingTables() {
+  console.log('🗂️  Setting up staging tables with PostGIS extensions...');
+
+  try {
+    // Enable PostGIS extension if not already enabled
+    await sql`CREATE EXTENSION IF NOT EXISTS postgis;`;
+    console.log('✅ PostGIS extension enabled');
+
+    // Create blocks_stage table with proper geometry column
+    await sql`
+      DROP TABLE IF EXISTS blocks_stage CASCADE;
+      CREATE TABLE blocks_stage (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        source_id TEXT NOT NULL,
+        unit_hint TEXT,
+        block_type TEXT,
+        properties JSONB,
+        geometry JSONB,
+        geom GEOMETRY(MultiPolygon, 4326),
+        neighborhood_unit_id UUID,
+        final_code TEXT,
+        spatial_strategy TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+    
+    // Create spatial index for blocks_stage
+    await sql`CREATE INDEX IF NOT EXISTS idx_blocks_stage_geom ON blocks_stage USING GIST(geom);`;
+    console.log('✅ blocks_stage table created with spatial index');
+
+    // Create neighborhood_units_geom table  
+    await sql`
+      DROP TABLE IF EXISTS neighborhood_units_geom CASCADE;
+      CREATE TABLE neighborhood_units_geom (
+        id UUID PRIMARY KEY,
+        code TEXT,
+        name_ar TEXT,
+        geometry JSONB,
+        geom GEOMETRY(MultiPolygon, 4326),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    // Create spatial index for neighborhood units
+    await sql`CREATE INDEX IF NOT EXISTS idx_neighborhood_units_geom_geom ON neighborhood_units_geom USING GIST(geom);`;
+    console.log('✅ neighborhood_units_geom table created with spatial index');
+
+    // Add unique index to blocks.code if not exists
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_blocks_code_unique ON blocks(code);`;
+    console.log('✅ Unique index added to blocks.code');
+
+  } catch (error) {
+    console.error('❌ Error setting up staging tables:', error);
+    throw error;
+  }
+}
+
+// Populate neighborhood_units_geom table for optimized spatial queries
+async function populateNeighborhoodUnitsGeom() {
+  console.log('📊 Populating neighborhood_units_geom for spatial optimization...');
+
+  try {
+    // Clear existing data
+    await sql`TRUNCATE TABLE neighborhood_units_geom;`;
+
+    // Copy neighborhood units with PostGIS geometry conversion
+    const result = await sql`
+      INSERT INTO neighborhood_units_geom (id, code, name_ar, geometry, geom)
+      SELECT 
+        id,
+        code,
+        name_ar,
+        geometry,
+        ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON(geometry::text), 4326)) as geom
+      FROM neighborhood_units
+      WHERE geometry IS NOT NULL
+        AND isActive = true;
+    `;
+
+    console.log(`✅ Populated ${result.count} neighborhood units with spatial geometry`);
+    return result.count;
+  } catch (error) {
+    console.error('❌ Error populating neighborhood_units_geom:', error);
+    throw error;
+  }
+}
+
+// Populate blocks_stage table from GeoJSON file
+async function populateBlocksStage() {
+  console.log('📊 Populating blocks_stage from GeoJSON file...');
+
+  try {
+    // Clear existing staging data
+    await sql`TRUNCATE TABLE blocks_stage;`;
+
+    const blocksData = readGeoJSONFile('blocksfinal');
+    console.log(`📖 Found ${blocksData.features.length} blocks in GeoJSON file`);
+
+    let processedCount = 0;
+    let skippedCount = 0;
+
+    // Process blocks in batches
+    const chunks = chunk(blocksData.features, BATCH_SIZE);
+    
+    for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+      const chunkData = chunks[chunkIndex];
+      const insertData: any[] = [];
+
+      for (const feature of chunkData) {
+        const props = feature.properties;
+        const blockId = getProp(props, ['Id', 'ID', 'id', 'block_id']);
+        const uniqueUnitId = getProp(props, ['unique_unit_id', 'unique_uni', 'UNIQUE_UNI']);
+        const tepe = getProp(props, ['tepe', 'type', 'blockType']);
+
+        if (!blockId) {
+          skippedCount++;
+          continue;
+        }
+
+        insertData.push({
+          source_id: blockId,
+          unit_hint: uniqueUnitId,
+          block_type: tepe || 'residential',
+          properties: JSON.stringify(props),
+          geometry: JSON.stringify(feature.geometry)
+        });
+      }
+
+      if (insertData.length > 0) {
+        // Insert into staging table with PostGIS geometry conversion
+        for (const item of insertData) {
+          await sql`
+            INSERT INTO blocks_stage (source_id, unit_hint, block_type, properties, geometry, geom)
+            VALUES (
+              ${item.source_id},
+              ${item.unit_hint},
+              ${item.block_type},
+              ${item.properties}::JSONB,
+              ${item.geometry}::JSONB,
+              ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON(${item.geometry}), 4326))
+            )
+          `;
+        }
+
+        processedCount += insertData.length;
+        
+        if ((chunkIndex + 1) % 10 === 0 || chunkIndex === chunks.length - 1) {
+          console.log(`⏳ Processed ${processedCount}/${blocksData.features.length} blocks (${Math.round(processedCount / blocksData.features.length * 100)}%)`);
+        }
+      }
+    }
+
+    console.log(`✅ Successfully staged ${processedCount} blocks, skipped ${skippedCount}`);
+    return { processed: processedCount, skipped: skippedCount };
+
+  } catch (error) {
+    console.error('❌ Error populating blocks_stage:', error);
+    throw error;
+  }
+}
+
+// Core spatial relationship function with 3-tier fallback strategy
+async function performSpatialLinking(): Promise<SpatialStats> {
+  console.log('🎯 Performing spatial linking with 3-tier strategy...');
+  
+  const stats: SpatialStats = {
+    intersection: 0,
+    centroid: 0,
+    nearest: 0,
+    failed: 0,
+    total: 0
+  };
+
+  try {
+    // Get total count for progress tracking
+    const totalResult = await sql`SELECT COUNT(*) as total FROM blocks_stage;`;
+    stats.total = parseInt(totalResult[0].total);
+    console.log(`📊 Processing ${stats.total} blocks for spatial linking...`);
+
+    // Strategy 1: Intersection-based linking (Primary)
+    console.log('🔍 Strategy 1: Intersection-based linking...');
+    const intersectionResult = await sql`
+      WITH BlockIntersections AS (
+        SELECT DISTINCT ON (bs.id)
+          bs.id as block_id,
+          nu.id as unit_id,
+          nu.code as unit_code,
+          ST_Area(ST_Intersection(bs.geom, nu.geom)) as intersection_area
+        FROM blocks_stage bs
+        JOIN neighborhood_units_geom nu ON ST_Intersects(bs.geom, nu.geom)
+        WHERE bs.neighborhood_unit_id IS NULL
+        ORDER BY bs.id, intersection_area DESC
+      )
+      UPDATE blocks_stage 
+      SET 
+        neighborhood_unit_id = bi.unit_id,
+        spatial_strategy = 'intersection'
+      FROM BlockIntersections bi
+      WHERE blocks_stage.id = bi.block_id;
+    `;
+    stats.intersection = intersectionResult.count || 0;
+    console.log(`✅ Strategy 1: Linked ${stats.intersection} blocks via intersection`);
+
+    // Strategy 2: Centroid containment (Fallback 1)
+    console.log('🔍 Strategy 2: Centroid containment...');  
+    const centroidResult = await sql`
+      WITH BlockCentroids AS (
+        SELECT DISTINCT ON (bs.id)
+          bs.id as block_id,
+          nu.id as unit_id,
+          nu.code as unit_code
+        FROM blocks_stage bs
+        JOIN neighborhood_units_geom nu ON ST_Contains(nu.geom, ST_Centroid(bs.geom))
+        WHERE bs.neighborhood_unit_id IS NULL
+        ORDER BY bs.id
+      )
+      UPDATE blocks_stage 
+      SET 
+        neighborhood_unit_id = bc.unit_id,
+        spatial_strategy = 'centroid'
+      FROM BlockCentroids bc
+      WHERE blocks_stage.id = bc.block_id;
+    `;
+    stats.centroid = centroidResult.count || 0;
+    console.log(`✅ Strategy 2: Linked ${stats.centroid} blocks via centroid containment`);
+
+    // Strategy 3: Nearest distance (Fallback 2)
+    console.log('🔍 Strategy 3: Nearest distance...');
+    const nearestResult = await sql`
+      WITH NearestUnits AS (
+        SELECT DISTINCT ON (bs.id)
+          bs.id as block_id,
+          nu.id as unit_id,
+          nu.code as unit_code,
+          ST_Distance(bs.geom, nu.geom) as distance
+        FROM blocks_stage bs
+        CROSS JOIN neighborhood_units_geom nu
+        WHERE bs.neighborhood_unit_id IS NULL
+        ORDER BY bs.id, distance ASC
+      )
+      UPDATE blocks_stage 
+      SET 
+        neighborhood_unit_id = nu.unit_id,
+        spatial_strategy = 'nearest'
+      FROM NearestUnits nu
+      WHERE blocks_stage.id = nu.block_id;
+    `;
+    stats.nearest = nearestResult.count || 0;
+    console.log(`✅ Strategy 3: Linked ${stats.nearest} blocks via nearest distance`);
+
+    // Count remaining failed blocks
+    const failedResult = await sql`
+      SELECT COUNT(*) as failed 
+      FROM blocks_stage 
+      WHERE neighborhood_unit_id IS NULL;
+    `;
+    stats.failed = parseInt(failedResult[0].failed);
+
+    console.log(`📊 Spatial linking summary:`);
+    console.log(`   🎯 Intersection: ${stats.intersection} (${Math.round(stats.intersection/stats.total*100)}%)`);
+    console.log(`   📍 Centroid: ${stats.centroid} (${Math.round(stats.centroid/stats.total*100)}%)`);
+    console.log(`   📏 Nearest: ${stats.nearest} (${Math.round(stats.nearest/stats.total*100)}%)`);
+    console.log(`   ❌ Failed: ${stats.failed} (${Math.round(stats.failed/stats.total*100)}%)`);
+    
+    const successRate = (stats.total - stats.failed) / stats.total * 100;
+    console.log(`   ✅ Overall Success Rate: ${successRate.toFixed(2)}%`);
+
+    return stats;
+
+  } catch (error) {
+    console.error('❌ Error in spatial linking:', error);
+    throw error;
+  }
+}
+
+// Generate deterministic block codes with sequence numbers per unit
+async function generateBlockCodes(): Promise<number> {
+  console.log('🔢 Generating deterministic block codes...');
+
+  try {
+    // Generate codes using deterministic ordering within each neighborhood unit
+    const result = await sql`
+      UPDATE blocks_stage
+      SET final_code = unit_codes.final_code
+      FROM (
+        SELECT 
+          bs.id,
+          CONCAT(
+            nu.code, 
+            '-', 
+            LPAD(
+              ROW_NUMBER() OVER (
+                PARTITION BY bs.neighborhood_unit_id 
+                ORDER BY 
+                  COALESCE((bs.properties->>'Id')::int, 0),
+                  ST_Y(ST_Centroid(bs.geom)),
+                  ST_X(ST_Centroid(bs.geom)),
+                  ST_Area(bs.geom) DESC
+              )::TEXT, 
+              3, 
+              '0'
+            )
+          ) as final_code
+        FROM blocks_stage bs
+        JOIN neighborhood_units_geom nu ON bs.neighborhood_unit_id = nu.id
+        WHERE bs.neighborhood_unit_id IS NOT NULL
+      ) unit_codes
+      WHERE blocks_stage.id = unit_codes.id;
+    `;
+
+    console.log(`✅ Generated ${result.count} deterministic block codes`);
+    return result.count || 0;
+
+  } catch (error) {
+    console.error('❌ Error generating block codes:', error);
+    throw error;
+  }
+}
+
+// UPSERT blocks from staging table to final blocks table 
+async function upsertBlocksToFinal(): Promise<number> {
+  console.log('💾 Upserting blocks from staging to final table...');
+
+  try {
+    // Clear existing blocks table
+    await sql`DELETE FROM blocks;`;
+    console.log('🗑️  Cleared existing blocks table');
+
+    // Insert/update blocks from staging table
+    const result = await sql`
+      INSERT INTO blocks (
+        code, name_ar, name_en, neighborhood_unit_id, 
+        block_type, geometry, properties, is_active
+      )
+      SELECT 
+        bs.final_code as code,
+        CONCAT('بلوك ', bs.source_id) as name_ar,
+        CONCAT('Block ', bs.source_id) as name_en,
+        bs.neighborhood_unit_id,
+        bs.block_type,
+        bs.geometry,
+        bs.properties,
+        true as is_active
+      FROM blocks_stage bs
+      WHERE bs.neighborhood_unit_id IS NOT NULL
+        AND bs.final_code IS NOT NULL
+      ON CONFLICT (code) DO UPDATE SET
+        name_ar = EXCLUDED.name_ar,
+        name_en = EXCLUDED.name_en,
+        neighborhood_unit_id = EXCLUDED.neighborhood_unit_id,
+        block_type = EXCLUDED.block_type,
+        geometry = EXCLUDED.geometry,
+        properties = EXCLUDED.properties,
+        is_active = EXCLUDED.is_active,
+        updated_at = CURRENT_TIMESTAMP;
+    `;
+
+    console.log(`✅ Successfully upserted ${result.count} blocks to final table`);
+    return result.count || 0;
+
+  } catch (error) {
+    console.error('❌ Error upserting blocks to final table:', error);
+    throw error;
+  }
+}
+
+// New optimized blocks seeding function using spatial strategy
+async function seedBlocksSpatial(): Promise<void> {
+  console.log('🏗️  Starting optimized spatial blocks seeding...');
+  
+  const startTime = Date.now();
+  let totalBlocks = 0;
+  let spatialStats: SpatialStats;
+
+  try {
+    // Phase 1: Setup staging tables and PostGIS
+    console.log('\n📋 Phase 1: Setup staging infrastructure...');
+    await setupStagingTables();
+
+    // Phase 2: Populate spatial optimization tables
+    console.log('\n📋 Phase 2: Populate spatial optimization tables...');
+    const unitsCount = await populateNeighborhoodUnitsGeom();
+    const blocksResult = await populateBlocksStage();
+    totalBlocks = blocksResult.processed;
+
+    // Phase 3: Perform spatial linking
+    console.log('\n📋 Phase 3: Perform spatial linking...');
+    spatialStats = await performSpatialLinking();
+
+    // Phase 4: Generate deterministic codes  
+    console.log('\n📋 Phase 4: Generate block codes...');
+    const codesGenerated = await generateBlockCodes();
+
+    // Phase 5: UPSERT to final table
+    console.log('\n📋 Phase 5: UPSERT to final blocks table...');
+    const finalCount = await upsertBlocksToFinal();
+
+    // Final summary
+    const endTime = Date.now();
+    const duration = Math.round((endTime - startTime) / 1000);
+    
+    console.log('\n🎯 === SPATIAL BLOCKS SEEDING COMPLETE ===');
+    console.log(`⏱️  Total Duration: ${duration} seconds`);
+    console.log(`📊 Total Blocks Processed: ${totalBlocks}`);
+    console.log(`📊 Final Blocks Created: ${finalCount}`);
+    console.log(`📊 Success Rate: ${((finalCount / totalBlocks) * 100).toFixed(2)}%`);
+    console.log(`📊 Spatial Strategy Breakdown:`);
+    console.log(`   🎯 Intersection: ${spatialStats.intersection}`);
+    console.log(`   📍 Centroid: ${spatialStats.centroid}`);  
+    console.log(`   📏 Nearest: ${spatialStats.nearest}`);
+    console.log(`   ❌ Failed: ${spatialStats.failed}`);
+    
+    // Performance metrics
+    const blocksPerSecond = Math.round(totalBlocks / duration);
+    console.log(`⚡ Performance: ${blocksPerSecond} blocks/second`);
+    
+    if (spatialStats.failed > 0) {
+      console.log(`⚠️  Warning: ${spatialStats.failed} blocks could not be linked spatially`);
+      console.log(`💡 Consider reviewing geometry data quality for failed blocks`);
+    }
+
+  } catch (error) {
+    console.error('❌ Critical error in spatial blocks seeding:', error);
+    throw error;
+  }
 }
 
 // Function to seed governorates (المحافظات) from gov.geojson
@@ -765,8 +1209,8 @@ Examples:
       await seedDistricts();
       const subDistrictMap = await seedSubDistricts();
       const sectorMap = await seedSectors(subDistrictMap);
-      const unitMap = await seedNeighborhoodUnits();
-      await seedBlocks(unitMap);
+      await seedNeighborhoodUnits();
+      await seedBlocksSpatial(); // استخدام الاستراتيجية المكانية المحسّنة
     } else if (entity === 'governorates') {
       await seedGovernorates();
     } else if (entity === 'districts') {
@@ -781,10 +1225,8 @@ Examples:
     } else if (entity === 'units') {
       await seedNeighborhoodUnits();
     } else if (entity === 'blocks') {
-      // Need unit map for blocks
-      const allUnits = await db.select({ id: neighborhoodUnits.id, code: neighborhoodUnits.code }).from(neighborhoodUnits);
-      const unitMap = createLookupMap(allUnits);
-      await seedBlocks(unitMap);
+      // استخدام الاستراتيجية المكانية المحسّنة - لا نحتاج unitMap بعد الآن
+      await seedBlocksSpatial();
     }
     
     console.log('🎉 Geographic data seeding completed successfully!');
