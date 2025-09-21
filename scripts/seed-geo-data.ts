@@ -552,8 +552,8 @@ async function seedNeighborhoodUnits() {
     
     // Multi-key fallbacks for unit ID
     const uniqueUnitId = getProp(props, ['unique_unit_id', 'unique_uni', 'UNIQUE_UNI']);
-    // Multi-key fallbacks for name
-    const unitNameAr = getProp(props, ['ÇáãØÇÈÞÉ', 'رقم_وحدة_الج', 'unit_name', 'name_ar']) || `وحدة جوار ${uniqueUnitId}`;
+    // Use the specific column for neighborhood unit name
+    const nameAr = getProp(props, ['ÑÞã_æÍÏÉ_Ç']) || 'وحدة جوار غير مسماة';
     
     // Validate required data
     if (!uniqueUnitId || !feature.geometry) {
@@ -584,7 +584,7 @@ async function seedNeighborhoodUnits() {
 
     newUnits.push({
       code: uniqueUnitId,
-      nameAr: unitNameAr,
+      nameAr: nameAr,
       nameEn: `Neighborhood Unit ${uniqueUnitId}`,
       sectorId: sectorId,
       neighborhoodId: null, // To be linked later when neighborhoods are populated
