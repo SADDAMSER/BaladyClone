@@ -1833,7 +1833,11 @@ export default function GeographicDataManager() {
 
       {/* GeoTIFF Upload Dialog */}
       <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
-        <DialogContent className="max-w-md" dir="rtl" aria-describedby="upload-dialog-description">
+        <DialogContent 
+          className="max-w-lg mx-auto bg-white dark:bg-gray-900 border shadow-lg" 
+          style={{position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 9999}}
+          aria-describedby="upload-dialog-description"
+        >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Globe className="h-5 w-5" />
