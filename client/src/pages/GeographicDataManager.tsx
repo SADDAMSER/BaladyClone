@@ -33,6 +33,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { apiRequest } from '@/lib/queryClient';
 import { insertGovernorateSchema, insertDistrictSchema, type InsertGovernorate, type InsertDistrict } from '@shared/schema';
+import { useBasemapQuery } from '@/hooks/useBasemapQuery';
 
 // Form schemas - extending the shared schemas with JSON string handling and proper nullability
 const governorateFormSchema = insertGovernorateSchema.extend({
@@ -182,10 +183,15 @@ export default function GeographicDataManager() {
   const [mapSelectedNeighborhoodUnitId, setMapSelectedNeighborhoodUnitId] = useState<string>('');
   const [mapSelectedBlockId, setMapSelectedBlockId] = useState<string>('');
   
-  // Basemap state management
-  const [basemapLayer, setBasemapLayer] = useState<BasemapLayer | null>(null);
+  // Basemap state management - now using react-query
   const [isBasemapVisible, setIsBasemapVisible] = useState<boolean>(true);
-  const [isLoadingBasemap, setIsLoadingBasemap] = useState<boolean>(false);
+  
+  // Use basemap query hook instead of manual state management
+  const { 
+    data: basemapLayer, 
+    isLoading: isLoadingBasemap, 
+    isError: isBasemapError 
+  } = useBasemapQuery('neighborhoodUnit', mapSelectedNeighborhoodUnitId || '');
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -285,59 +291,7 @@ export default function GeographicDataManager() {
     }
   }, [mapSelectedNeighborhoodUnitId]);
 
-  // Fetch basemap data when neighborhood unit changes
-  useEffect(() => {
-    const fetchBasemap = async () => {
-      if (!mapSelectedNeighborhoodUnitId || mapSelectedNeighborhoodUnitId === 'all') {
-        setBasemapLayer(null);
-        return;
-      }
-
-      setIsLoadingBasemap(true);
-      try {
-        const response = await fetch(
-          `/api/geo-jobs?targetId=${mapSelectedNeighborhoodUnitId}&targetType=neighborhoodUnit&includeOverlay=true`,
-          {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('auth_token') || localStorage.getItem('token') || 'mock-token'}`
-            }
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        console.log('🗺️ Basemap API response:', data);
-
-        // Look for the first completed job with overlay data
-        const basemapData = data.find((job: any) => 
-          job.status === 'available' && job.overlay
-        );
-
-        if (basemapData) {
-          setBasemapLayer(basemapData);
-          console.log('✅ Basemap loaded for neighborhood unit:', mapSelectedNeighborhoodUnitId);
-        } else {
-          setBasemapLayer(null);
-          console.log('ℹ️ No basemap available for neighborhood unit:', mapSelectedNeighborhoodUnitId);
-        }
-      } catch (error) {
-        console.error('❌ Error fetching basemap:', error);
-        setBasemapLayer(null);
-        toast({
-          title: 'خطأ في تحميل المخطط',
-          description: 'فشل في تحميل مخطط الوحدة الجوارية',
-          variant: 'destructive'
-        });
-      } finally {
-        setIsLoadingBasemap(false);
-      }
-    };
-
-    fetchBasemap();
-  }, [mapSelectedNeighborhoodUnitId, toast]);
+  // Basemap data is now handled by useBasemapQuery hook above
 
   // Auto-focus map on selected region (to be implemented in map component)
   const focusRegion = useMemo(() => {
@@ -1432,6 +1386,85 @@ export default function GeographicDataManager() {
                         showBoundaryControls={true}
                       />
                     </div>
+                    
+                    {/* Basemap Management Section */}
+                    {mapSelectedNeighborhoodUnitId && (
+                      <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                          <Globe className="h-4 w-4" />
+                          مخطط الوحدة الجوارية
+                        </h4>
+                        
+                        {isLoadingBasemap && (
+                          <div className="flex items-center gap-2 text-sm text-gray-600" data-testid="text-basemap-loading">
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
+                            جاري تحميل المخطط الأساسي...
+                          </div>
+                        )}
+                        
+                        {isBasemapError && (
+                          <div className="space-y-2">
+                            <div className="text-sm text-red-600 dark:text-red-400" data-testid="text-basemap-error">
+                              ❌ خطأ في تحميل المخطط الأساسي
+                            </div>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => {
+                                // Retry by invalidating query
+                                queryClient.invalidateQueries({
+                                  queryKey: ['/api/geo-jobs', { 
+                                    targetType: 'neighborhoodUnit', 
+                                    targetId: mapSelectedNeighborhoodUnitId, 
+                                    includeOverlay: true 
+                                  }]
+                                });
+                              }}
+                              data-testid="button-retry-basemap"
+                            >
+                              إعادة المحاولة
+                            </Button>
+                          </div>
+                        )}
+                        
+                        {!isLoadingBasemap && !isBasemapError && basemapLayer && (
+                          <div className="space-y-2">
+                            <div className="text-sm text-green-600 dark:text-green-400" data-testid="text-basemap-available">
+                              ✅ المخطط الأساسي متوفر
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                checked={isBasemapVisible}
+                                onCheckedChange={setIsBasemapVisible}
+                                data-testid="switch-basemap-visibility"
+                              />
+                              <Label className="text-sm">إظهار الطبقة الأساسية</Label>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {!isLoadingBasemap && !isBasemapError && !basemapLayer && (
+                          <div className="space-y-3">
+                            <div className="text-sm text-orange-600 dark:text-orange-400" data-testid="text-basemap-not-found">
+                              📍 لا توجد بيانات جغرافية أساسية لهذه الوحدة الجوارية
+                            </div>
+                            <Button 
+                              variant="default" 
+                              size="sm"
+                              className="w-full"
+                              onClick={() => {
+                                // TODO: Open upload dialog
+                                console.log('Opening upload dialog for:', mapSelectedNeighborhoodUnitId);
+                              }}
+                              data-testid="button-upload-geotiff"
+                            >
+                              <Plus className="h-4 w-4 ml-2" />
+                              رفع ملف GeoTIFF
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>
