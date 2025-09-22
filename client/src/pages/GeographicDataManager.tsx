@@ -143,6 +143,28 @@ interface Block {
   updatedAt: string;
 }
 
+// Interface for basemap overlay data
+interface BasemapOverlay {
+  url: string;
+  bounds: [[number, number], [number, number]]; // [[south, west], [north, east]]
+  opacity: number;
+  expiresAt: string;
+}
+
+interface BasemapLayer {
+  id: string;
+  status: string;
+  overlay: BasemapOverlay;
+  metadata: {
+    taskType: string;
+    targetType: string;
+    targetId: string;
+    filename?: string;
+    createdAt: string;
+    completedAt?: string;
+  };
+}
+
 export default function GeographicDataManager() {
   const [activeTab, setActiveTab] = useState('governorates');
   const [searchTerm, setSearchTerm] = useState('');
@@ -159,6 +181,11 @@ export default function GeographicDataManager() {
   const [mapSelectedSectorId, setMapSelectedSectorId] = useState<string>('');
   const [mapSelectedNeighborhoodUnitId, setMapSelectedNeighborhoodUnitId] = useState<string>('');
   const [mapSelectedBlockId, setMapSelectedBlockId] = useState<string>('');
+  
+  // Basemap state management
+  const [basemapLayer, setBasemapLayer] = useState<BasemapLayer | null>(null);
+  const [isBasemapVisible, setIsBasemapVisible] = useState<boolean>(true);
+  const [isLoadingBasemap, setIsLoadingBasemap] = useState<boolean>(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -257,6 +284,60 @@ export default function GeographicDataManager() {
       setMapSelectedBlockId('');
     }
   }, [mapSelectedNeighborhoodUnitId]);
+
+  // Fetch basemap data when neighborhood unit changes
+  useEffect(() => {
+    const fetchBasemap = async () => {
+      if (!mapSelectedNeighborhoodUnitId || mapSelectedNeighborhoodUnitId === 'all') {
+        setBasemapLayer(null);
+        return;
+      }
+
+      setIsLoadingBasemap(true);
+      try {
+        const response = await fetch(
+          `/api/geo-jobs?targetId=${mapSelectedNeighborhoodUnitId}&targetType=neighborhood_unit&includeOverlay=true`,
+          {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('authToken') || 'mock-token'}`
+            }
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log('🗺️ Basemap API response:', data);
+
+        // Look for the first completed job with overlay data
+        const basemapData = data.find((job: any) => 
+          job.status === 'available' && job.overlay
+        );
+
+        if (basemapData) {
+          setBasemapLayer(basemapData);
+          console.log('✅ Basemap loaded for neighborhood unit:', mapSelectedNeighborhoodUnitId);
+        } else {
+          setBasemapLayer(null);
+          console.log('ℹ️ No basemap available for neighborhood unit:', mapSelectedNeighborhoodUnitId);
+        }
+      } catch (error) {
+        console.error('❌ Error fetching basemap:', error);
+        setBasemapLayer(null);
+        toast({
+          title: 'خطأ في تحميل المخطط',
+          description: 'فشل في تحميل مخطط الوحدة الجوارية',
+          variant: 'destructive'
+        });
+      } finally {
+        setIsLoadingBasemap(false);
+      }
+    };
+
+    fetchBasemap();
+  }, [mapSelectedNeighborhoodUnitId, toast]);
 
   // Auto-focus map on selected region (to be implemented in map component)
   const focusRegion = useMemo(() => {
