@@ -187,18 +187,14 @@ const authenticateToken = (req: AuthenticatedRequest, res: Response, next: NextF
     }
 
     // ✅ EXTENSIVE JWT PAYLOAD LOGGING
-    console.log(`[✅ AUTH SUCCESS] JWT verified for ${req.method} ${req.path}:`, {
-      userId: user.id,
-      username: user.username,
-      role: user.role,
-      roleCodes: user.roleCodes,
-      type: user.type,
-      deviceId: user.deviceId,
-      tokenVersion: user.tokenVersion,
-      exp: user.exp,
-      iat: user.iat,
-      fullPayload: user
-    });
+    // Log only essential audit information (no sensitive token content)
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[✅ AUTH SUCCESS] JWT verified for ${req.method} ${req.path}:`, {
+        userId: user.id.substring(0, 8) + '...',
+        username: user.username,
+        role: user.role
+      });
+    }
     
     req.user = user;
     next();
@@ -7513,7 +7509,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Claim next job for worker - POST /api/internal/geo-jobs/claim
   // This endpoint is used by Python workers to poll for jobs
-  app.post('/api/internal/geo-jobs/claim', globalSecurityMonitor, async (req: Request, res: Response) => {
+  app.post('/api/internal/geo-jobs/claim', globalSecurityMonitor, authenticateToken, async (req: Request, res: Response) => {
+    console.error('[DEBUG] Handler started - endpoint reached!');
     try {
       const { workerId } = req.body;
       
@@ -7521,11 +7518,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'workerId is required' });
       }
 
-      // Simple authentication for internal services
-      // In production, this should use service-to-service authentication
-      const authHeader = req.headers['authorization'];
-      if (!authHeader || !authHeader.startsWith('Worker ')) {
-        return res.status(401).json({ error: 'Invalid worker authentication' });
+      // JWT authentication for internal services  
+      // Workers must authenticate with valid JWT tokens
+      console.error('[DEBUG] req.user content:', JSON.stringify(req.user, null, 2));
+      
+      if (!req.user || !req.user.id) {
+        console.error('[DEBUG] Authentication failed - req.user:', !!req.user, 'req.user.id:', req.user?.id);
+        return res.status(401).json({ error: 'JWT authentication required' });
       }
 
       const claimedJob = await storage.claimNextGeoJob(workerId);
@@ -7551,7 +7550,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update job progress - PATCH /api/internal/geo-jobs/:id/progress
-  app.patch('/api/internal/geo-jobs/:id/progress', globalSecurityMonitor, async (req: Request, res: Response) => {
+  app.patch('/api/internal/geo-jobs/:id/progress', authenticateToken, globalSecurityMonitor, async (req: Request, res: Response) => {
     try {
       const jobId = req.params.id;
       const { progress, message, workerId } = req.body;
@@ -7599,7 +7598,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Complete job - PATCH /api/internal/geo-jobs/:id/complete
-  app.patch('/api/internal/geo-jobs/:id/complete', globalSecurityMonitor, async (req: Request, res: Response) => {
+  app.patch('/api/internal/geo-jobs/:id/complete', authenticateToken, globalSecurityMonitor, async (req: Request, res: Response) => {
     try {
       const jobId = req.params.id;
       const { outputPayload, outputKeys } = req.body;
@@ -7619,7 +7618,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Fail job - PATCH /api/internal/geo-jobs/:id/fail
-  app.patch('/api/internal/geo-jobs/:id/fail', globalSecurityMonitor, async (req: Request, res: Response) => {
+  app.patch('/api/internal/geo-jobs/:id/fail', authenticateToken, globalSecurityMonitor, async (req: Request, res: Response) => {
     try {
       const jobId = req.params.id;
       const { error: jobError } = req.body;
