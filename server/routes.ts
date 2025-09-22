@@ -790,6 +790,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (process.env.NODE_ENV === 'production') {
       return res.status(404).json({ message: 'Endpoint not available in production' });
     }
+    
+    // Additional security: require explicit flag for mock authentication
+    if (process.env.ALLOW_MOCK_AUTH !== 'true') {
+      return res.status(404).json({ message: 'Mock authentication not enabled' });
+    }
     try {
       const { username, password, mockUser } = req.body;
       console.log('Simple login attempt for user:', username, 'mockUser:', mockUser);
