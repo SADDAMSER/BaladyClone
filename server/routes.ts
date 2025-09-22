@@ -6,7 +6,8 @@ import { z } from "zod";
 import { sql, eq, desc, and, or, isNull, lte, gte, gt, inArray, asc } from "drizzle-orm";
 import { 
   applications, userGeographicAssignments, mobileSurveyPoints, mobileSurveyGeometries,
-  mobileSurveyAttachments, mobileSurveySessions, changeTracking, deletionTombstones, fieldVisits
+  mobileSurveyAttachments, mobileSurveySessions, changeTracking, deletionTombstones, fieldVisits,
+  users
 } from "@shared/schema";
 import {
   insertUserSchema, insertDepartmentSchema, insertPositionSchema,
@@ -813,15 +814,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         console.log('Mock user found, creating token for:', mockUser.username);
         
-        // Create JWT token for mock user
-        // Generate consistent UUID for mock users
-        const mockUuid = generateMockUserUuid(mockUser.username);
+        // Create JWT token for mock user - lookup or create real DB user
+        let dbUser;
+        try {
+          // First, try to find existing user in database
+          dbUser = await storage.getUserByUsername(mockUser.username);
+        } catch (error) {
+          console.log('Database user not found, will create:', mockUser.username);
+        }
+        
+        if (!dbUser) {
+          // Create user in database with deterministic UUID for consistency
+          const mockUuid = generateMockUserUuid(mockUser.username);
+          const hashedPassword = await bcrypt.hash('StrongTestPassword123!', 10);
+          const normalizedRoleCodes = normalizeRoleCodes(mockUser.role);
+          
+          // Insert user into database with specific ID (direct insert for mock users)
+          try {
+            const [insertedUser] = await db.insert(users).values({
+              id: mockUuid,
+              username: mockUser.username,
+              password: hashedPassword,
+              email: `${mockUser.username}@local`,
+              fullName: mockUser.fullName,
+              role: mockUser.role,
+              isActive: true
+            }).returning();
+            dbUser = insertedUser;
+            console.log('Created new database user for mock:', mockUser.username, 'with ID:', dbUser.id);
+          } catch (createError) {
+            console.error('Failed to create mock user in database:', createError);
+            return res.status(500).json({ message: "Failed to initialize mock user" });
+          }
+        }
+        
         const normalizedRoleCodes = normalizeRoleCodes(mockUser.role);
         const token = jwt.sign(
           { 
-            id: mockUuid, 
-            username: mockUser.username, 
-            role: mockUser.role,
+            id: dbUser.id, // ✅ USE ACTUAL DATABASE USER ID
+            username: dbUser.username, 
+            role: dbUser.role,
             roleCodes: normalizedRoleCodes // ✅ NORMALIZED ROLES
           },
           jwtSecret,
