@@ -1,0 +1,31 @@
+Explanation
+
+js
+
+var fetchResult = origFetch.apply(void 0, args);
+        req.send(fetchResult); // <-- This line is incorrect. 'fetchResult' is a Promise, not the request body.
+        return fetchResult;
+
+Use code snippets with caution
+
+Understanding the problem
+The console message "400 Bad Request" indicates that the server could not understand or process the client's request. In this specific case, the network request shows a POST request with Content-Type: multipart/form-data. The provided code snippet where the error occurs (req.send(fetchResult)) suggests that you are attempting to send the result of a fetch call as the body of the request, which is incorrect. The fetch function returns a Promise, not the actual request body data. Sending a Promise object as the request body would lead to the server receiving invalid data, resulting in a 400 Bad Request error.
+
+How to verify
+Inspect the network request in the Network tab of Chrome DevTools. Examine the "Payload" tab for the failed POST request. If the payload appears to be a string representation of a Promise object or is malformed data, it confirms that the incorrect data is being sent to the server.
+
+Suggested fix
+The issue is in how you are handling the fetch result and attempting to send the request. When using the fetch API, you construct the request by providing options (like the method, headers, and body) directly to the fetch function call. You do not need to call a separate req.send() method with the result of fetch.
+
+Remove the req.send(fetchResult); line. The fetch function itself initiates the network request. If you need to access the response, you would chain .then() to the fetchResult Promise.
+
+js
+
+var fetchResult = origFetch.apply(void 0, args);
+        // Remove the following line:
+        // req.send(fetchResult);
+        return fetchResult;
+Use code snippets with caution
+
+Summary
+A "400 Bad Request" error on a POST request with multipart/form-data can occur if the request body is malformed. In this case, the issue was caused by attempting to send the Promise returned by fetch as the request body instead of properly structuring the request with the body included in the fetch options. The fix involves removing the incorrect req.send() call.

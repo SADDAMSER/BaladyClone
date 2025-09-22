@@ -206,30 +206,76 @@ export default function GeographicDataManager() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // GeoTIFF Upload mutation
+  // GeoTIFF Upload mutation - Two-step workflow
   const uploadGeoTiffMutation = useMutation({
     mutationFn: async ({ file, targetId }: { file: File; targetId: string }) => {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('taskType', 'geotiff_basemap');
-      formData.append('targetType', 'neighborhoodUnit');
-      formData.append('targetId', targetId);
-      formData.append('priority', '1');
-
-      const response = await fetch('/api/geo-jobs', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token') || localStorage.getItem('token') || 'mock-token'}`
-        },
-        body: formData
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      const authToken = localStorage.getItem('auth_token') || localStorage.getItem('token');
+      if (!authToken) {
+        throw new Error('Authentication token not found. Please login again.');
       }
 
-      return response.json();
+      // Step 1: Create geo job
+      const jobPayload = {
+        taskType: 'GEOTIFF_PROCESSING',
+        targetType: 'neighborhoodUnit',
+        targetId: targetId,
+        inputKey: file.name,
+        inputPayload: {
+          originalFilename: file.name,
+          size: file.size,
+          contentType: file.type || 'application/octet-stream'
+        },
+        priority: 100
+      };
+
+      console.log('🔄 Step 1: Creating geo job with payload:', jobPayload);
+
+      const createJobResponse = await fetch('/api/geo-jobs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify(jobPayload)
+      });
+
+      if (!createJobResponse.ok) {
+        const errorData = await createJobResponse.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to create job: ${createJobResponse.status} ${createJobResponse.statusText}`);
+      }
+
+      const jobResult = await createJobResponse.json();
+      const jobId = jobResult.data?.job?.id;
+
+      if (!jobId) {
+        throw new Error('Job creation failed: No job ID returned');
+      }
+
+      console.log('✅ Step 1 complete: Job created with ID:', jobId);
+
+      // Step 2: Upload file to the created job
+      console.log('🔄 Step 2: Uploading file to job:', jobId);
+
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', file);
+
+      const uploadResponse = await fetch(`/api/geo-jobs/${jobId}/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: uploadFormData
+      });
+
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to upload file: ${uploadResponse.status} ${uploadResponse.statusText}`);
+      }
+
+      const uploadResult = await uploadResponse.json();
+      console.log('✅ Step 2 complete: File uploaded successfully');
+
+      return { job: jobResult.data.job, upload: uploadResult };
     },
     onSuccess: (data) => {
       console.log('✅ GeoTIFF upload successful:', data);
