@@ -1519,7 +1519,10 @@ export default function GeographicDataManager() {
                               variant="default" 
                               size="sm"
                               className="w-full"
-                              onClick={() => setShowUploadDialog(true)}
+                              onClick={() => {
+                                console.log('🔄 Upload button clicked for neighborhood unit:', mapSelectedNeighborhoodUnitId);
+                                setShowUploadDialog(true);
+                              }}
                               data-testid="button-upload-geotiff"
                             >
                               <Plus className="h-4 w-4 ml-2" />
@@ -1823,7 +1826,7 @@ export default function GeographicDataManager() {
 
       {/* GeoTIFF Upload Dialog */}
       <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
-        <DialogContent className="max-w-md" dir="rtl">
+        <DialogContent className="max-w-md" dir="rtl" aria-describedby="upload-dialog-description">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Globe className="h-5 w-5" />
