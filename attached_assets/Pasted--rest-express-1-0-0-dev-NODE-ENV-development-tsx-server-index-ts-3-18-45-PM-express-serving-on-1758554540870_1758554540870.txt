@@ -1,0 +1,117 @@
+> rest-express@1.0.0 dev
+> NODE_ENV=development tsx server/index.ts
+
+3:18:45 PM [express] serving on port 5000
+Browserslist: browsers data (caniuse-lite) is 11 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+3:19:04 PM [express] GET /api/districts 304 in 1857ms :: [{"id":"3745f87d-1aec-43d8-8250-3baa8c99dcc…
+3:19:04 PM [express] GET /api/sync/session 404 in 7ms :: {"message":"API endpoint not found"}
+3:19:05 PM [express] GET /api/governorates 304 in 2618ms :: [{"id":"4d0d4124-0ec5-4296-88d2-397c5b73…
+3:19:05 PM [express] GET /api/sectors 304 in 2729ms :: [{"id":"8939f31a-8ecf-4d74-9b97-ad193f541a04"…
+[🔍 AUTH DEBUG] GET /api/sync/tables - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 277,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.106.34'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/sync/tables: {
+  userId: '48c640fb-bbed-4ac2-a8b7-ad20658adf1f',
+  username: 'admin_test',
+  role: 'admin',
+  roleCodes: [ 'ADMIN', 'USER' ],
+  type: undefined,
+  deviceId: undefined,
+  tokenVersion: undefined,
+  exp: 1758636172,
+  iat: 1758549772,
+  fullPayload: {
+    id: '48c640fb-bbed-4ac2-a8b7-ad20658adf1f',
+    username: 'admin_test',
+    role: 'admin',
+    roleCodes: [ 'ADMIN', 'USER' ],
+    iat: 1758549772,
+    exp: 1758636172
+  }
+}
+3:19:05 PM [express] GET /api/neighborhood-units 304 in 3034ms :: [{"id":"1a949c0d-2b95-4599-b738-e2…
+3:19:06 PM [express] GET /api/sync/tables 304 in 493ms :: {"tables":[{"tableName":"plots","allowedOp…
+3:19:06 PM [express] GET /api/sub-districts 304 in 3768ms :: [{"id":"72a752a8-77d8-4cd9-ac11-5bb3ca2…
+3:19:22 PM [express] GET /api/blocks 200 in 18208ms :: [{"id":"5e1767f7-ed89-4229-b78d-723156da55ad"…
+Simple login attempt for user: admin_test mockUser: true
+Mock user found, creating token for: admin_test
+3:19:33 PM [express] POST /api/auth/simple-login 200 in 7ms :: {"token":"eyJhbGciOiJIUzI1NiIsInR5cCI…
+3:19:35 PM [express] GET /api/sectors 304 in 1373ms :: [{"id":"8939f31a-8ecf-4d74-9b97-ad193f541a04"…
+3:19:35 PM [express] GET /api/governorates 304 in 1598ms :: [{"id":"4d0d4124-0ec5-4296-88d2-397c5b73…
+3:19:36 PM [express] GET /api/sync/session 404 in 1ms :: {"message":"API endpoint not found"}
+3:19:36 PM [express] GET /api/districts 304 in 2359ms :: [{"id":"3745f87d-1aec-43d8-8250-3baa8c99dcc…
+[🔍 AUTH DEBUG] GET /api/sync/tables - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 277,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.106.34'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/sync/tables: {
+  userId: '48c640fb-bbed-4ac2-a8b7-ad20658adf1f',
+  username: 'admin_test',
+  role: 'admin',
+  roleCodes: [ 'ADMIN', 'USER' ],
+  type: undefined,
+  deviceId: undefined,
+  tokenVersion: undefined,
+  exp: 1758640773,
+  iat: 1758554373,
+  fullPayload: {
+    id: '48c640fb-bbed-4ac2-a8b7-ad20658adf1f',
+    username: 'admin_test',
+    role: 'admin',
+    roleCodes: [ 'ADMIN', 'USER' ],
+    iat: 1758554373,
+    exp: 1758640773
+  }
+}
+3:19:36 PM [express] GET /api/sync/tables 304 in 4ms :: {"tables":[{"tableName":"plots","allowedOper…
+3:19:37 PM [express] GET /api/neighborhood-units 304 in 2778ms :: [{"id":"1a949c0d-2b95-4599-b738-e2…
+3:19:37 PM [express] GET /api/sub-districts 304 in 3353ms :: [{"id":"72a752a8-77d8-4cd9-ac11-5bb3ca2…
+3:19:43 PM [express] GET /api/governorates 304 in 774ms :: [{"id":"4d0d4124-0ec5-4296-88d2-397c5b730…
+3:19:57 PM [express] GET /api/districts 304 in 730ms :: [{"id":"893a926b-bc2a-48d0-a481-e4bc009b7550…
+3:20:00 PM [express] GET /api/sub-districts 304 in 222ms :: [{"id":"41284beb-766b-495f-a414-17949d6b…
+3:20:06 PM [express] GET /api/sectors 304 in 404ms :: [{"id":"1465c7fc-fb5f-4978-af64-5c3910ac4204",…
+3:20:06 PM [express] GET /api/sync/session 404 in 0ms :: {"message":"API endpoint not found"}
+3:20:10 PM [express] GET /api/blocks 200 in 35142ms :: [{"id":"5e1767f7-ed89-4229-b78d-723156da55ad"…
+3:20:17 PM [express] GET /api/neighborhood-units 304 in 516ms :: [{"id":"8b20c2c5-af34-4ffe-804a-4b2…
+ValidationError: The 'X-Forwarded-For' header is set but the Express 'trust proxy' setting is false (default). This could indicate a misconfiguration which would prevent express-rate-limit from accurately identifying users. See https://express-rate-limit.github.io/ERR_ERL_UNEXPECTED_X_FORWARDED_FOR/ for more information.
+    at Object.xForwardedForHeader (file:///home/runner/workspace/node_modules/express-rate-limit/dist/index.mjs:337:13)
+    at wrappedValidations.<computed> [as xForwardedForHeader] (file:///home/runner/workspace/node_modules/express-rate-limit/dist/index.mjs:609:22)
+    at Object.keyGenerator (file:///home/runner/workspace/node_modules/express-rate-limit/dist/index.mjs:711:20)
+    at file:///home/runner/workspace/node_modules/express-rate-limit/dist/index.mjs:772:32
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async file:///home/runner/workspace/node_modules/express-rate-limit/dist/index.mjs:753:5 {
+  code: 'ERR_ERL_UNEXPECTED_X_FORWARDED_FOR',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_UNEXPECTED_X_FORWARDED_FOR/'
+}
+ValidationError: The 'X-Forwarded-For' header is set but the Express 'trust proxy' setting is false (default). This could indicate a misconfiguration which would prevent express-rate-limit from accurately identifying users. See https://express-rate-limit.github.io/ERR_ERL_UNEXPECTED_X_FORWARDED_FOR/ for more information.
+    at Object.xForwardedForHeader (file:///home/runner/workspace/node_modules/express-rate-limit/dist/index.mjs:337:13)
+    at wrappedValidations.<computed> [as xForwardedForHeader] (file:///home/runner/workspace/node_modules/express-rate-limit/dist/index.mjs:609:22)
+    at Object.keyGenerator (file:///home/runner/workspace/node_modules/express-rate-limit/dist/index.mjs:711:20)
+    at file:///home/runner/workspace/node_modules/express-rate-limit/dist/index.mjs:772:32
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async file:///home/runner/workspace/node_modules/express-rate-limit/dist/index.mjs:753:5 {
+  code: 'ERR_ERL_UNEXPECTED_X_FORWARDED_FOR',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_UNEXPECTED_X_FORWARDED_FOR/'
+}
+[🔍 AUTH DEBUG] GET /api/geo-jobs - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 10,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.106.34'
+}
+[❌ AUTH] JWT verification failed for GET /api/geo-jobs: {
+  errorName: 'JsonWebTokenError',
+  errorMessage: 'jwt malformed',
+  tokenSample: 'mock-token...',
+  jwtSecretPresent: true
+}
+3:20:30 PM [express] GET /api/geo-jobs 403 in 5ms :: {"message":"Invalid or expired token"}
+3:20:31 PM [express] GET /api/blocks 304 in 743ms :: [{"id":"3f420afd-7494-4931-b610-dda46920253a","…
+3:20:38 PM [express] GET /api/sync/session 404 in 0ms :: {"message":"API endpoint not found"}

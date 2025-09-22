@@ -299,7 +299,7 @@ export default function GeographicDataManager() {
           `/api/geo-jobs?targetId=${mapSelectedNeighborhoodUnitId}&targetType=neighborhood_unit&includeOverlay=true`,
           {
             headers: {
-              'Authorization': `Bearer ${localStorage.getItem('authToken') || 'mock-token'}`
+              'Authorization': `Bearer ${localStorage.getItem('auth_token') || localStorage.getItem('token') || 'mock-token'}`
             }
           }
         );
