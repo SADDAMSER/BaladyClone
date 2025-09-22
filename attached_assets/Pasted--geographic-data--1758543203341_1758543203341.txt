@@ -1,0 +1,53 @@
+خطة تنفيذ الميزة الحالية: زر "تحميل/عرض" في صفحة /geographic-data
+لتحقيق هذا، سنتبع نفس الخطة التقنية التي ناقشناها سابقًا، ولكن مع تطبيقها مباشرة على واجهتك الحالية.
+1. الواجهة الخلفية (Backend - Node.js API)
+لقد تم بناء معظم هذا بالفعل بواسطة المساعد! نحتاج فقط إلى التأكد من وجود نقطة نهاية تخدم هذا الغرض.
+نقطة النهاية المطلوبة: GET /api/geo-jobs?targetId=:unitId&targetType=neighborhood_unit
+ماذا تفعل؟
+عندما تستدعيها الواجهة الأمامية بمعرف وحدة الجوار، تبحث في جدول geo_jobs.
+تبحث عن أحدث مهمة مكتملة (status = 'completed') لهذا الهدف.
+إذا وجدت: ترد بكائن يحتوي على status: 'available' وروابط الملفات الناتجة (outputKeys).
+إذا لم تجد: ترد بكائن يحتوي على status: 'not_available'.
+2. الواجهة الأمامية (Frontend - صفحة /geographic-data)
+هنا سنقوم بالتعديلات اللازمة على كود الواجهة الأمامية.
+إدارة الحالة (State):
+سنضيف متغيرات حالة جديدة في مكون الصفحة لإدارة حالة المخطط.
+TypeScript
+const [basemapLayer, setBasemapLayer] = useState(null); // لتخزين بيانات المخطط (الرابط، الحدود)
+const [isBasemapVisible, setIsBasemapVisible] = useState(true); // للتحكم في الإظهار والإخفاء
+const [isLoadingBasemap, setIsLoadingBasemap] = useState(false); // لعرض مؤشر تحميل
+الاستجابة لاختيار وحدة الجوار:
+في دالة معالج الحدث onChange الخاصة بالقائمة المنسدلة "اختيار وحدة الجوار":
+عند اختيار وحدة جديدة، قم بتعيين setIsLoadingBasemap(true).
+استدعِ نقطة النهاية الخلفية: fetch('/api/geo-jobs?targetId=' + selectedUnitId + '&targetType=neighborhood_unit').
+عند استلام الرد:
+إذا كان الرد يحتوي على status: 'available'، قم بتحديث الحالة: setBasemapLayer(responseData).
+إذا كان الرد يحتوي على status: 'not_available'، قم بتحديث الحالة: setBasemapLayer(null).
+أخيرًا، قم بتعيين setIsLoadingBasemap(false).
+إضافة الأزرار بشكل شرطي:
+مباشرة تحت القائمة المنسدلة "اختيار وحدة الجوار"، أضف هذا المنطق:
+JSX
+{isLoadingBasemap ? (
+  <div>جاري التحقق من وجود المخطط...</div>
+) : basemapLayer ? (
+  // المخطط متوفر
+  <Button onClick={() => setIsBasemapVisible(!isBasemapVisible)}>
+    {isBasemapVisible ? 'إخفاء المخطط' : 'إظهار المخطط'}
+  </Button>
+) : (
+  // المخطط غير متوفر
+  <Button onClick={handleUploadClick}>
+    تحميل مخطط الوحدة
+  </Button>
+)}
+handleUploadClick هي الدالة التي ستبدأ عملية رفع الملف، والتي ستستخدم نقطة النهاية POST /api/geo-jobs التي بناها المساعد.
+عرض المخطط على الخريطة:
+داخل مكون الخريطة، أضف ImageOverlay من react-leaflet ليعرض الصورة بشكل شرطي.
+JSX
+{basemapLayer && isBasemapVisible && (
+  <ImageOverlay
+    url={basemapLayer.outputKeys.pngUrl} // افترض أن الرابط موجود هنا
+    bounds={basemapLayer.outputKeys.bounds} // افترض أن الحدود موجودة هنا
+  />
+)}
+بهذه الطريقة، نكون قد دمجنا الميزة الجديدة بسلاسة تامة في واجهتك الحالية، محققين الهدف الأول والأساسي بأفضل طريقة ممكنة.
