@@ -198,6 +198,11 @@ export default function GeographicDataManager() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Debug dialog state changes
+  useEffect(() => {
+    console.log('🔍 Upload dialog state changed:', showUploadDialog);
+  }, [showUploadDialog]);
+
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -1521,7 +1526,9 @@ export default function GeographicDataManager() {
                               className="w-full"
                               onClick={() => {
                                 console.log('🔄 Upload button clicked for neighborhood unit:', mapSelectedNeighborhoodUnitId);
+                                console.log('📍 Current dialog state before click:', showUploadDialog);
                                 setShowUploadDialog(true);
+                                console.log('📍 Called setShowUploadDialog(true)');
                               }}
                               data-testid="button-upload-geotiff"
                             >
