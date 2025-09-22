@@ -7033,6 +7033,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
            (user?.roleCodes || []).map((r: string) => r.toLowerCase()).includes('admin');
   };
 
+  // ================================================================
+  // TARGET TYPE NORMALIZATION SYSTEM (Architect's recommendation)
+  // ================================================================
+  
+  /**
+   * Normalize various targetType formats to canonical camelCase
+   * Accepts: snake_case, kebab-case, mixed case
+   * Returns: canonical camelCase for database compatibility
+   */
+  const normalizeTargetType = (targetType: string): string | null => {
+    if (!targetType) return null;
+    
+    const normalized = targetType.toLowerCase().replace(/[-_]/g, '');
+    
+    const typeMapping: Record<string, string> = {
+      'governorate': 'governorate',
+      'district': 'district',
+      'subdistrict': 'subDistrict',
+      'sub_district': 'subDistrict',
+      'subdistrict': 'subDistrict',
+      'neighborhood': 'neighborhood',
+      'neighborhoodunit': 'neighborhoodUnit',
+      'neighborhood_unit': 'neighborhoodUnit',
+      'neighborhood-unit': 'neighborhoodUnit',
+      'sector': 'sector',
+      'block': 'block',
+      'plot': 'plot',
+      'tile': 'tile',
+      'none': 'none'
+    };
+    
+    return typeMapping[normalized] || null;
+  };
+
   // Get geo jobs - GET /api/geo-jobs (ENHANCED WITH EXTENSIVE DIAGNOSTIC LOGGING)
   app.get('/api/geo-jobs', globalSecurityMonitor, generalRateLimit, authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -7058,16 +7092,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
       
-      // Extract filters from query params
+      // Extract filters from query params WITH TARGET TYPE NORMALIZATION
       const filters: any = {};
       if (req.query.status) filters.status = req.query.status as string;
       if (req.query.taskType) filters.taskType = req.query.taskType as string;
-      if (req.query.targetType) filters.targetType = req.query.targetType as string;
+      
+      // ✅ NORMALIZE TARGET TYPE (Architect's recommendation)
+      if (req.query.targetType) {
+        const rawTargetType = req.query.targetType as string;
+        const normalizedTargetType = normalizeTargetType(rawTargetType);
+        
+        if (!normalizedTargetType) {
+          console.error(`[❌ GEO-JOBS] Invalid targetType: "${rawTargetType}"`);
+          return res.status(400).json({
+            success: false,
+            error: 'Invalid targetType value',
+            details: `"${rawTargetType}" is not a valid target type. Supported values: governorate, district, subDistrict, neighborhood, neighborhoodUnit, sector, block, plot, tile, none`
+          });
+        }
+        
+        filters.targetType = normalizedTargetType;
+        
+        // Log normalization for debugging
+        if (rawTargetType !== normalizedTargetType) {
+          console.warn(`[⚠️ GEO-JOBS] Normalized targetType: "${rawTargetType}" → "${normalizedTargetType}"`);
+        }
+      }
+      
       if (req.query.targetId) filters.targetId = req.query.targetId as string;
       if (req.query.neighborhoodUnitId) filters.neighborhoodUnitId = req.query.neighborhoodUnitId as string;
       if (req.query.priority) filters.priority = parseInt(req.query.priority as string);
 
-      console.log(`[🔍 GEO-JOBS] Extracted filters:`, filters);
+      console.log(`[🔍 GEO-JOBS] Extracted filters (after normalization):`, filters);
 
       // Apply ownership filter for non-admin users (UNIFIED ADMIN CHECK)
       const isAdmin = isUserAdmin(user);

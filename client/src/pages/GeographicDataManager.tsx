@@ -296,7 +296,7 @@ export default function GeographicDataManager() {
       setIsLoadingBasemap(true);
       try {
         const response = await fetch(
-          `/api/geo-jobs?targetId=${mapSelectedNeighborhoodUnitId}&targetType=neighborhood_unit&includeOverlay=true`,
+          `/api/geo-jobs?targetId=${mapSelectedNeighborhoodUnitId}&targetType=neighborhoodUnit&includeOverlay=true`,
           {
             headers: {
               'Authorization': `Bearer ${localStorage.getItem('auth_token') || localStorage.getItem('token') || 'mock-token'}`
