@@ -157,6 +157,44 @@ export class ObjectStorageService {
     });
   }
 
+  // Generate signed download URL for any object key
+  async generateDownloadUrl(objectKey: string, ttlSec: number = 3600): Promise<string> {
+    try {
+      // Parse object key to get bucket and object name
+      const { bucketName, objectName } = parseObjectPath(objectKey);
+      
+      // Generate signed URL for GET method
+      return await signObjectURL({
+        bucketName,
+        objectName,
+        method: "GET",
+        ttlSec
+      });
+    } catch (error) {
+      console.error('Error generating download URL:', error);
+      throw new Error(`Failed to generate download URL for ${objectKey}: ${error.message}`);
+    }
+  }
+
+  // Generate signed upload URL for any object key
+  async generateUploadUrl(objectKey: string, ttlSec: number = 900): Promise<string> {
+    try {
+      // Parse object key to get bucket and object name  
+      const { bucketName, objectName } = parseObjectPath(objectKey);
+      
+      // Generate signed URL for PUT method
+      return await signObjectURL({
+        bucketName,
+        objectName,
+        method: "PUT",
+        ttlSec
+      });
+    } catch (error) {
+      console.error('Error generating upload URL:', error);
+      throw new Error(`Failed to generate upload URL for ${objectKey}: ${error.message}`);
+    }
+  }
+
   // Gets the object entity file from the attachment ID
   async getMobileSurveyAttachmentFile(attachmentId: string): Promise<File> {
     const privateObjectDir = this.getPrivateObjectDir();
