@@ -1,0 +1,208 @@
+ GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscQyyS4J0.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+Console.js:61 🔍 Upload dialog state changed: false
+Console.js:61 🔐 SecureIndexedDB initialized successfully
+injected.js:278  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/api/sync/session 404 (Not Found)
+window.fetch @ Network.js:219
+apply @ injected.js:278
+(anonymous) @ queryClient.ts:69
+fetchFn @ @tanstack_react-query.js?v=ec17ede6:840
+run @ @tanstack_react-query.js?v=ec17ede6:494
+start @ @tanstack_react-query.js?v=ec17ede6:536
+fetch @ @tanstack_react-query.js?v=ec17ede6:926
+executeFetch_fn @ @tanstack_react-query.js?v=ec17ede6:2211
+onSubscribe @ @tanstack_react-query.js?v=ec17ede6:1898
+subscribe @ @tanstack_react-query.js?v=ec17ede6:24
+(anonymous) @ @tanstack_react-query.js?v=ec17ede6:3022
+subscribeToStore @ chunk-RPCDYKBN.js?v=ec17ede6:11984
+commitHookEffectListMount @ chunk-RPCDYKBN.js?v=ec17ede6:16915
+commitPassiveMountOnFiber @ chunk-RPCDYKBN.js?v=ec17ede6:18156
+commitPassiveMountEffects_complete @ chunk-RPCDYKBN.js?v=ec17ede6:18129
+commitPassiveMountEffects_begin @ chunk-RPCDYKBN.js?v=ec17ede6:18119
+commitPassiveMountEffects @ chunk-RPCDYKBN.js?v=ec17ede6:18109
+flushPassiveEffectsImpl @ chunk-RPCDYKBN.js?v=ec17ede6:19490
+flushPassiveEffects @ chunk-RPCDYKBN.js?v=ec17ede6:19447
+performSyncWorkOnRoot @ chunk-RPCDYKBN.js?v=ec17ede6:18868
+flushSyncCallbacks @ chunk-RPCDYKBN.js?v=ec17ede6:9119
+commitRootImpl @ chunk-RPCDYKBN.js?v=ec17ede6:19432
+commitRoot @ chunk-RPCDYKBN.js?v=ec17ede6:19277
+finishConcurrentRender @ chunk-RPCDYKBN.js?v=ec17ede6:18805
+performConcurrentWorkOnRoot @ chunk-RPCDYKBN.js?v=ec17ede6:18718
+workLoop @ chunk-RPCDYKBN.js?v=ec17ede6:197
+flushWork @ chunk-RPCDYKBN.js?v=ec17ede6:176
+performWorkUntilDeadline @ chunk-RPCDYKBN.js?v=ec17ede6:384Understand this error
+faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://fonts.gstatic.com&size=…:1  GET https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://fonts.gstatic.com&size=32 404 (Not Found)Understand this error
+t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://fonts.gstatic.com/&size=32:1  GET https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://fonts.gstatic.com/&size=32 404 (Not Found)
+Image
+oY @ framework-c7a521dc77a4c007.js:1
+e @ framework-c7a521dc77a4c007.js:1
+(anonymous) @ framework-c7a521dc77a4c007.js:1
+uO @ framework-c7a521dc77a4c007.js:1
+u_ @ framework-c7a521dc77a4c007.js:1
+r6 @ framework-c7a521dc77a4c007.js:1
+(anonymous) @ framework-c7a521dc77a4c007.js:1Understand this error
+2Console.js:61 🎯 Focused map on governorate: صنعاء
+2Console.js:61 🎯 Focused map on district: سنحان وبني بهلول
+injected.js:278  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/api/sync/session 404 (Not Found)
+window.fetch @ Network.js:219
+apply @ injected.js:278
+(anonymous) @ queryClient.ts:69
+fetchFn @ @tanstack_react-query.js?v=ec17ede6:840
+run @ @tanstack_react-query.js?v=ec17ede6:494
+start @ @tanstack_react-query.js?v=ec17ede6:536
+fetch @ @tanstack_react-query.js?v=ec17ede6:926
+executeFetch_fn @ @tanstack_react-query.js?v=ec17ede6:2211
+(anonymous) @ @tanstack_react-query.js?v=ec17ede6:2245
+setInterval
+updateRefetchInterval_fn @ @tanstack_react-query.js?v=ec17ede6:2243
+updateTimers_fn @ @tanstack_react-query.js?v=ec17ede6:2250
+onQueryUpdate @ @tanstack_react-query.js?v=ec17ede6:2206
+(anonymous) @ @tanstack_react-query.js?v=ec17ede6:998
+(anonymous) @ @tanstack_react-query.js?v=ec17ede6:997
+batch @ @tanstack_react-query.js?v=ec17ede6:583
+dispatch_fn @ @tanstack_react-query.js?v=ec17ede6:996
+onError @ @tanstack_react-query.js?v=ec17ede6:861
+reject @ @tanstack_react-query.js?v=ec17ede6:465
+(anonymous) @ @tanstack_react-query.js?v=ec17ede6:508
+Promise.catch
+run @ @tanstack_react-query.js?v=ec17ede6:498
+start @ @tanstack_react-query.js?v=ec17ede6:536
+fetch @ @tanstack_react-query.js?v=ec17ede6:926
+executeFetch_fn @ @tanstack_react-query.js?v=ec17ede6:2211
+onSubscribe @ @tanstack_react-query.js?v=ec17ede6:1898
+subscribe @ @tanstack_react-query.js?v=ec17ede6:24
+(anonymous) @ @tanstack_react-query.js?v=ec17ede6:3022
+subscribeToStore @ chunk-RPCDYKBN.js?v=ec17ede6:11984
+commitHookEffectListMount @ chunk-RPCDYKBN.js?v=ec17ede6:16915
+commitPassiveMountOnFiber @ chunk-RPCDYKBN.js?v=ec17ede6:18156
+commitPassiveMountEffects_complete @ chunk-RPCDYKBN.js?v=ec17ede6:18129
+commitPassiveMountEffects_begin @ chunk-RPCDYKBN.js?v=ec17ede6:18119
+commitPassiveMountEffects @ chunk-RPCDYKBN.js?v=ec17ede6:18109
+flushPassiveEffectsImpl @ chunk-RPCDYKBN.js?v=ec17ede6:19490
+flushPassiveEffects @ chunk-RPCDYKBN.js?v=ec17ede6:19447
+performSyncWorkOnRoot @ chunk-RPCDYKBN.js?v=ec17ede6:18868
+flushSyncCallbacks @ chunk-RPCDYKBN.js?v=ec17ede6:9119
+commitRootImpl @ chunk-RPCDYKBN.js?v=ec17ede6:19432
+commitRoot @ chunk-RPCDYKBN.js?v=ec17ede6:19277
+finishConcurrentRender @ chunk-RPCDYKBN.js?v=ec17ede6:18805
+performConcurrentWorkOnRoot @ chunk-RPCDYKBN.js?v=ec17ede6:18718
+workLoop @ chunk-RPCDYKBN.js?v=ec17ede6:197
+flushWork @ chunk-RPCDYKBN.js?v=ec17ede6:176
+performWorkUntilDeadline @ chunk-RPCDYKBN.js?v=ec17ede6:384Understand this error
+2Console.js:61 🎯 Focused map on sub-district: الربع الغربي
+2Console.js:61 🎯 Focused map on sector: 2A
+Console.js:61 🎯 Focused map on neighborhood unit: 2A3
+Console.js:61 🗺️ Raw basemap API response: {success: true, data: {…}}
+Console.js:61 🔍 Basemap query result: {totalOverlays: 0, availableOverlay: false, overlayId: undefined}
+Console.js:61 🎯 Focused map on neighborhood unit: 2A3
+Console.js:61 🔄 Upload button clicked for neighborhood unit: 76e95e93-d841-4158-8cb7-94b9d435d313
+Console.js:61 📍 Current dialog state before click: false
+Console.js:61 📍 Called setShowUploadDialog(true)
+Console.js:61 🔍 Upload dialog state changed: true
+Console.js:61 Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+Mt.forEach.n.<computed> @ Console.js:61
+(anonymous) @ @radix-ui_react-dialog.js?v=ec17ede6:342
+commitHookEffectListMount @ chunk-RPCDYKBN.js?v=ec17ede6:16915
+commitPassiveMountOnFiber @ chunk-RPCDYKBN.js?v=ec17ede6:18156
+commitPassiveMountEffects_complete @ chunk-RPCDYKBN.js?v=ec17ede6:18129
+commitPassiveMountEffects_begin @ chunk-RPCDYKBN.js?v=ec17ede6:18119
+commitPassiveMountEffects @ chunk-RPCDYKBN.js?v=ec17ede6:18109
+flushPassiveEffectsImpl @ chunk-RPCDYKBN.js?v=ec17ede6:19490
+flushPassiveEffects @ chunk-RPCDYKBN.js?v=ec17ede6:19447
+commitRootImpl @ chunk-RPCDYKBN.js?v=ec17ede6:19416
+commitRoot @ chunk-RPCDYKBN.js?v=ec17ede6:19277
+performSyncWorkOnRoot @ chunk-RPCDYKBN.js?v=ec17ede6:18895
+flushSyncCallbacks @ chunk-RPCDYKBN.js?v=ec17ede6:9119
+(anonymous) @ chunk-RPCDYKBN.js?v=ec17ede6:18627Understand this warning
+Console.js:61 🔄 Step 1: Creating geo job with payload: {taskType: 'GEOTIFF_PROCESSING', targetType: 'neighborhoodUnit', targetId: '76e95e93-d841-4158-8cb7-94b9d435d313', inputKey: '2A3.tif', inputPayload: {…}, …}
+injected.js:278  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/api/sync/session 404 (Not Found)
+window.fetch @ Network.js:219
+apply @ injected.js:278
+(anonymous) @ queryClient.ts:69
+fetchFn @ @tanstack_react-query.js?v=ec17ede6:840
+run @ @tanstack_react-query.js?v=ec17ede6:494
+start @ @tanstack_react-query.js?v=ec17ede6:536
+fetch @ @tanstack_react-query.js?v=ec17ede6:926
+executeFetch_fn @ @tanstack_react-query.js?v=ec17ede6:2211
+(anonymous) @ @tanstack_react-query.js?v=ec17ede6:2245
+setInterval
+updateRefetchInterval_fn @ @tanstack_react-query.js?v=ec17ede6:2243
+updateTimers_fn @ @tanstack_react-query.js?v=ec17ede6:2250
+onQueryUpdate @ @tanstack_react-query.js?v=ec17ede6:2206
+(anonymous) @ @tanstack_react-query.js?v=ec17ede6:998
+(anonymous) @ @tanstack_react-query.js?v=ec17ede6:997
+batch @ @tanstack_react-query.js?v=ec17ede6:583
+dispatch_fn @ @tanstack_react-query.js?v=ec17ede6:996
+onError @ @tanstack_react-query.js?v=ec17ede6:861
+reject @ @tanstack_react-query.js?v=ec17ede6:465
+(anonymous) @ @tanstack_react-query.js?v=ec17ede6:508
+Promise.catch
+run @ @tanstack_react-query.js?v=ec17ede6:498
+start @ @tanstack_react-query.js?v=ec17ede6:536
+fetch @ @tanstack_react-query.js?v=ec17ede6:926
+executeFetch_fn @ @tanstack_react-query.js?v=ec17ede6:2211
+(anonymous) @ @tanstack_react-query.js?v=ec17ede6:2245
+setInterval
+updateRefetchInterval_fn @ @tanstack_react-query.js?v=ec17ede6:2243
+updateTimers_fn @ @tanstack_react-query.js?v=ec17ede6:2250
+onQueryUpdate @ @tanstack_react-query.js?v=ec17ede6:2206
+(anonymous) @ @tanstack_react-query.js?v=ec17ede6:998
+(anonymous) @ @tanstack_react-query.js?v=ec17ede6:997
+batch @ @tanstack_react-query.js?v=ec17ede6:583
+dispatch_fn @ @tanstack_react-query.js?v=ec17ede6:996
+onError @ @tanstack_react-query.js?v=ec17ede6:861
+reject @ @tanstack_react-query.js?v=ec17ede6:465
+(anonymous) @ @tanstack_react-query.js?v=ec17ede6:508
+Promise.catch
+run @ @tanstack_react-query.js?v=ec17ede6:498
+start @ @tanstack_react-query.js?v=ec17ede6:536
+fetch @ @tanstack_react-query.js?v=ec17ede6:926
+executeFetch_fn @ @tanstack_react-query.js?v=ec17ede6:2211
+onSubscribe @ @tanstack_react-query.js?v=ec17ede6:1898
+subscribe @ @tanstack_react-query.js?v=ec17ede6:24
+(anonymous) @ @tanstack_react-query.js?v=ec17ede6:3022
+subscribeToStore @ chunk-RPCDYKBN.js?v=ec17ede6:11984
+commitHookEffectListMount @ chunk-RPCDYKBN.js?v=ec17ede6:16915
+commitPassiveMountOnFiber @ chunk-RPCDYKBN.js?v=ec17ede6:18156
+commitPassiveMountEffects_complete @ chunk-RPCDYKBN.js?v=ec17ede6:18129
+commitPassiveMountEffects_begin @ chunk-RPCDYKBN.js?v=ec17ede6:18119
+commitPassiveMountEffects @ chunk-RPCDYKBN.js?v=ec17ede6:18109
+flushPassiveEffectsImpl @ chunk-RPCDYKBN.js?v=ec17ede6:19490
+flushPassiveEffects @ chunk-RPCDYKBN.js?v=ec17ede6:19447
+performSyncWorkOnRoot @ chunk-RPCDYKBN.js?v=ec17ede6:18868
+flushSyncCallbacks @ chunk-RPCDYKBN.js?v=ec17ede6:9119
+commitRootImpl @ chunk-RPCDYKBN.js?v=ec17ede6:19432
+commitRoot @ chunk-RPCDYKBN.js?v=ec17ede6:19277
+finishConcurrentRender @ chunk-RPCDYKBN.js?v=ec17ede6:18805
+performConcurrentWorkOnRoot @ chunk-RPCDYKBN.js?v=ec17ede6:18718
+workLoop @ chunk-RPCDYKBN.js?v=ec17ede6:197
+flushWork @ chunk-RPCDYKBN.js?v=ec17ede6:176
+performWorkUntilDeadline @ chunk-RPCDYKBN.js?v=ec17ede6:384Understand this error
+injected.js:278  POST https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/api/geo-jobs 500 (Internal Server Error)
+window.fetch @ Network.js:219
+apply @ injected.js:278
+mutationFn @ GeographicDataManager.tsx:233
+fn @ @tanstack_react-query.js?v=ec17ede6:1189
+run @ @tanstack_react-query.js?v=ec17ede6:494
+start @ @tanstack_react-query.js?v=ec17ede6:536
+execute @ @tanstack_react-query.js?v=ec17ede6:1225
+await in execute
+mutate @ @tanstack_react-query.js?v=ec17ede6:2630
+(anonymous) @ @tanstack_react-query.js?v=ec17ede6:3295
+onClick @ GeographicDataManager.tsx:1964
+callCallback2 @ chunk-RPCDYKBN.js?v=ec17ede6:3674
+invokeGuardedCallbackDev @ chunk-RPCDYKBN.js?v=ec17ede6:3699
+invokeGuardedCallback @ chunk-RPCDYKBN.js?v=ec17ede6:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-RPCDYKBN.js?v=ec17ede6:3736
+executeDispatch @ chunk-RPCDYKBN.js?v=ec17ede6:7014
+processDispatchQueueItemsInOrder @ chunk-RPCDYKBN.js?v=ec17ede6:7034
+processDispatchQueue @ chunk-RPCDYKBN.js?v=ec17ede6:7043
+dispatchEventsForPlugins @ chunk-RPCDYKBN.js?v=ec17ede6:7051
+(anonymous) @ chunk-RPCDYKBN.js?v=ec17ede6:7174
+batchedUpdates$1 @ chunk-RPCDYKBN.js?v=ec17ede6:18913
+batchedUpdates @ chunk-RPCDYKBN.js?v=ec17ede6:3579
+dispatchEventForPluginEventSystem @ chunk-RPCDYKBN.js?v=ec17ede6:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-RPCDYKBN.js?v=ec17ede6:5478
+dispatchEvent @ chunk-RPCDYKBN.js?v=ec17ede6:5472
+dispatchDiscreteEvent @ chunk-RPCDYKBN.js?v=ec17ede6:5449Understand this error
+Console.js:61 ❌ GeoTIFF upload failed: Error: Internal server error
+    at Object.mutationFn (GeographicDataManager.tsx:244:15

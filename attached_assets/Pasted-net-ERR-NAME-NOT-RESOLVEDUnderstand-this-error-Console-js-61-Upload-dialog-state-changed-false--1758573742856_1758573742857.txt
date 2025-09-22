@@ -1,0 +1,36 @@
+net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+Console.js:61 🔍 Upload dialog state changed: false
+Console.js:61 🔐 SecureIndexedDB initialized successfully
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj4wv4r4xA.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscQyyS4J0.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj41v4o.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscRiyS.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+injected.js:278  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/api/sync/session 404 (Not Found)
+window.fetch @ Network.js:219
+apply @ injected.js:278
+(anonymous) @ queryClient.ts:69
+fetchFn @ @tanstack_react-query.js?v=ec17ede6:840
+run @ @tanstack_react-query.js?v=ec17ede6:494
+start @ @tanstack_react-query.js?v=ec17ede6:536
+fetch @ @tanstack_react-query.js?v=ec17ede6:926
+executeFetch_fn @ @tanstack_react-query.js?v=ec17ede6:2211
+onSubscribe @ @tanstack_react-query.js?v=ec17ede6:1898
+subscribe @ @tanstack_react-query.js?v=ec17ede6:24
+(anonymous) @ @tanstack_react-query.js?v=ec17ede6:3022
+subscribeToStore @ chunk-RPCDYKBN.js?v=ec17ede6:11984
+commitHookEffectListMount @ chunk-RPCDYKBN.js?v=ec17ede6:16915
+commitPassiveMountOnFiber @ chunk-RPCDYKBN.js?v=ec17ede6:18156
+commitPassiveMountEffects_complete @ chunk-RPCDYKBN.js?v=ec17ede6:18129
+commitPassiveMountEffects_begin @ chunk-RPCDYKBN.js?v=ec17ede6:18119
+commitPassiveMountEffects @ chunk-RPCDYKBN.js?v=ec17ede6:18109
+flushPassiveEffectsImpl @ chunk-RPCDYKBN.js?v=ec17ede6:19490
+flushPassiveEffects @ chunk-RPCDYKBN.js?v=ec17ede6:19447
+performSyncWorkOnRoot @ chunk-RPCDYKBN.js?v=ec17ede6:18868
+flushSyncCallbacks @ chunk-RPCDYKBN.js?v=ec17ede6:9119
+commitRootImpl @ chunk-RPCDYKBN.js?v=ec17ede6:19432
+commitRoot @ chunk-RPCDYKBN.js?v=ec17ede6:19277
+finishConcurrentRender @ chunk-RPCDYKBN.js?v=ec17ede6:18805
+performConcurrentWorkOnRoot @ chunk-RPCDYKBN.js?v=ec17ede6:18718
+workLoop @ chunk-RPCDYKBN.js?v=ec17ede6:197
+flushWork @ chunk-RPCDYKBN.js?v=ec17ede6:176
+performWorkUntilDeadline @ chunk-RPCDYKBN.js?v=ec17ede6:384Understand this error
