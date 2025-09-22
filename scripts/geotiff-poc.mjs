@@ -122,15 +122,16 @@ async function createGeoJob(token, inputKey) {
 
     const jobData = await response.json();
     
-    if (!jobData.success || !jobData.data?.id) {
+    if (!jobData.success || !jobData.data?.job?.id) {
       throw new Error('Invalid response from geo job creation');
     }
 
-    logSuccess(`تم إنشاء المهمة بنجاح - Job ID: ${jobData.data.id}`);
-    logSuccess(`Status: ${jobData.data.status}`);
-    logSuccess(`Created: ${jobData.data.createdAt}`);
+    const job = jobData.data.job;
+    logSuccess(`تم إنشاء المهمة بنجاح - Job ID: ${job.id}`);
+    logSuccess(`Status: ${job.status}`);
+    logSuccess(`Created: ${job.createdAt}`);
     
-    return jobData.data;
+    return job;
   } catch (error) {
     logError(`فشل في إنشاء مهمة المعالجة: ${error.message}`);
     throw error;
@@ -163,7 +164,7 @@ async function pollJobStatus(token, jobId) {
         throw new Error('Invalid response from job status API');
       }
 
-      const job = jobData.data;
+      const job = jobData.data.job;
       log(`Attempt ${attempts + 1}: Status = ${job.status}`);
       
       // Check for completion states
