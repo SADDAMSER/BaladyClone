@@ -19,6 +19,8 @@ from typing import Dict, Any, List, Optional, Tuple
 import rasterio
 import numpy as np
 from PIL import Image
+from rasterio.warp import transform_bounds
+from rasterio.crs import CRS
 
 # Import PoC functions
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'geotiff-processor-poc'))
@@ -48,6 +50,41 @@ class GeoprocessingProcessor:
         self.include_statistics = self.config.get('include_statistics', True)
         
         logger.info(f"Processor initialized with config: {self.config}")
+    
+    def _transform_bounds_to_wgs84(self, dataset) -> Optional[List[float]]:
+        """
+        تحويل bounds من نظام الإحداثيات الأصلي إلى WGS84 (EPSG:4326)
+        للاستخدام مع Leaflet maps
+        
+        Returns: [west, south, east, north] - leaflet bounds format
+        """
+        try:
+            if not dataset.crs or not dataset.bounds:
+                return None
+                
+            # Check if already in WGS84
+            if dataset.crs.to_epsg() == 4326:
+                bounds = dataset.bounds
+                return [float(bounds.left), float(bounds.bottom), 
+                       float(bounds.right), float(bounds.top)]
+            
+            # Transform bounds to WGS84
+            wgs84_bounds = transform_bounds(
+                dataset.crs,
+                CRS.from_epsg(4326),  # WGS84
+                dataset.bounds.left,
+                dataset.bounds.bottom,
+                dataset.bounds.right,
+                dataset.bounds.top
+            )
+            
+            # Return in [west, south, east, north] format for Leaflet
+            return [float(wgs84_bounds[0]), float(wgs84_bounds[1]),
+                   float(wgs84_bounds[2]), float(wgs84_bounds[3])]
+            
+        except Exception as e:
+            logger.warning(f"Failed to transform bounds to WGS84: {e}")
+            return None
     
     def validate_geotiff_file(self, file_path: str) -> Dict[str, Any]:
         """
@@ -122,6 +159,7 @@ class GeoprocessingProcessor:
                             'right': float(dataset.bounds.right),
                             'top': float(dataset.bounds.top)
                         } if dataset.bounds else None,
+                        'bounds_wgs84': self._transform_bounds_to_wgs84(dataset) if dataset.bounds and dataset.crs else None,
                         'pixel_size': {
                             'x': abs(dataset.transform.a) if dataset.transform else None,
                             'y': abs(dataset.transform.e) if dataset.transform else None

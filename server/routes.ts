@@ -84,10 +84,13 @@ async function convertJobToOverlayData(job: any): Promise<any> {
       return null;
     }
 
-    // Get bounds from outputPayload (computed by worker in WGS84)
-    const bounds = job.outputPayload?.bounds;
-    if (!bounds || !Array.isArray(bounds) || bounds.length !== 4) {
-      console.warn(`No valid bounds found for job ${job.id}`);
+    // Get WGS84 bounds from outputPayload (computed by worker)
+    const bounds_wgs84 = job.outputPayload?.spatial?.bounds_wgs84;
+    if (!bounds_wgs84 || !Array.isArray(bounds_wgs84) || bounds_wgs84.length !== 4) {
+      console.warn(`No valid WGS84 bounds found for job ${job.id}`, {
+        outputPayload: job.outputPayload,
+        spatial: job.outputPayload?.spatial
+      });
       return null;
     }
 
@@ -100,8 +103,8 @@ async function convertJobToOverlayData(job: any): Promise<any> {
       overlay: {
         url: signedUrl,
         bounds: [
-          [bounds[1], bounds[0]], // [south, west] - leaflet format
-          [bounds[3], bounds[2]]  // [north, east] - leaflet format  
+          [bounds_wgs84[1], bounds_wgs84[0]], // [south, west] - leaflet format
+          [bounds_wgs84[3], bounds_wgs84[2]]  // [north, east] - leaflet format  
         ],
         opacity: job.outputPayload?.opacity || 0.7,
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
