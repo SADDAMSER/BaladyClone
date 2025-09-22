@@ -1,0 +1,517 @@
+[Intervention] Slow network is detected. See https://www.chromestatus.com/feature/5636954674692096 for more details. Fallback font will be used while loading: https://replit.com/public/fonts/ibm-plex-sans-v8-latin-regular.woff2
+25The source list for the Content Security Policy directive 'default-src' contains an invalid source: ''unsafe-dynamic''. It will be ignored.Understand this error
+25The Content-Security-Policy directive 'default-src' contains 'report-uri' as a source expression. Did you want to add it as a directive and forget a semicolon?Understand this error
+25The source list for Content Security Policy directive 'default-src' contains a source with an invalid path: '/api/4509669501698048/security/?sentry_key=7eb3d90eb4660416caf507087367e67e'. The query component, including the '?', will be ignored.Understand this error
+stallwart.build.js:1 stallwart: failed ping 1
+BaladyClone:1 The source list for the Content Security Policy directive 'default-src' contains an invalid source: ''unsafe-dynamic''. It will be ignored.Understand this error
+BaladyClone:1 The Content-Security-Policy directive 'default-src' contains 'report-uri' as a source expression. Did you want to add it as a directive and forget a semicolon?Understand this error
+BaladyClone:1 The source list for Content Security Policy directive 'default-src' contains a source with an invalid path: '/api/4509669501698048/security/?sentry_key=7eb3d90eb4660416caf507087367e67e'. The query component, including the '?', will be ignored.Understand this error
+_app-3b6f71e3c4d98d3d.js:28 
+      /////////////////////
+   ///////////////////////////
+  ////////@@@@@@@//////////////
+  ////////@@@@@@@//////////////
+  ////////@@@@@@@//////////////        Curious and driven?
+  ///////////////@@@@@@@///////        Work with us!
+  ///////////////@@@@@@@///////
+  ///////////////@@@@@@@///////        https://join.replit.com/hack.with.us
+  ////////@@@@@@@//////////////
+  ////////@@@@@@@//////////////
+  ////////@@@@@@#//////////////
+   ///////////////////////////
+      /////////////////////
+      
+8463-8682854adda7b63e.js:4 [Intervention] Slow network is detected. See https://www.chromestatus.com/feature/5636954674692096 for more details. Fallback font will be used while loading: https://replit.com/public/fonts/ibm-plex-sans-v8-latin-500.woff2
+_app-3b6f71e3c4d98d3d.js:28 [LaunchDarkly] LaunchDarkly client initialized
+recaptcha__ar.js:682 [Intervention] Slow network is detected. See https://www.chromestatus.com/feature/5636954674692096 for more details. Fallback font will be used while loading: https://fonts.gstatic.com/s/roboto/v18/KFOlCnqEu92Fr1MmEU9fBBc4.woff2
+recaptcha__ar.js:682 [Intervention] Slow network is detected. See https://www.chromestatus.com/feature/5636954674692096 for more details. Fallback font will be used while loading: https://fonts.gstatic.com/s/roboto/v18/KFOmCnqEu92Fr1Mu4mxK.woff2
+www.google-analytics.com/analytics.js:1  Failed to load resource: net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+googleads.g.doubleclick.net/pagead/viewthroughconversion/11411994397/?random=1758569104023&cv=11&fst=1758569104023&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45be59i0v9171242957za200zd9171242957xec&gcd=13l3l3l3l1l1&dma=0&tag_exp=101509157~103116026~103200004~103233427~104527907~104528501~104684208~104684211~104948813~105359936~115480709~115616986&u_w=1920&u_h=1080&url=https%3A%2F%2Freplit.com%2F%40saddamalisaddam%2FBaladyClone&ref=https%3A%2F%2Freplit.com%2F%40saddamalisaddam%2FBaladyClone&frm=0&tiba=client%2Fsrc%2Fpages%2FGeographicDataManager.tsx%20-%20BaladyClone%20-%20Replit&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=809159238.1756940677&data=event%3Dgtag.config&rfmt=3&fmt=4:1  Failed to load resource: net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+BaladyClone:1 Banner not shown: beforeinstallpromptevent.preventDefault() called. The page must call beforeinstallpromptevent.prompt() to show the banner.
+22Error while parsing the 'sandbox' attribute: 'allow-downloads-without-user-activation' is an invalid sandbox flag.Understand this error
+7Unrecognized feature: 'ambient-light-sensor'.Understand this warning
+7Unrecognized feature: 'battery'.Understand this warning
+7Unrecognized feature: 'execution-while-not-rendered'.Understand this warning
+7Unrecognized feature: 'execution-while-out-of-viewport'.Understand this warning
+7Unrecognized feature: 'layout-animations'.Understand this warning
+7Unrecognized feature: 'legacy-image-formats'.Understand this warning
+7Unrecognized feature: 'navigation-override'.Understand this warning
+7Unrecognized feature: 'oversized-images'.Understand this warning
+7Unrecognized feature: 'publickey-credentials'.Understand this warning
+7Unrecognized feature: 'speaker-selection'.Understand this warning
+7Unrecognized feature: 'unoptimized-images'.Understand this warning
+7Unrecognized feature: 'unsized-media'.Understand this warning
+framework-c7a521dc77a4c007.js:1 Unrecognized feature: 'pointer-lock'.
+_ @ framework-c7a521dc77a4c007.js:1Understand this warning
+7Allow attribute will take precedence over 'allowfullscreen'.Understand this warning
+7Allow attribute will take precedence over 'allowpaymentrequest'.Understand this warning
+_app-3b6f71e3c4d98d3d.js:28 Uncaught TypeError: Cannot read properties of undefined (reading 'dimensions')
+    at get dimensions (7b975a49.96169676be0e3847.js:3:88160)
+    at t.Viewport.syncScrollArea (7b975a49.96169676be0e3847.js:3:30735)
+    at 7b975a49.96169676be0e3847.js:3:29381
+    at n (_app-3b6f71e3c4d98d3d.js:28:2959)Understand this error
+6631-52007e9021ce394a.js:1 WebSocket is already in CLOSING or CLOSED state.
+send @ 6631-52007e9021ce394a.js:1Understand this error
+6631-52007e9021ce394a.js:1 WebSocket is already in CLOSING or CLOSED state.
+send @ 6631-52007e9021ce394a.js:1Understand this error
+6631-52007e9021ce394a.js:1 WebSocket is already in CLOSING or CLOSED state.
+send @ 6631-52007e9021ce394a.js:1Understand this error
+6631-52007e9021ce394a.js:1 WebSocket is already in CLOSING or CLOSED state.
+send @ 6631-52007e9021ce394a.js:1Understand this error
+6631-52007e9021ce394a.js:1 WebSocket is already in CLOSING or CLOSED state.
+send @ 6631-52007e9021ce394a.js:1Understand this error
+6631-52007e9021ce394a.js:1 WebSocket is already in CLOSING or CLOSED state.
+send @ 6631-52007e9021ce394a.js:1Understand this error
+6631-52007e9021ce394a.js:1 WebSocket is already in CLOSING or CLOSED state.
+send @ 6631-52007e9021ce394a.js:1Understand this error
+6631-52007e9021ce394a.js:1 WebSocket is already in CLOSING or CLOSED state.
+send @ 6631-52007e9021ce394a.js:1Understand this error
+6631-52007e9021ce394a.js:1 WebSocket is already in CLOSING or CLOSED state.
+send @ 6631-52007e9021ce394a.js:1Understand this error
+6631-52007e9021ce394a.js:1 WebSocket is already in CLOSING or CLOSED state.
+send @ 6631-52007e9021ce394a.js:1Understand this error
+_app-3b6f71e3c4d98d3d.js:28 Uncaught TypeError: Cannot read properties of undefined (reading 'dimensions')
+    at get dimensions (7b975a49.96169676be0e3847.js:3:88160)
+    at t.Viewport.syncScrollArea (7b975a49.96169676be0e3847.js:3:30735)
+    at 7b975a49.96169676be0e3847.js:3:29381
+    at n (_app-3b6f71e3c4d98d3d.js:28:2959)Understand this error
+67276-af6c517ed995012d.js:1 Uncaught (in promise) Error: Channel closed while requesting
+    at 7276-af6c517ed995012d.js:1:14748
+    at Object.next (main-ef1d415db5927746.js:1:192963)
+    at n (main-ef1d415db5927746.js:1:59305)
+    at u (main-ef1d415db5927746.js:1:59502)Understand this error
+image_1758559188443.png:1  Failed to load resource: the server responded with a status of 404 ()Understand this error
+87276-af6c517ed995012d.js:1 Uncaught (in promise) Error: Channel closed while requesting
+    at 7276-af6c517ed995012d.js:1:14748
+    at Object.next (main-ef1d415db5927746.js:1:192963)
+    at n (main-ef1d415db5927746.js:1:59305)
+    at u (main-ef1d415db5927746.js:1:59502)Understand this error
+5308-1036c35fb1709ce1.js:1 Uncaught (in promise) Error: Failed to getAnonymousPackagerChannel
+    at 5308-1036c35fb1709ce1.js:1:1694272
+    at Object.next (main-ef1d415db5927746.js:1:192963)
+    at n (main-ef1d415db5927746.js:1:59305)
+    at u (main-ef1d415db5927746.js:1:59502)Understand this error
+47276-af6c517ed995012d.js:1 Uncaught (in promise) Error: Channel closed while requesting
+    at 7276-af6c517ed995012d.js:1:14748
+    at Object.next (main-ef1d415db5927746.js:1:192963)
+    at n (main-ef1d415db5927746.js:1:59305)
+    at u (main-ef1d415db5927746.js:1:59502)Understand this error
+5308-1036c35fb1709ce1.js:1 Uncaught (in promise) Error: Failed to getAnonymousPackagerChannel
+    at 5308-1036c35fb1709ce1.js:1:1694272
+    at Object.next (main-ef1d415db5927746.js:1:192963)
+    at n (main-ef1d415db5927746.js:1:59305)
+    at u (main-ef1d415db5927746.js:1:59502)Understand this error
+47276-af6c517ed995012d.js:1 Uncaught (in promise) Error: Channel closed while requesting
+    at 7276-af6c517ed995012d.js:1:14748
+    at Object.next (main-ef1d415db5927746.js:1:192963)
+    at n (main-ef1d415db5927746.js:1:59305)
+    at u (main-ef1d415db5927746.js:1:59502)Understand this error
+25308-1036c35fb1709ce1.js:1 Uncaught (in promise) Error: Failed to getAnonymousPackagerChannel
+    at 5308-1036c35fb1709ce1.js:1:1694272
+    at Object.next (main-ef1d415db5927746.js:1:192963)
+    at n (main-ef1d415db5927746.js:1:59305)
+    at u (main-ef1d415db5927746.js:1:59502)Understand this error
+47276-af6c517ed995012d.js:1 Uncaught (in promise) Error: Channel closed while requesting
+    at 7276-af6c517ed995012d.js:1:14748
+    at Object.next (main-ef1d415db5927746.js:1:192963)
+    at n (main-ef1d415db5927746.js:1:59305)
+    at u (main-ef1d415db5927746.js:1:59502)Understand this error
+35308-1036c35fb1709ce1.js:1 Uncaught (in promise) Error: Failed to getAnonymousPackagerChannel
+    at 5308-1036c35fb1709ce1.js:1:1694272
+    at Object.next (main-ef1d415db5927746.js:1:192963)
+    at n (main-ef1d415db5927746.js:1:59305)
+    at u (main-ef1d415db5927746.js:1:59502)Understand this error
+47276-af6c517ed995012d.js:1 Uncaught (in promise) Error: Channel closed while requesting
+    at 7276-af6c517ed995012d.js:1:14748
+    at Object.next (main-ef1d415db5927746.js:1:192963)
+    at n (main-ef1d415db5927746.js:1:59305)
+    at u (main-ef1d415db5927746.js:1:59502)Understand this error
+25308-1036c35fb1709ce1.js:1 Uncaught (in promise) Error: Failed to getAnonymousPackagerChannel
+    at 5308-1036c35fb1709ce1.js:1:1694272
+    at Object.next (main-ef1d415db5927746.js:1:192963)
+    at n (main-ef1d415db5927746.js:1:59305)
+    at u (main-ef1d415db5927746.js:1:59502)Understand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj4wv4r4xA.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj41v4o.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscRiyS.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscQyyS4J0.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+47276-af6c517ed995012d.js:1 Uncaught (in promise) Error: Channel closed while requesting
+    at 7276-af6c517ed995012d.js:1:14748
+    at Object.next (main-ef1d415db5927746.js:1:192963)
+    at n (main-ef1d415db5927746.js:1:59305)
+    at u (main-ef1d415db5927746.js:1:59502)
+(anonymous) @ 7276-af6c517ed995012d.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1Understand this error
+35308-1036c35fb1709ce1.js:1 Uncaught (in promise) Error: Failed to getAnonymousPackagerChannel
+    at 5308-1036c35fb1709ce1.js:1:1694272
+    at Object.next (main-ef1d415db5927746.js:1:192963)
+    at n (main-ef1d415db5927746.js:1:59305)
+    at u (main-ef1d415db5927746.js:1:59502)
+(anonymous) @ 5308-1036c35fb1709ce1.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1Understand this errorExplanationUnderstanding the problemThe error message "Uncaught (in promise) Error: Failed to getAnonymousPackagerChannel" indicates that a function or process attempting to get an anonymous packager channel failed after multiple retries (more than 5, based on the code). This typically happens when a crucial connection or resource needed by the application could not be established or accessed within the expected parameters.Suggested fixThe provided code snippet shows a recursive function (u) that retries fetching a resource (a) up to 5 times if its status is not "open". To fix this issue, you need to investigate why the resource's status is not becoming "open". This could be due to:Network issues: The client might be unable to reach the server hosting the resource.Server issues: The server providing the resource might be down, overloaded, or misconfigured.CORS issues: The server might not be configured to allow requests from the origin where the client is running.Incorrect URL or endpoint: The application might be trying to access the wrong URL for the resource.Authentication/Authorization problems: The request might be blocked due to missing or incorrect credentials.To fix this, you need to debug the source of the problem by examining network requests in the DevTools Network tab, checking server logs, and verifying the resource URL and any authentication mechanisms.SummaryThe error "Failed to getAnonymousPackagerChannel" is thrown when the application fails to establish a required connection or access a resource after multiple retries. The fix involves identifying and resolving the underlying cause, which could be network issues, server problems, CORS restrictions, incorrect URLs, or authentication failures.Data used to understand this messageConsole messageStacktraceRelated codeUse search insteadAI tools may generate inaccurate info that doesn't represent Google's views. Data sent to Google may be seen by human reviewers to improve this feature. Open settings or learn more
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj41v4o.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj4wv4r4xA.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscQyyS4J0.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscRiyS.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+47276-af6c517ed995012d.js:1 Uncaught (in promise) Error: Channel closed while requesting
+    at 7276-af6c517ed995012d.js:1:14748
+    at Object.next (main-ef1d415db5927746.js:1:192963)
+    at n (main-ef1d415db5927746.js:1:59305)
+    at u (main-ef1d415db5927746.js:1:59502)
+(anonymous) @ 7276-af6c517ed995012d.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1
+Promise.then
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+f.fetchOps @ 7276-af6c517ed995012d.js:1
+(anonymous) @ 7276-af6c517ed995012d.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+f.handleReconnect @ 7276-af6c517ed995012d.js:1
+(anonymous) @ 7276-af6c517ed995012d.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+f.handleStatus @ 7276-af6c517ed995012d.js:1
+(anonymous) @ 7276-af6c517ed995012d.js:1
+(anonymous) @ 6504-59a91c11118efd99.js:1
+handleCommand @ 6504-59a91c11118efd99.js:1
+onSocketMessage @ 6504-59a91c11118efd99.js:1Understand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj41v4o.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj4wv4r4xA.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscQyyS4J0.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscRiyS.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+47276-af6c517ed995012d.js:1 Uncaught (in promise) Error: Channel closed while requesting
+    at 7276-af6c517ed995012d.js:1:14748
+    at Object.next (main-ef1d415db5927746.js:1:192963)
+    at n (main-ef1d415db5927746.js:1:59305)
+    at u (main-ef1d415db5927746.js:1:59502)
+(anonymous) @ 7276-af6c517ed995012d.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1
+Promise.then
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+f.fetchOps @ 7276-af6c517ed995012d.js:1
+(anonymous) @ 7276-af6c517ed995012d.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+f.handleReconnect @ 7276-af6c517ed995012d.js:1
+(anonymous) @ 7276-af6c517ed995012d.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+f.handleStatus @ 7276-af6c517ed995012d.js:1
+(anonymous) @ 7276-af6c517ed995012d.js:1
+(anonymous) @ 6504-59a91c11118efd99.js:1
+handleCommand @ 6504-59a91c11118efd99.js:1
+onSocketMessage @ 6504-59a91c11118efd99.js:1Understand this error
+35308-1036c35fb1709ce1.js:1 Uncaught (in promise) Error: Failed to getAnonymousPackagerChannel
+    at 5308-1036c35fb1709ce1.js:1:1694272
+    at Object.next (main-ef1d415db5927746.js:1:192963)
+    at n (main-ef1d415db5927746.js:1:59305)
+    at u (main-ef1d415db5927746.js:1:59502)
+(anonymous) @ 5308-1036c35fb1709ce1.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1
+Promise.then
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1
+Promise.then
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+u @ 5308-1036c35fb1709ce1.js:1
+(anonymous) @ 5308-1036c35fb1709ce1.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1Understand this error
+6504-59a91c11118efd99.js:1 WebSocket connection to 'wss://eval.worf.platform.replit.com/wsv2/v2.public.Q2dZSW9jckd4Z1lTQmdqQTVzYkdCaUlFZDI5eVpqQUFPczRCQ2lSaE5EWXhPV0ZsTWkweU5ETTRMVFJsTURZdE9XUXhaUzAxT1RoaFpqWmxaREUyTlRRU0EyNXBlQm9XY21Wd2JHbDBMWEpsY0d3dFptbHNaWE10ZDI5eVppSUxRbUZzWVdSNVEyeHZibVVxRDNOaFpHUmhiV0ZzYVhOaFpHUmhiVUpPQ2hkeVpYQnNhWFF0Y21Wd2JDMWliRzlqYTNNdGQyOXlaaElWY21Wd2JHbDBMWEpsY0d3dGJXVjBZUzEzYjNKbUdoeHlaWEJzYVhRdGJXRnlaMkZ5YVc1bExXSnNiMk5yY3kxM2IzSm1TZ2NJNExYQkZoQUJVQUJhRG1sdWRHVnVkRjl6ZEhWa1pXNTBlQUJTSXdnQkVJQ0FnSUFnR1FBQUFBQUFBQkJBSVFBQUFBQUFBQkJBS0lDQWdJRElBVEFDWUFCcUZnamd0Y0VXRWc5ellXUmtZVzFoYkdsellXUmtZVzJDQVFJcUFKb0JDZ29JTUM0d0xqRTROVFNnQVFFPdAC5RL416VNQlmEZ-HI2iNbtmASBv6M4-fseXWc-P_tVLNzetaVuSKCi6Qob42S-fN76cuW4j_aISXCP2P1_gM.Q2dad2NtOWtPak1pQ25KbGNHeHBkQzVqYjIwPQ' failed: WebSocket is closed before the connection is established.
+cleanupSocket @ 6504-59a91c11118efd99.js:1
+y @ 6504-59a91c11118efd99.js:1
+(anonymous) @ 6504-59a91c11118efd99.js:1
+n @ _app-3b6f71e3c4d98d3d.js:28
+setTimeout
+(anonymous) @ _app-3b6f71e3c4d98d3d.js:28
+b @ 6504-59a91c11118efd99.js:1
+connect @ 6504-59a91c11118efd99.js:1
+await in connect
+open @ 6504-59a91c11118efd99.js:1
+connect @ 3082-f3cc15332f5827fb.js:1
+(anonymous) @ 3082-f3cc15332f5827fb.js:1
+n @ _app-3b6f71e3c4d98d3d.js:28Understand this warning
+_app-3b6f71e3c4d98d3d.js:28  POST https://sp.replit.com/v1/m net::ERR_NETWORK_CHANGED
+(anonymous) @ _app-3b6f71e3c4d98d3d.js:28
+o @ sdk.min.js:1
+(anonymous) @ remote-metrics.ts:138
+(anonymous) @ tslib.es6.js:103
+(anonymous) @ tslib.es6.js:108
+(anonymous) @ tslib.es6.js:80
+u @ tslib.es6.js:72
+i.148.t.send @ sdk.min.js:1
+(anonymous) @ remote-metrics.ts:125
+(anonymous) @ tslib.es6.js:103
+(anonymous) @ tslib.es6.js:108
+(anonymous) @ tslib.es6.js:80
+u @ tslib.es6.js:72
+(anonymous) @ sdk.min.js:1
+l @ remote-metrics.ts:83
+n @ _app-3b6f71e3c4d98d3d.js:28
+setTimeout
+(anonymous) @ _app-3b6f71e3c4d98d3d.js:28
+l @ remote-metrics.ts:87
+n @ _app-3b6f71e3c4d98d3d.js:28Understand this error
+_app-3b6f71e3c4d98d3d.js:28 Error sending segment performance metrics TypeError: Failed to fetch
+    at _app-3b6f71e3c4d98d3d.js:28:9046
+    at o (sdk.min.js:1:23763)
+    at t.<anonymous> (remote-metrics.ts:138:12)
+    at tslib.es6.js:103:23
+    at Object.next (tslib.es6.js:108:37)
+    at tslib.es6.js:80:8
+    at new Promise (<anonymous>)
+    at u (tslib.es6.js:72:27)
+    at i.148.t.send (sdk.min.js:1:22021)
+    at t.<anonymous> (remote-metrics.ts:125:16)
+    at tslib.es6.js:103:23
+    at Object.next (tslib.es6.js:108:37)
+    at tslib.es6.js:80:8
+    at new Promise (<anonymous>)
+    at u (tslib.es6.js:72:27)
+    at t.flush (sdk.min.js:1:21754)
+    at l (remote-metrics.ts:83:14)
+    at n (_app-3b6f71e3c4d98d3d.js:28:2959)
+(anonymous) @ _app-3b6f71e3c4d98d3d.js:28
+a @ remote-metrics.ts:53
+(anonymous) @ remote-metrics.ts:126
+Promise.catch
+(anonymous) @ remote-metrics.ts:125
+(anonymous) @ tslib.es6.js:103
+(anonymous) @ tslib.es6.js:108
+(anonymous) @ tslib.es6.js:80
+u @ tslib.es6.js:72
+(anonymous) @ sdk.min.js:1
+l @ remote-metrics.ts:83
+n @ _app-3b6f71e3c4d98d3d.js:28
+setTimeout
+(anonymous) @ _app-3b6f71e3c4d98d3d.js:28
+l @ remote-metrics.ts:87
+n @ _app-3b6f71e3c4d98d3d.js:28Understand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj4wv4r4xA.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj41v4o.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscRiyS.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscQyyS4J0.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+47276-af6c517ed995012d.js:1 Uncaught (in promise) Error: Channel closed while requesting
+    at 7276-af6c517ed995012d.js:1:14748
+    at Object.next (main-ef1d415db5927746.js:1:192963)
+    at n (main-ef1d415db5927746.js:1:59305)
+    at u (main-ef1d415db5927746.js:1:59502)
+(anonymous) @ 7276-af6c517ed995012d.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1
+Promise.then
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+f.fetchOps @ 7276-af6c517ed995012d.js:1
+(anonymous) @ 7276-af6c517ed995012d.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+f.handleReconnect @ 7276-af6c517ed995012d.js:1
+(anonymous) @ 7276-af6c517ed995012d.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1
+Promise.then
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+f.handleStatus @ 7276-af6c517ed995012d.js:1
+(anonymous) @ 7276-af6c517ed995012d.js:1
+(anonymous) @ 6504-59a91c11118efd99.js:1
+handleCommand @ 6504-59a91c11118efd99.js:1
+onSocketMessage @ 6504-59a91c11118efd99.js:1Understand this error
+_app-3b6f71e3c4d98d3d.js:28  POST https://replit.com/data/repls/a4619ae2-2438-4e06-9d1e-598af6ed1654/get_connection_metadata net::ERR_CONNECTION_CLOSED
+(anonymous) @ _app-3b6f71e3c4d98d3d.js:28
+(anonymous) @ _app-3b6f71e3c4d98d3d.js:28
+(anonymous) @ _app-3b6f71e3c4d98d3d.js:1
+y @ _app-3b6f71e3c4d98d3d.js:1
+(anonymous) @ 3082-f3cc15332f5827fb.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+m @ 3082-f3cc15332f5827fb.js:1
+(anonymous) @ 3082-f3cc15332f5827fb.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+e @ 3082-f3cc15332f5827fb.js:1
+(anonymous) @ 3082-f3cc15332f5827fb.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1
+Promise.then
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1
+Promise.then
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1
+Promise.then
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+fetchConnectionMetadata @ 3082-f3cc15332f5827fb.js:1
+connect @ 6504-59a91c11118efd99.js:1
+open @ 6504-59a91c11118efd99.js:1
+connect @ 3082-f3cc15332f5827fb.js:1
+(anonymous) @ 3082-f3cc15332f5827fb.js:1
+n @ _app-3b6f71e3c4d98d3d.js:28
+setTimeout
+(anonymous) @ _app-3b6f71e3c4d98d3d.js:28
+(anonymous) @ 3082-f3cc15332f5827fb.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+O @ 3082-f3cc15332f5827fb.js:1
+(anonymous) @ 3082-f3cc15332f5827fb.js:1
+n @ _app-3b6f71e3c4d98d3d.js:28
+setTimeout
+(anonymous) @ _app-3b6f71e3c4d98d3d.js:28
+(anonymous) @ 3082-f3cc15332f5827fb.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1
+Promise.then
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+O @ 3082-f3cc15332f5827fb.js:1
+(anonymous) @ 3082-f3cc15332f5827fb.js:1
+handleConnect @ 6504-59a91c11118efd99.js:1
+(anonymous) @ 6504-59a91c11118efd99.js:1
+(anonymous) @ 6504-59a91c11118efd99.js:1
+handleCommand @ 6504-59a91c11118efd99.js:1
+onSocketMessage @ 6504-59a91c11118efd99.js:1Understand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj4wv4r4xA.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj41v4o.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscQyyS4J0.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscRiyS.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+47276-af6c517ed995012d.js:1 Uncaught (in promise) Error: Channel closed while requesting
+    at 7276-af6c517ed995012d.js:1:14748
+    at Object.next (main-ef1d415db5927746.js:1:192963)
+    at n (main-ef1d415db5927746.js:1:59305)
+    at u (main-ef1d415db5927746.js:1:59502)
+(anonymous) @ 7276-af6c517ed995012d.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1
+Promise.then
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+f.fetchOps @ 7276-af6c517ed995012d.js:1
+(anonymous) @ 7276-af6c517ed995012d.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+f.handleReconnect @ 7276-af6c517ed995012d.js:1
+(anonymous) @ 7276-af6c517ed995012d.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+n @ main-ef1d415db5927746.js:1
+u @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+(anonymous) @ main-ef1d415db5927746.js:1
+f.handleStatus @ 7276-af6c517ed995012d.js:1
+(anonymous) @ 7276-af6c517ed995012d.js:1
+(anonymous) @ 6504-59a91c11118efd99.js:1
+handleCommand @ 6504-59a91c11118efd99.js:1
+onSocketMessage @ 6504-59a91c11118efd99.js:1Understand this error
+App.tsx:34  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/pages/UserManagement.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+App.tsx:35  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/pages/LBACManagement.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+App.tsx:36  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/pages/Permissions.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+App.tsx:37  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/pages/GeographicDataManager.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+App.tsx:38  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/pages/DocumentArchive.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+App.tsx:39  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/pages/SmartSearch.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+App.tsx:40  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/pages/TaskManagement.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+App.tsx:41  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/pages/ServiceBuilder.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+App.tsx:42  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/pages/SurveyorManagement.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+App.tsx:43  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/components/monitoring/MonitoringDashboard.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+App.tsx:44  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/applications/pages/ApplicationTracking.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+App.tsx:45  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/applications/pages/PendingApplications.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+App.tsx:46  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/services/pages/SurveyingDecisionForm.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+App.tsx:47  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/employee/pages/EmployeeDashboard.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+App.tsx:48  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/employee/pages/CashierDashboard.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+App.tsx:49  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/employee/pages/PublicServiceDashboard.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+App.tsx:50  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/employee/pages/TreasuryDashboard.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+App.tsx:51  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/employee/pages/PaymentInvoice.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+App.tsx:52  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/employee/pages/DepartmentManagerDashboard.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+App.tsx:53  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/employee/pages/AssistantManagerDashboard.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+App.tsx:54  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/employee/pages/EngineerDashboard.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+App.tsx:55  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/employee/pages/AssignmentFormPage.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+App.tsx:56  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/employee/pages/SurveyorDashboard.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+App.tsx:57  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/employee/pages/UnifiedFormPrint.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+App.tsx:58  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/citizen/pages/ApplicationStatus.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+App.tsx:59  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/citizen/pages/ApplicationTracking.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+App.tsx:60  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/pages/PublicHomePage.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+App.tsx:61  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/pages/not-found.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+App.tsx:62  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/auth/useAuth.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+App.tsx:63  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/auth/SimpleLogin.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+toaster.tsx:18  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/hooks/use-toast.ts net::ERR_NETWORK_CHANGEDUnderstand this error
+toaster.tsx:26  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/components/ui/toast.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+tooltip.tsx:20  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/lib/utils.ts net::ERR_NETWORK_CHANGEDUnderstand this error
+MobileSyncContext.tsx:19  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/hooks/useMobileSync.ts net::ERR_NETWORK_CHANGEDUnderstand this error
+AdminLayout.tsx:20  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/layouts/components/AdminSidebar.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+AdminLayout.tsx:21  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/layouts/components/AdminHeader.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+AdminDashboard.tsx:19  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/components/ui/card.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+AdminDashboard.tsx:20  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/components/ui/badge.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+AdminDashboard.tsx:21  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/components/ui/button.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+AdminDashboard.tsx:22  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/dashboard/components/KPICard.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+AdminDashboard.tsx:23  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/dashboard/components/QuickActionsWidget.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+AdminDashboard.tsx:24  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/dashboard/components/RecentActivityWidget.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+AdminDashboard.tsx:25  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/dashboard/components/SystemHealthWidget.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+AdminDashboard.tsx:26  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/dashboard/components/ApplicationsChart.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+AdminDashboard.tsx:27  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/dashboard/components/ServicesChart.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+BuildingLicenses.tsx:20  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/components/Header.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+BuildingLicenses.tsx:24  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/components/ui/input.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+BuildingLicenses.tsx:25  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/components/ui/select.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+BuildingLicenses.tsx:26  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/components/ui/table.tsx net::ERR_NETWORK_CHANGEDUnderstand this error
+SurveyingDecision.tsx:27  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/src/components/ui/tabs.tsx net::ERR_NETWORK_CHANGED
