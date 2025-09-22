@@ -6960,6 +6960,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Helper function to determine if user is admin (unified admin detection)
+  const isUserAdmin = (user: any): boolean => {
+    return (user?.role?.toLowerCase() === 'admin') || 
+           (user?.roleCodes || []).map((r: string) => r.toLowerCase()).includes('admin');
+  };
+
   // Get geo jobs - GET /api/geo-jobs
   app.get('/api/geo-jobs', globalSecurityMonitor, generalRateLimit, authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -6974,9 +6980,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (req.query.neighborhoodUnitId) filters.neighborhoodUnitId = req.query.neighborhoodUnitId as string;
       if (req.query.priority) filters.priority = parseInt(req.query.priority as string);
 
-      // Apply ownership filter for non-admin users
-      const userRoles = user.roleCodes || [];
-      const isAdmin = userRoles.includes('ADMIN');
+      // Apply ownership filter for non-admin users (UNIFIED ADMIN CHECK)
+      const isAdmin = isUserAdmin(user);
       
       if (!isAdmin) {
         filters.ownerId = user.id;
@@ -7020,8 +7025,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
         
+        const originalJobsCount = jobs.length;
         jobs = allowedJobs;
-        console.log(`LBAC: Filtered ${jobs.length}/${allowedJobs.length + (jobs.length - allowedJobs.length)} jobs for user ${user.id}`);
+        console.log(`LBAC: Filtered ${jobs.length}/${originalJobsCount} jobs for user ${user.id}`);
+      } else {
+        console.log(`[GEO-JOBS] Admin user bypassed LBAC:`, {
+          userId: user.id,
+          username: user.username,
+          role: user.role,
+          roleCodes: user.roleCodes
+        });
       }
 
       // Check if this is a request for overlay data (frontend integration)
