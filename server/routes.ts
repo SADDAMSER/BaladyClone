@@ -66,6 +66,60 @@ if (!JWT_SECRET) {
 // Type assertion to ensure TypeScript knows JWT_SECRET is defined
 const jwtSecret: string = JWT_SECRET;
 
+// Initialize Object Storage Service for signed URLs
+const objectStorageService = new ObjectStorageService();
+
+// Helper function to convert completed geo job to overlay metadata
+async function convertJobToOverlayData(job: any): Promise<any> {
+  // Only process completed jobs with output files
+  if (job.status !== 'completed' || !job.outputKeys || job.outputKeys.length === 0) {
+    return null;
+  }
+
+  try {
+    // Look for PNG output in outputKeys (from GeoTIFF processing)
+    const pngKey = job.outputKeys.find((key: string) => key.endsWith('.png'));
+    if (!pngKey) {
+      console.warn(`No PNG output found for job ${job.id}`);
+      return null;
+    }
+
+    // Get bounds from outputPayload (computed by worker in WGS84)
+    const bounds = job.outputPayload?.bounds;
+    if (!bounds || !Array.isArray(bounds) || bounds.length !== 4) {
+      console.warn(`No valid bounds found for job ${job.id}`);
+      return null;
+    }
+
+    // Generate signed download URL (24 hour expiry for overlay images)
+    const signedUrl = await objectStorageService.generateDownloadUrl(pngKey, 24 * 60 * 60);
+    
+    return {
+      id: job.id,
+      status: 'available',
+      overlay: {
+        url: signedUrl,
+        bounds: [
+          [bounds[1], bounds[0]], // [south, west] - leaflet format
+          [bounds[3], bounds[2]]  // [north, east] - leaflet format  
+        ],
+        opacity: job.outputPayload?.opacity || 0.7,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      },
+      metadata: {
+        taskType: job.taskType,
+        targetType: job.targetType,
+        targetId: job.targetId,
+        createdAt: job.createdAt,
+        completedAt: job.completedAt
+      }
+    };
+  } catch (error) {
+    console.error(`Error converting job ${job.id} to overlay data:`, error);
+    return null;
+  }
+}
+
 // Helper function to generate consistent UUIDs for mock users
 function generateMockUserUuid(username: string): string {
   // Create a consistent UUID based on the username
@@ -6927,13 +6981,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const jobs = await storage.getGeoJobs(filters);
 
-      res.json({
-        success: true,
-        data: { 
-          jobs,
-          total: jobs.length 
-        }
-      });
+      // Check if this is a request for overlay data (frontend integration)
+      const includeOverlay = req.query.includeOverlay === 'true';
+      
+      if (includeOverlay) {
+        // Convert completed jobs to overlay format
+        const overlayJobs = await Promise.all(
+          jobs.map(async (job) => {
+            const overlayData = await convertJobToOverlayData(job);
+            return overlayData || {
+              id: job.id,
+              status: job.status === 'completed' ? 'processing_failed' : 'not_available',
+              metadata: {
+                taskType: job.taskType,
+                targetType: job.targetType,
+                targetId: job.targetId,
+                status: job.status,
+                createdAt: job.createdAt
+              }
+            };
+          })
+        );
+
+        res.json({
+          success: true,
+          data: { 
+            overlays: overlayJobs.filter(overlay => overlay.status === 'available'),
+            total: overlayJobs.length 
+          }
+        });
+      } else {
+        // Standard job listing response  
+        res.json({
+          success: true,
+          data: { 
+            jobs,
+            total: jobs.length 
+          }
+        });
+      }
 
     } catch (error) {
       console.error('Error fetching geo jobs:', error);
