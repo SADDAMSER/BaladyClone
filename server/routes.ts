@@ -782,12 +782,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Create JWT token for mock user
         // Generate consistent UUID for mock users
         const mockUuid = generateMockUserUuid(mockUser.username);
+        const normalizedRoleCodes = normalizeRoleCodes(mockUser.role);
         const token = jwt.sign(
           { 
             id: mockUuid, 
             username: mockUser.username, 
             role: mockUser.role,
-            roleCodes: [mockUser.role]
+            roleCodes: normalizedRoleCodes // ✅ NORMALIZED ROLES
           },
           jwtSecret,
           { expiresIn: '24h' }
@@ -800,7 +801,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             username: mockUser.username,
             fullName: mockUser.fullName,
             role: mockUser.role,
-            roleCodes: [mockUser.role],
+            roleCodes: normalizedRoleCodes, // ✅ CONSISTENT WITH TOKEN
             roles: [{ code: mockUser.role, nameAr: mockUser.fullName }]
           }
         });
@@ -830,12 +831,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         roleCodes = userRoles.map(role => role.code);
         // Fallback to legacy role if no RBAC roles assigned
         if (roleCodes.length === 0 && user.role) {
-          roleCodes = [user.role];
+          roleCodes = normalizeRoleCodes(user.role); // ✅ NORMALIZED FALLBACK
         }
       } catch (roleError) {
         console.error('Error fetching user roles for simple login:', roleError);
         // Fallback to legacy role system
-        roleCodes = user.role ? [user.role] : [];
+        roleCodes = normalizeRoleCodes(user.role); // ✅ NORMALIZED ERROR FALLBACK
       }
       
       const token = jwt.sign(
@@ -902,12 +903,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         roleCodes = userRoles.map(role => role.code);
         // Fallback to legacy role if no RBAC roles assigned
         if (roleCodes.length === 0 && user.role) {
-          roleCodes = [user.role];
+          roleCodes = normalizeRoleCodes(user.role); // ✅ NORMALIZED FALLBACK
         }
       } catch (roleError) {
         console.error('Error fetching user roles:', roleError);
         // Fallback to legacy role system
-        roleCodes = user.role ? [user.role] : [];
+        roleCodes = normalizeRoleCodes(user.role); // ✅ NORMALIZED ERROR FALLBACK
       }
 
       const token = jwt.sign(
@@ -5195,12 +5196,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Helper: Generate mobile JWT with device binding
   const generateMobileJWT = (user: any, deviceId: string, tokenVersion: number): string => {
+    const normalizedRoleCodes = user.roleCodes && user.roleCodes.length > 0 
+      ? user.roleCodes // Use existing normalized codes
+      : normalizeRoleCodes(user.role); // Fallback to normalized legacy role
+
     return jwt.sign(
       {
         id: user.id,
         username: user.username,
         role: user.role, // Legacy compatibility
-        roleCodes: user.roleCodes || [], // RBAC system
+        roleCodes: normalizedRoleCodes, // ✅ ALWAYS NORMALIZED
         deviceId, // Device binding
         tokenVersion, // For token invalidation
         type: 'mobile_access'
@@ -6959,6 +6964,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: 'Internal server error' });
     }
   });
+
+  // ================================================================
+  // CENTRAL ROLE NORMALIZATION SYSTEM
+  // ================================================================
+  
+  /**
+   * Central role mapping and normalization utility
+   * Ensures consistent uppercase roleCodes across all JWT issuance and authorization
+   */
+  const normalizeRoleCodes = (roles: string | string[] | null | undefined): string[] => {
+    if (!roles) return ['USER'];
+    
+    const roleArray = Array.isArray(roles) ? roles : [roles];
+    const cleanedRoles = roleArray.filter(Boolean).map(r => r.toString().trim().toUpperCase());
+    
+    // Role expansion mapping
+    const roleMapping: Record<string, string[]> = {
+      'ADMIN': ['ADMIN', 'USER'],
+      'MANAGER': ['MANAGER', 'USER'],
+      'SURVEYING_MANAGER': ['SURVEYING_MANAGER', 'MANAGER', 'USER'],
+      'EMPLOYEE': ['EMPLOYEE', 'USER'],
+      'CITIZEN': ['USER'],
+      'USER': ['USER']
+    };
+    
+    const expandedRoles = new Set<string>();
+    cleanedRoles.forEach(role => {
+      const mappedRoles = roleMapping[role] || ['USER'];
+      mappedRoles.forEach(r => expandedRoles.add(r));
+    });
+    
+    return Array.from(expandedRoles).sort(); // Consistent ordering
+  };
 
   // Helper function to determine if user is admin (unified admin detection)
   const isUserAdmin = (user: any): boolean => {
