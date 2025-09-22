@@ -1835,7 +1835,7 @@ export default function GeographicDataManager() {
           </DialogHeader>
           
           <div className="space-y-4">
-            <div className="text-sm text-gray-600 dark:text-gray-400">
+            <div id="upload-dialog-description" className="text-sm text-gray-600 dark:text-gray-400">
               رفع ملف GeoTIFF للوحدة الجوارية المختارة لإنشاء مخطط أساسي جديد
             </div>
 

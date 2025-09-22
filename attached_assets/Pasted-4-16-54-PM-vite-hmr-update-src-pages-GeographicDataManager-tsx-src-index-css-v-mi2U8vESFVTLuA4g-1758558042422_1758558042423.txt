@@ -1,0 +1,78 @@
+4:16:54 PM [vite] hmr update /src/pages/GeographicDataManager.tsx, /src/index.css?v=mi2U8vESFVTLuA4gb-Qm5 (x2)
+4:17:19 PM [express] GET /api/sync/session 404 in 2ms :: {"message":"API endpoint not found"}
+4:17:49 PM [express] GET /api/sync/session 404 in 1ms :: {"message":"API endpoint not found"}
+[🔍 AUTH DEBUG] GET /api/geo-jobs - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 277,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.106.34'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/geo-jobs: {
+  userId: '48c640fb-bbed-4ac2-a8b7-ad20658adf1f',
+  username: 'admin_test',
+  role: 'admin',
+  roleCodes: [ 'ADMIN', 'USER' ],
+  type: undefined,
+  deviceId: undefined,
+  tokenVersion: undefined,
+  exp: 1758642085,
+  iat: 1758555685,
+  fullPayload: {
+    id: '48c640fb-bbed-4ac2-a8b7-ad20658adf1f',
+    username: 'admin_test',
+    role: 'admin',
+    roleCodes: [ 'ADMIN', 'USER' ],
+    iat: 1758555685,
+    exp: 1758642085
+  }
+}
+[🔍 GEO-JOBS DEBUG] Request received from authenticated user: {
+  requestPath: '/api/geo-jobs',
+  queryParams: {
+    targetId: '650c0f00-a499-485e-b025-6d9bc9b4fd86',
+    targetType: 'neighborhoodUnit',
+    includeOverlay: 'true'
+  },
+  userObject: {
+    id: '48c640fb-bbed-4ac2-a8b7-ad20658adf1f',
+    username: 'admin_test',
+    role: 'admin',
+    roleCodes: [ 'ADMIN', 'USER' ],
+    type: undefined,
+    deviceId: undefined,
+    exp: 1758642085,
+    iat: 1758555685
+  },
+  headers: {
+    authorization: 'Bearer eyJhbGciOiJIU...',
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
+  }
+}
+[🔍 GEO-JOBS] Extracted filters (after normalization): {
+  targetType: 'neighborhoodUnit',
+  targetId: '650c0f00-a499-485e-b025-6d9bc9b4fd86'
+}
+[🔍 GEO-JOBS] Admin detection result: {
+  isAdmin: true,
+  userRole: 'admin',
+  userRoleCodes: [ 'ADMIN', 'USER' ],
+  adminDetectionViaRole: true,
+  adminDetectionViaRoleCodes: true
+}
+[🔍 GEO-JOBS] Fetching jobs with filters: {
+  targetType: 'neighborhoodUnit',
+  targetId: '650c0f00-a499-485e-b025-6d9bc9b4fd86'
+}
+[🔍 GEO-JOBS] Raw jobs from database: { jobCount: 0, firstJobSample: null }
+[GEO-JOBS] Admin user bypassed LBAC: {
+  userId: '48c640fb-bbed-4ac2-a8b7-ad20658adf1f',
+  username: 'admin_test',
+  role: 'admin',
+  roleCodes: [ 'ADMIN', 'USER' ]
+}
+4:18:18 PM [express] GET /api/geo-jobs 304 in 915ms :: {"success":true,"data":{"overlays":[],"total"…
+4:18:19 PM [express] GET /api/sync/session 404 in 0ms :: {"message":"API endpoint not found"}
+4:18:49 PM [express] GET /api/sync/session 404 in 0ms :: {"message":"API endpoint not found"}
+4:19:19 PM [express] GET /api/sync/session 404 in 1ms :: {"message":"API endpoint not found"}
+4:19:50 PM [express] GET /api/sync/session 404 in 1ms :: {"message":"API endpoint not found"}
+4:20:20 PM [express] GET /api/sync/session 404 in 1ms :: {"message":"API endpoint not found"}
