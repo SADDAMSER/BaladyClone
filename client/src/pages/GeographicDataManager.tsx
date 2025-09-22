@@ -1847,16 +1847,18 @@ export default function GeographicDataManager() {
           
           <div className="space-y-4">
             <div id="upload-dialog-description" className="text-sm text-gray-600 dark:text-gray-400">
-              رفع ملف GeoTIFF للوحدة الجوارية المختارة لإنشاء مخطط أساسي جديد
+              رفع ملف GeoTIFF أو ZIP للوحدة الجوارية المختارة لإنشاء مخطط أساسي جديد
+              <br />
+              <span className="text-xs opacity-75">الأنواع المدعومة: .tif, .tiff, .geotiff, .zip</span>
             </div>
 
             {/* File Input */}
             <div className="space-y-2">
-              <Label htmlFor="geotiff-file">اختر ملف GeoTIFF</Label>
+              <Label htmlFor="geotiff-file">اختر ملف GeoTIFF أو ZIP</Label>
               <Input
                 id="geotiff-file"
                 type="file"
-                accept=".tif,.tiff,.geotiff"
+                accept=".tif,.tiff,.geotiff,.zip"
                 ref={fileInputRef}
                 onChange={(e) => {
                   const file = e.target.files?.[0];
@@ -1886,7 +1888,7 @@ export default function GeographicDataManager() {
               <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border">
                 <div className="flex items-center gap-2 text-sm text-yellow-900 dark:text-yellow-100">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600"></div>
-                  جاري رفع الملف ومعالجته...
+                  جاري رفع الملف ومعالجته... قد تستغرق العملية عدة دقائق
                 </div>
               </div>
             )}
