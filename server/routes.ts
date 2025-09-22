@@ -144,6 +144,11 @@ interface AuthenticatedRequest extends Request {
     role: string; // Legacy compatibility
     roleCodes?: string[]; // New RBAC system - array of role codes
     geographicAssignments?: any[];
+    // JWT payload fields
+    type?: string;      // Token type (web, mobile, etc.)
+    deviceId?: string;  // Device identifier for mobile tokens
+    exp?: number;       // Token expiration timestamp
+    iat?: number;       // Token issued at timestamp
   };
   requiredOwnership?: {
     field: string;
@@ -7689,15 +7694,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Update job with input file info
         await storage.updateGeoJob(jobId, {
-          inputKeys: job.inputKeys ? [...job.inputKeys, fileKey] : [fileKey]
+          inputKey: fileKey
         });
 
         // Create job event for file upload
         await storage.createGeoJobEvent({
           jobId: jobId,
-          eventType: 'file_uploaded',
+          eventType: 'status_change',
           message: `Input file uploaded: ${fileName}`,
-          payload: { fileName, fileSize, fileType, fileKey }
+          payload: { 
+            reason: 'input_uploaded',
+            fileName, 
+            fileSize, 
+            fileType, 
+            fileKey 
+          }
         });
 
         res.json({
@@ -7751,7 +7762,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       let fileKeys: string[];
       if (fileType === 'input') {
-        fileKeys = job.inputKeys || [];
+        fileKeys = job.inputKey ? [job.inputKey] : [];
       } else if (fileType === 'output') {
         fileKeys = job.outputKeys || [];
         // Can only download output files from completed jobs
@@ -7850,11 +7861,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const inputFiles = (job.inputKeys || []).map(key => ({
+      const inputFiles = job.inputKey ? [{
         type: 'input',
-        fileKey: key,
-        fileName: key.split('/').pop() || key
-      }));
+        fileKey: job.inputKey,
+        fileName: job.inputKey.split('/').pop() || job.inputKey
+      }] : [];
 
       const outputFiles = (job.outputKeys || []).map(key => ({
         type: 'output',
@@ -7917,7 +7928,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Check if file belongs to this job
-      const allFileKeys = [...(job.inputKeys || []), ...(job.outputKeys || [])];
+      const allFileKeys = [
+        ...(job.inputKey ? [job.inputKey] : []), 
+        ...(job.outputKeys || [])
+      ];
       if (!allFileKeys.includes(fileKey)) {
         return res.status(404).json({ 
           error: 'File not found in this job',
@@ -7932,20 +7946,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await objectStorage.deleteObject(fileKey);
 
         // Update job to remove file key
-        const updatedInputKeys = (job.inputKeys || []).filter(key => key !== fileKey);
+        const updatedJob: any = {};
+        
+        // If deleting input file, clear inputKey
+        if (job.inputKey === fileKey) {
+          updatedJob.inputKey = null;
+        }
+        
+        // If deleting output file, remove from outputKeys array
         const updatedOutputKeys = (job.outputKeys || []).filter(key => key !== fileKey);
+        if (updatedOutputKeys.length !== (job.outputKeys || []).length) {
+          updatedJob.outputKeys = updatedOutputKeys;
+        }
 
-        await storage.updateGeoJob(jobId, {
-          inputKeys: updatedInputKeys,
-          outputKeys: updatedOutputKeys
-        });
+        await storage.updateGeoJob(jobId, updatedJob);
 
         // Create job event for file deletion
         await storage.createGeoJobEvent({
           jobId: jobId,
-          eventType: 'file_deleted',
+          eventType: 'status_change',
           message: `File deleted: ${fileKey.split('/').pop()}`,
-          payload: { fileKey }
+          payload: { 
+            reason: 'input_deleted',
+            fileKey 
+          }
         });
 
         res.json({

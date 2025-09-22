@@ -172,7 +172,7 @@ export class ObjectStorageService {
       });
     } catch (error) {
       console.error('Error generating download URL:', error);
-      throw new Error(`Failed to generate download URL for ${objectKey}: ${error.message}`);
+      throw new Error(`Failed to generate download URL for ${objectKey}: ${(error as Error).message}`);
     }
   }
 
@@ -191,7 +191,7 @@ export class ObjectStorageService {
       });
     } catch (error) {
       console.error('Error generating upload URL:', error);
-      throw new Error(`Failed to generate upload URL for ${objectKey}: ${error.message}`);
+      throw new Error(`Failed to generate upload URL for ${objectKey}: ${(error as Error).message}`);
     }
   }
 
@@ -315,6 +315,46 @@ export class ObjectStorageService {
         return false;
       }
       throw error;
+    }
+  }
+
+  // Delete an object from storage
+  async deleteObject(objectKey: string): Promise<void> {
+    try {
+      const { bucketName, objectName } = parseObjectPath(objectKey);
+      const bucket = objectStorageClient.bucket(bucketName);
+      const file = bucket.file(objectName);
+
+      // Check if file exists before trying to delete
+      const [exists] = await file.exists();
+      if (!exists) {
+        throw new ObjectNotFoundError();
+      }
+
+      // Delete the file
+      await file.delete();
+      console.log(`✅ Object deleted successfully: ${objectKey}`);
+    } catch (error) {
+      if (error instanceof ObjectNotFoundError) {
+        throw error;
+      }
+      console.error(`❌ Error deleting object ${objectKey}:`, error);
+      throw new Error(`Failed to delete object: ${objectKey}`);
+    }
+  }
+
+  // Check if an object exists (optional utility method)
+  async exists(objectKey: string): Promise<boolean> {
+    try {
+      const { bucketName, objectName } = parseObjectPath(objectKey);
+      const bucket = objectStorageClient.bucket(bucketName);
+      const file = bucket.file(objectName);
+
+      const [exists] = await file.exists();
+      return exists;
+    } catch (error) {
+      console.error(`❌ Error checking object existence ${objectKey}:`, error);
+      return false;
     }
   }
 }
