@@ -6979,7 +6979,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
         filters.ownerId = user.id;
       }
 
-      const jobs = await storage.getGeoJobs(filters);
+      let jobs = await storage.getGeoJobs(filters);
+
+      // Apply LBAC filtering for non-admin users
+      if (!isAdmin) {
+        const allowedJobs = [];
+        
+        for (const job of jobs) {
+          let hasAccess = false;
+          
+          // Check LBAC access based on job's target type and target ID
+          if (job.targetType && job.targetId) {
+            try {
+              hasAccess = await validateLBACAccess(user.id, job.targetType, job.targetId, 'read');
+            } catch (error) {
+              console.warn(`LBAC validation error for job ${job.id}:`, error);
+              hasAccess = false; // SECURE DEFAULT: Deny access on error
+            }
+          } else if (job.neighborhoodUnitId) {
+            // Legacy support: check access to neighborhood unit
+            try {
+              hasAccess = await validateLBACAccess(user.id, 'neighborhoodUnit', job.neighborhoodUnitId, 'read');
+            } catch (error) {
+              console.warn(`LBAC validation error for job ${job.id} (legacy):`, error);
+              hasAccess = false;
+            }
+          } else {
+            // No geographic target - check if user has general admin/manager permissions
+            const userRoles = user.roleCodes || [];
+            hasAccess = userRoles.some((role: string) => 
+              ['ADMIN', 'MANAGER', 'SURVEYING_MANAGER'].includes(role)
+            );
+          }
+          
+          if (hasAccess) {
+            allowedJobs.push(job);
+          }
+        }
+        
+        jobs = allowedJobs;
+        console.log(`LBAC: Filtered ${jobs.length}/${allowedJobs.length + (jobs.length - allowedJobs.length)} jobs for user ${user.id}`);
+      }
 
       // Check if this is a request for overlay data (frontend integration)
       const includeOverlay = req.query.includeOverlay === 'true';
@@ -7049,6 +7089,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
           error: 'Access denied to this geo job',
           code: 'OWNERSHIP_VIOLATION' 
         });
+      }
+
+      // Additional LBAC validation for non-admin users
+      if (!isAdmin) {
+        let hasGeographicAccess = false;
+        
+        // Check LBAC access based on job's target type and target ID
+        if (job.targetType && job.targetId) {
+          try {
+            hasGeographicAccess = await validateLBACAccess(user.id, job.targetType, job.targetId, 'read');
+          } catch (error) {
+            console.warn(`LBAC validation error for job ${job.id}:`, error);
+            hasGeographicAccess = false; // SECURE DEFAULT: Deny access on error
+          }
+        } else if (job.neighborhoodUnitId) {
+          // Legacy support: check access to neighborhood unit
+          try {
+            hasGeographicAccess = await validateLBACAccess(user.id, 'neighborhoodUnit', job.neighborhoodUnitId, 'read');
+          } catch (error) {
+            console.warn(`LBAC validation error for job ${job.id} (legacy):`, error);
+            hasGeographicAccess = false;
+          }
+        } else {
+          // No geographic target - allow if user owns the job
+          hasGeographicAccess = isOwner;
+        }
+        
+        if (!hasGeographicAccess) {
+          return res.status(403).json({ 
+            error: 'Access denied to this geographic area',
+            code: 'LBAC_VIOLATION' 
+          });
+        }
       }
 
       res.json({
