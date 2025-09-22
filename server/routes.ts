@@ -152,19 +152,48 @@ interface AuthenticatedRequest extends Request {
   deviceId?: string; // For mobile device validation
 }
 
-// Middleware to verify JWT token
+// Middleware to verify JWT token (ENHANCED WITH DIAGNOSTIC LOGGING)
 const authenticateToken = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
+  console.log(`[🔍 AUTH DEBUG] ${req.method} ${req.path} - Token verification start`, {
+    hasAuthHeader: !!authHeader,
+    tokenLength: token ? token.length : 0,
+    userAgent: req.headers['user-agent'],
+    ip: req.ip
+  });
+
   if (!token) {
+    console.error(`[❌ AUTH] Missing token for ${req.method} ${req.path}`);
     return res.status(401).json({ message: 'Access token required' });
   }
 
   jwt.verify(token, jwtSecret, (err: any, user: any) => {
     if (err) {
+      console.error(`[❌ AUTH] JWT verification failed for ${req.method} ${req.path}:`, {
+        errorName: err.name,
+        errorMessage: err.message,
+        tokenSample: token.substring(0, 50) + '...',
+        jwtSecretPresent: !!jwtSecret
+      });
       return res.status(403).json({ message: 'Invalid or expired token' });
     }
+
+    // ✅ EXTENSIVE JWT PAYLOAD LOGGING
+    console.log(`[✅ AUTH SUCCESS] JWT verified for ${req.method} ${req.path}:`, {
+      userId: user.id,
+      username: user.username,
+      role: user.role,
+      roleCodes: user.roleCodes,
+      type: user.type,
+      deviceId: user.deviceId,
+      tokenVersion: user.tokenVersion,
+      exp: user.exp,
+      iat: user.iat,
+      fullPayload: user
+    });
+    
     req.user = user;
     next();
   });
@@ -7004,10 +7033,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
            (user?.roleCodes || []).map((r: string) => r.toLowerCase()).includes('admin');
   };
 
-  // Get geo jobs - GET /api/geo-jobs
+  // Get geo jobs - GET /api/geo-jobs (ENHANCED WITH EXTENSIVE DIAGNOSTIC LOGGING)
   app.get('/api/geo-jobs', globalSecurityMonitor, generalRateLimit, authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const user = req.user!;
+      
+      // ✅ EXTENSIVE USER & AUTH STATE LOGGING
+      console.log(`[🔍 GEO-JOBS DEBUG] Request received from authenticated user:`, {
+        requestPath: req.path,
+        queryParams: req.query,
+        userObject: {
+          id: user.id,
+          username: user.username,
+          role: user.role,
+          roleCodes: user.roleCodes,
+          type: user.type,
+          deviceId: user.deviceId,
+          exp: user.exp,
+          iat: user.iat
+        },
+        headers: {
+          authorization: req.headers.authorization ? 'Bearer ' + req.headers.authorization.substring(7, 20) + '...' : null,
+          userAgent: req.headers['user-agent']
+        }
+      });
       
       // Extract filters from query params
       const filters: any = {};
@@ -7018,17 +7067,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (req.query.neighborhoodUnitId) filters.neighborhoodUnitId = req.query.neighborhoodUnitId as string;
       if (req.query.priority) filters.priority = parseInt(req.query.priority as string);
 
+      console.log(`[🔍 GEO-JOBS] Extracted filters:`, filters);
+
       // Apply ownership filter for non-admin users (UNIFIED ADMIN CHECK)
       const isAdmin = isUserAdmin(user);
+      console.log(`[🔍 GEO-JOBS] Admin detection result:`, {
+        isAdmin,
+        userRole: user.role,
+        userRoleCodes: user.roleCodes,
+        adminDetectionViaRole: user?.role?.toLowerCase() === 'admin',
+        adminDetectionViaRoleCodes: (user?.roleCodes || []).map((r: string) => r.toLowerCase()).includes('admin')
+      });
       
       if (!isAdmin) {
         filters.ownerId = user.id;
+        console.log(`[🔍 GEO-JOBS] Added ownership filter for non-admin user:`, { userId: user.id });
       }
 
+      console.log(`[🔍 GEO-JOBS] Fetching jobs with filters:`, filters);
       let jobs = await storage.getGeoJobs(filters);
+      console.log(`[🔍 GEO-JOBS] Raw jobs from database:`, {
+        jobCount: jobs.length,
+        firstJobSample: jobs[0] ? {
+          id: jobs[0].id,
+          status: jobs[0].status,
+          ownerId: jobs[0].ownerId,
+          targetType: jobs[0].targetType,
+          targetId: jobs[0].targetId
+        } : null
+      });
 
       // Apply LBAC filtering for non-admin users
       if (!isAdmin) {
+        console.log(`[🔍 GEO-JOBS] Starting LBAC filtering for non-admin user...`);
         const allowedJobs = [];
         
         for (const job of jobs) {
