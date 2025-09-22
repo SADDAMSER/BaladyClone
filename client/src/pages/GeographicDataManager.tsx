@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -193,8 +193,75 @@ export default function GeographicDataManager() {
     isError: isBasemapError 
   } = useBasemapQuery('neighborhoodUnit', mapSelectedNeighborhoodUnitId || '');
 
+  // Upload dialog state
+  const [showUploadDialog, setShowUploadDialog] = useState<boolean>(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // GeoTIFF Upload mutation
+  const uploadGeoTiffMutation = useMutation({
+    mutationFn: async ({ file, targetId }: { file: File; targetId: string }) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('taskType', 'geotiff_basemap');
+      formData.append('targetType', 'neighborhoodUnit');
+      formData.append('targetId', targetId);
+      formData.append('priority', '1');
+
+      const response = await fetch('/api/geo-jobs', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token') || localStorage.getItem('token') || 'mock-token'}`
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return response.json();
+    },
+    onSuccess: (data) => {
+      console.log('✅ GeoTIFF upload successful:', data);
+      
+      // Show success toast
+      toast({
+        title: 'تم رفع الملف بنجاح',
+        description: `بدأت معالجة ملف GeoTIFF للوحدة الجوارية. سيتم عرض النتائج عند اكتمال المعالجة.`,
+        variant: 'default'
+      });
+
+      // Close dialog and reset state
+      setShowUploadDialog(false);
+      setSelectedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+
+      // Invalidate basemap query to trigger refetch
+      queryClient.invalidateQueries({
+        queryKey: ['/api/geo-jobs', { 
+          targetType: 'neighborhoodUnit', 
+          targetId: mapSelectedNeighborhoodUnitId, 
+          includeOverlay: true 
+        }]
+      });
+    },
+    onError: (error: Error) => {
+      console.error('❌ GeoTIFF upload failed:', error);
+      
+      toast({
+        title: 'فشل في رفع الملف',
+        description: error.message || 'حدث خطأ أثناء رفع ملف GeoTIFF',
+        variant: 'destructive'
+      });
+    }
+  });
 
   // Fetch governorates
   const { data: governorates = [], isLoading: loadingGovernorates } = useQuery<Governorate[]>({
@@ -1452,10 +1519,7 @@ export default function GeographicDataManager() {
                               variant="default" 
                               size="sm"
                               className="w-full"
-                              onClick={() => {
-                                // TODO: Open upload dialog
-                                console.log('Opening upload dialog for:', mapSelectedNeighborhoodUnitId);
-                              }}
+                              onClick={() => setShowUploadDialog(true)}
                               data-testid="button-upload-geotiff"
                             >
                               <Plus className="h-4 w-4 ml-2" />
@@ -1754,6 +1818,100 @@ export default function GeographicDataManager() {
               </DialogFooter>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* GeoTIFF Upload Dialog */}
+      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+        <DialogContent className="max-w-md" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Globe className="h-5 w-5" />
+              رفع ملف GeoTIFF
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              رفع ملف GeoTIFF للوحدة الجوارية المختارة لإنشاء مخطط أساسي جديد
+            </div>
+
+            {/* File Input */}
+            <div className="space-y-2">
+              <Label htmlFor="geotiff-file">اختر ملف GeoTIFF</Label>
+              <Input
+                id="geotiff-file"
+                type="file"
+                accept=".tif,.tiff,.geotiff"
+                ref={fileInputRef}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  setSelectedFile(file || null);
+                }}
+                data-testid="input-geotiff-file"
+              />
+              <div className="text-xs text-gray-500">
+                الملفات المدعومة: .tif, .tiff, .geotiff (الحد الأقصى: 100MB)
+              </div>
+            </div>
+
+            {/* Selected File Info */}
+            {selectedFile && (
+              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border">
+                <div className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                  📄 {selectedFile.name}
+                </div>
+                <div className="text-xs text-blue-600 dark:text-blue-300">
+                  الحجم: {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
+                </div>
+              </div>
+            )}
+
+            {/* Upload Progress */}
+            {uploadGeoTiffMutation.isPending && (
+              <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border">
+                <div className="flex items-center gap-2 text-sm text-yellow-900 dark:text-yellow-100">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600"></div>
+                  جاري رفع الملف ومعالجته...
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setShowUploadDialog(false);
+                setSelectedFile(null);
+                if (fileInputRef.current) {
+                  fileInputRef.current.value = '';
+                }
+              }}
+              disabled={uploadGeoTiffMutation.isPending}
+              data-testid="button-cancel-upload"
+            >
+              <X className="h-4 w-4 ml-2" />
+              إلغاء
+            </Button>
+            <Button 
+              type="button"
+              onClick={() => {
+                if (selectedFile && mapSelectedNeighborhoodUnitId) {
+                  uploadGeoTiffMutation.mutate({ 
+                    file: selectedFile, 
+                    targetId: mapSelectedNeighborhoodUnitId 
+                  });
+                }
+              }}
+              disabled={!selectedFile || uploadGeoTiffMutation.isPending || !mapSelectedNeighborhoodUnitId}
+              data-testid="button-confirm-upload"
+            >
+              <Plus className="h-4 w-4 ml-2" />
+              رفع الملف
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
