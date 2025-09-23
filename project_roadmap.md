@@ -522,6 +522,174 @@ npm run test:sync-properties
 
 ---
 
+## 🔗 المرحلة 2.5: تكامل المحركات (Engine Integration) - الطبقة اللاصقة
+**المدة المتوقعة: 1-2 أسبوع | الهدف: ربط المحركات ببعضها البعض عبر Event-Driven Architecture**
+
+### 🎯 الهدف الاستراتيجي
+تطوير **"الطبقة اللاصقة"** *(The Glue Layer)* التي تحول المحركات المنعزلة إلى **سيمفونية متكاملة** تعمل معاً عبر نظام أحداث موحد.
+
+### 🔍 المبرر الاستراتيجي العميق
+**الاكتشاف الحاسم**: البنية الحالية تعامل المحركات (سير العمل، القانوني، الإداري) كجزر معزولة. القوة الحقيقية للنظام تأتي من **تكاملها العضوي** وليس وجودها المنفرد.
+
+### 📊 مؤشرات الأداء المطلوبة (KPIs)
+- ⚡ **Event propagation time:** < 100ms من حدث إلى تنفيذ
+- 🔄 **Cross-engine reliability:** 100% delivery من المحرك المصدر للمستقبل  
+- 📋 **Process orchestration:** zero manual intervention للعمليات المتكاملة
+- 🎯 **Event processing throughput:** > 10,000 events/hour
+- 🔍 **End-to-end traceability:** 100% visibility لدورة حياة العمليات
+- ⚙️ **Engine decoupling:** محركات مستقلة ومترابطة في نفس الوقت
+
+### المهام التفصيلية
+
+#### 🎼 المهمة 2.5.1: تطوير نظام الأحداث الموحد
+```typescript
+// Event-Driven Architecture Foundation
+- [ ] تصميم Event Contract موحد
+  * ApplicationEvent interface شامل
+  * Event metadata standardization  
+  * Geographic context في كل حدث
+  * User context وsecurity info
+
+- [ ] Event Bus Implementation
+  * Redis Streams للأحداث عالية الأداء
+  * Event persistence وreplay capability
+  * Dead Letter Queue للأحداث الفاشلة
+  * Circuit Breaker للمقاومة ضد الأعطال
+```
+
+**🛠️ Technical Stack:**
+```typescript
+// Core Infrastructure
+npm install ioredis           // Redis client للEvent Bus
+npm install @nestjs/event-emitter  // Event decoration
+npm install bull              // Queue management
+npm install pino              // Structured logging
+```
+
+#### 🔄 المهمة 2.5.2: تطوير Event Listeners للمحركات
+```typescript
+// Workflow Engine Integration
+- [ ] APPLICATION_SUBMITTED → إنشاء مهمة تلقائية
+- [ ] STATUS_CHANGED → workflow state transitions
+- [ ] TASK_COMPLETED → trigger next workflow step
+
+// Administrative Engine Integration  
+- [ ] TASK_CREATED → تعيين للموظف المناسب (LBAC)
+- [ ] WORKLOAD_THRESHOLD → load balancing activation
+- [ ] EMPLOYEE_UNAVAILABLE → automatic reassignment
+
+// Legal Engine Integration
+- [ ] DECISION_PENDING → compliance check trigger
+- [ ] REGULATION_UPDATED → affected applications review
+- [ ] LEGAL_VIOLATION → automatic process halt
+
+// Notification Engine Integration
+- [ ] ALL_EVENTS → intelligent notifications
+- [ ] ESCALATION_NEEDED → management alerts
+- [ ] SLA_BREACH → automatic escalation
+```
+
+#### 🎭 المهمة 2.5.3: تطوير Orchestration Engine
+```typescript
+// Cross-Engine Process Orchestration
+- [ ] Multi-engine workflow definitions
+- [ ] Process saga patterns implementation
+- [ ] Compensation actions للأخطاء
+- [ ] End-to-end process monitoring
+- [ ] Cross-engine transaction management
+```
+
+**مثال عملي - عملية تكليف مساح:**
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant WF as Workflow Engine  
+    participant Admin as Admin Engine
+    participant Legal as Legal Engine
+    participant Notify as Notification Engine
+    
+    Note over App,Notify: المرحلة 2.5: Engine Integration في العمل
+    
+    App->>WF: APPLICATION_STATUS_CHANGED: 'reviewed' → 'assignment_ready'
+    WF->>WF: تسجيل Event في Event Store
+    WF->>Admin: TASK_ASSIGNMENT_REQUIRED event
+    
+    Admin->>Admin: البحث عن مساح متاح (LBAC + Geography + Workload)
+    Admin->>Legal: ASSIGNMENT_COMPLIANCE_CHECK event
+    Legal->>Legal: التحقق من service_requirements
+    Legal->>Admin: ASSIGNMENT_APPROVED event
+    
+    Admin->>WF: TASK_ASSIGNED event {assigneeId, estimatedDuration}
+    WF->>Notify: FIELDWORK_SCHEDULED event
+    Notify->>App: إشعار للمواطن + المساح بموعد المسح
+    
+    Note over App,Notify: جميع المحركات تعمل معاً كسيمفونية واحدة
+```
+
+#### 📊 المهمة 2.5.4: Event Monitoring والObservability
+```typescript
+// Comprehensive Event Monitoring
+- [ ] Real-time event dashboard
+- [ ] Event flow visualization
+- [ ] Performance metrics per engine
+- [ ] Cross-engine dependency mapping
+- [ ] Event replay وdebugging tools
+```
+
+### 🏆 **معايير اكتمال تكامل المحركات (Definition of Done)**
+**✹️ لا يمكن الانتقال للمرحلة الثالثة إلا بعد اكتمال جميع هذه المعايير:**
+
+#### 🧪 **الاختبارات (Tests)**
+- [ ] **Event propagation tests:** جميع الأحداث تصل بنجاح لجميع المستمعين
+- [ ] **Cross-engine integration tests:** العمليات المعقدة تعمل E2E بدون تدخل يدوي
+- [ ] **Event failure recovery tests:** Dead Letter Queue وcompensation actions تعمل
+- [ ] **Performance tests:** نظام الأحداث يتحمل > 10,000 events/hour
+- [ ] **Engine isolation tests:** فشل محرك واحد لا يؤثر على الباقي
+
+#### ⚙️ **الوظائف (Functionality)**
+- [ ] **Automatic orchestration:** طلب مساحي → قرار نهائي بدون تدخل يدوي
+- [ ] **Intelligent assignment:** المحرك الإداري يختار المساح المناسب تلقائياً
+- [ ] **Legal compliance:** المحرك القانوني يفحص جميع العمليات تلقائياً
+- [ ] **Smart notifications:** الإشعارات ترسل للأطراف المناسبة في الوقت المناسب
+- [ ] **End-to-end traceability:** يمكن تتبع أي طلب عبر جميع المحركات
+
+#### 🔒 **الأمان (Security)**
+- [ ] **Event security:** جميع الأحداث تحمل security context مناسب
+- [ ] **Engine boundaries:** كل محرك يحترم LBAC في استجابته للأحداث
+- [ ] **Audit compliance:** جميع الأحداث مُسجلة للمراجعة
+- [ ] **Event tampering protection:** الأحداث محمية من التلاعب
+
+#### 📊 **المراقبة (Monitoring)**
+- [ ] **Event flow dashboard:** رؤية real-time لجميع الأحداث والمحركات
+- [ ] **Cross-engine performance:** مراقبة أداء التكامل بين المحركات
+- [ ] **Bottleneck detection:** اكتشاف تلقائي للاختناقات في سير الأحداث
+- [ ] **Health monitoring:** حالة جميع المحركات وconnections
+
+#### 📝 **التوثيق (Documentation)**
+- [ ] **Event catalog:** فهرس شامل لجميع الأحداث المدعومة
+- [ ] **Integration guide:** دليل ربط محركات جديدة بالنظام
+- [ ] **Troubleshooting guide:** حل مشاكل التكامل الشائعة
+- [ ] **Architecture documentation:** توثيق شامل للEvent-Driven Architecture
+
+**🧪 اختبارات التحقق الإجبارية:**
+```bash
+# End-to-End Engine Integration
+npm run test:engine-integration
+
+# Event System Performance  
+npm run test:events-load
+
+# Cross-Engine Workflow
+npm run test:cross-engine-e2e
+
+# Event Failure Recovery
+npm run test:event-recovery
+```
+
+**🎯 نتيجة هذه المرحلة**: تحويل المنصة من "مجموعة محركات منفصلة" إلى "نظام ذكي متكامل" يعمل كوحدة واحدة متناغمة مع قدرات Enterprise-grade في الشفافية والموثوقية.
+
+---
+
 ## ⚙️ المرحلة 3: أتمتة سير العمل المتقدمة (Workflow Automation)
 **المدة المتوقعة: 2-3 أسابيع | الهدف: محرك workflow يعمل تلقائياً مع escalations**
 
