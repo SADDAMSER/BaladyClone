@@ -2678,6 +2678,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           findings: z.string().min(1).optional(),
           recommendations: z.string().optional(),
           attachments: z.array(z.string()).optional(),
+          surveyCompleted: z.boolean().optional(),
           data: z.record(z.any()).optional()
         }).optional(),
         notes: z.string().optional()
@@ -7215,7 +7216,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       'district': 'district',
       'subdistrict': 'subDistrict',
       'sub_district': 'subDistrict',
-      'subdistrict': 'subDistrict',
       'neighborhood': 'neighborhood',
       'neighborhoodunit': 'neighborhoodUnit',
       'neighborhood_unit': 'neighborhoodUnit',

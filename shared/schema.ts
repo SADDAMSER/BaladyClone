@@ -540,6 +540,7 @@ export const tasks = pgTable("tasks", {
   status: text("status").default("pending"), // pending, in_progress, completed, cancelled
   dueDate: timestamp("due_date"),
   completedAt: timestamp("completed_at"),
+  result: jsonb("result"), // Task completion results: findings, recommendations, attachments, data
   notes: text("notes"),
   attachments: jsonb("attachments"),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
