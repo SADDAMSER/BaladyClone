@@ -399,8 +399,8 @@ const enforceLBACAccess = (
           });
         }
         // SECURITY: Don't leak geographic structure in error message
-        return res.status(400).json({ 
-          message: 'Invalid request: Geographic context required'
+        return res.status(403).json({ 
+          message: 'Access denied: Insufficient geographic permissions'
         });
       }
 
@@ -2354,18 +2354,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  // Applications routes
-  app.get("/api/applications", authenticateToken, async (req, res) => {
+  // Applications routes with enhanced security - LBAC applied in storage layer
+  app.get("/api/applications", authenticateToken, basicSecurityProtection, async (req, res) => {
     try {
-      const { status, applicantId, assignedToId, currentStage } = req.query;
+      // Input validation for query parameters
+      const querySchema = z.object({
+        status: z.string().optional(),
+        applicantId: z.string().uuid('معرف المتقدم يجب أن يكون UUID صحيح').optional(),
+        assignedToId: z.string().uuid('معرف المسؤول يجب أن يكون UUID صحيح').optional(),
+        currentStage: z.string().optional()
+      });
+
+      const validatedQuery = querySchema.safeParse(req.query);
+      if (!validatedQuery.success) {
+        return res.status(400).json({
+          message: "Invalid query parameters",
+          errors: validatedQuery.error.errors
+        });
+      }
+
+      const { status, applicantId, assignedToId, currentStage } = validatedQuery.data;
       const applications = await storage.getApplications({
-        status: status as string,
-        applicantId: applicantId as string,
-        assignedToId: assignedToId as string,
-        currentStage: currentStage as string,
+        status,
+        applicantId,
+        assignedToId,
+        currentStage,
       });
       res.json(applications);
     } catch (error) {
+      console.error('[API ERROR] Get applications failed:', error);
       res.status(500).json({ message: "Internal server error" });
     }
   });
@@ -2438,8 +2455,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Public endpoint for citizens to submit applications (no authentication required)
-  app.post("/api/applications", async (req, res) => {
+  // Public endpoint for citizens to submit applications (enhanced security)
+  app.post("/api/applications", basicSecurityProtection, requireJSON, async (req, res) => {
     try {
       const applicationData = insertApplicationSchema.parse({
         ...req.body,
@@ -2449,21 +2466,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(application);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Validation error", errors: error.errors });
+        return res.status(400).json({ 
+          message: "Validation error", 
+          errors: error.errors.map(err => ({
+            field: err.path.join('.'),
+            message: err.message,
+            code: err.code
+          }))
+        });
       }
       console.error("Error creating application:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });
 
-  app.get("/api/applications/:id", authenticateToken, async (req, res) => {
+  app.get("/api/applications/:id", authenticateToken, basicSecurityProtection, async (req, res) => {
     try {
-      const application = await storage.getApplication(req.params.id);
+      // Validate UUID format
+      const idSchema = z.string().uuid('معرف الطلب يجب أن يكون UUID صحيح');
+      const validatedId = idSchema.safeParse(req.params.id);
+      
+      if (!validatedId.success) {
+        return res.status(400).json({
+          message: "Invalid application ID format",
+          error: validatedId.error.errors[0].message
+        });
+      }
+
+      const application = await storage.getApplication(validatedId.data);
       if (!application) {
         return res.status(404).json({ message: "Application not found" });
       }
       res.json(application);
     } catch (error) {
+      console.error('[API ERROR] Get application by ID failed:', error);
       res.status(500).json({ message: "Internal server error" });
     }
   });
@@ -2477,16 +2513,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Surveying decisions routes
-  app.get("/api/surveying-decisions", authenticateToken, async (req, res) => {
+  // Surveying decisions routes - LBAC applied in storage layer  
+  app.get("/api/surveying-decisions", authenticateToken, requireRole(['employee', 'manager', 'admin']), basicSecurityProtection, async (req, res) => {
     try {
-      const { status, surveyorId } = req.query;
+      // Input validation for query parameters
+      const querySchema = z.object({
+        status: z.string().optional(),
+        surveyorId: z.string().uuid('معرف المساح يجب أن يكون UUID صحيح').optional()
+      });
+
+      const validatedQuery = querySchema.safeParse(req.query);
+      if (!validatedQuery.success) {
+        return res.status(400).json({
+          message: "Invalid query parameters",
+          errors: validatedQuery.error.errors
+        });
+      }
+
+      const { status, surveyorId } = validatedQuery.data;
       const decisions = await storage.getSurveyingDecisions({
-        status: status as string,
-        surveyorId: surveyorId as string,
+        status,
+        surveyorId,
       });
       res.json(decisions);
     } catch (error) {
+      console.error('[API ERROR] Get surveying decisions failed:', error);
       res.status(500).json({ message: "Internal server error" });
     }
   });
@@ -2598,11 +2649,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/tasks/:id", authenticateToken, async (req, res) => {
+  app.put("/api/tasks/:id", authenticateToken, basicSecurityProtection, async (req, res) => {
     try {
-      const task = await storage.updateTask(req.params.id, req.body);
+      // Validate UUID format
+      const idSchema = z.string().uuid('معرف المهمة يجب أن يكون UUID صحيح');
+      const validatedId = idSchema.safeParse(req.params.id);
+      
+      if (!validatedId.success) {
+        return res.status(400).json({
+          message: "Invalid task ID format",
+          error: validatedId.error.errors[0].message
+        });
+      }
+
+      // Validate task update data
+      const taskUpdateSchema = z.object({
+        status: z.enum(['pending', 'assigned', 'in_progress', 'completed', 'cancelled']).optional(),
+        assigneeId: z.string().uuid().optional(),
+        result: z.object({
+          findings: z.string().min(1).optional(),
+          recommendations: z.string().optional(),
+          attachments: z.array(z.string()).optional(),
+          data: z.record(z.any()).optional()
+        }).optional(),
+        notes: z.string().optional()
+      }).refine(data => {
+        // When status is 'completed', result with findings is required
+        if (data.status === 'completed' && (!data.result || !data.result.findings)) {
+          return false;
+        }
+        return true;
+      }, {
+        message: "عند إتمام المهمة، يجب تقديم النتائج والملاحظات المطلوبة",
+        path: ["result"]
+      });
+
+      const validatedData = taskUpdateSchema.safeParse(req.body);
+      if (!validatedData.success) {
+        return res.status(400).json({
+          message: "Invalid task update data",
+          errors: validatedData.error.errors
+        });
+      }
+
+      // CRITICAL SECURITY: Check task assignment authorization
+      const existingTask = await storage.getTask(validatedId.data);
+      if (!existingTask) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+
+      // Only assigned user, manager, or admin can update the task
+      const user = (req as any).user;
+      const userRoles = user?.roleCodes || [];
+      const isAdmin = userRoles.includes('ADMIN');
+      const isManager = userRoles.includes('MANAGER');
+      const isAssigned = existingTask.assigneeId === user?.id;
+
+      if (!isAdmin && !isManager && !isAssigned) {
+        console.warn('[TASK AUTH] Unauthorized task update attempt:', {
+          taskId: validatedId.data,
+          userId: user?.id,
+          assigneeId: existingTask.assigneeId,
+          timestamp: new Date().toISOString()
+        });
+        return res.status(403).json({ 
+          message: "Access denied: You can only update tasks assigned to you"
+        });
+      }
+
+      const task = await storage.updateTask(validatedId.data, validatedData.data);
       res.json(task);
     } catch (error) {
+      console.error('[API ERROR] Update task failed:', error);
       res.status(500).json({ message: "Internal server error" });
     }
   });

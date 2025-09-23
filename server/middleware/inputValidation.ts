@@ -201,14 +201,20 @@ export const createValidationMiddleware = (schema: z.ZodSchema, validationType: 
 };
 
 /**
- * Basic Security Protection Middleware (Lightweight)
- * Only blocks obvious malicious patterns - relies on ORM parameterization for SQL injection protection
+ * Enhanced Security Protection Middleware
+ * Blocks obvious malicious patterns + common injection attempts - also relies on ORM parameterization
  */
 export const basicSecurityProtection = (req: Request, res: Response, next: NextFunction) => {
-  // Only check for truly dangerous patterns that shouldn't appear in normal input
+  // Check only for truly dangerous patterns - be conservative to avoid false positives
   const dangerousPatterns = [
     /\x00/g, // Null bytes
     /[\x01-\x08\x0B\x0C\x0E-\x1F\x7F]/g, // Control characters (except tab, newline, carriage return)
+    // Only most obvious SQL injection patterns
+    /(drop\s+table|delete\s+from|truncate\s+table|alter\s+table)\s+\w+/gi,
+    /union\s+(all\s+)?select\s+/gi,
+    // Only obvious XSS patterns
+    /<script[^>]*>.*<\/script>/gi,
+    /javascript:\s*[^;]/gi,
   ];
 
   const checkForDangerous = (obj: any): boolean => {
