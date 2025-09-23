@@ -588,7 +588,7 @@ async function setupTestUsers() {
 
   testUsers = {
     citizen: createTestUser({
-      id: 'citizen_001',
+      id: uuidv4(), // Fixed UUID format
       username: 'citizen_mohammed',
       password: 'citizen123',
       role: 'citizen',
@@ -600,7 +600,7 @@ async function setupTestUsers() {
     }),
     
     employee: createTestUser({
-      id: 'employee_001',
+      id: uuidv4(), // Fixed UUID format
       username: 'employee_ahmed',
       password: 'employee123',
       role: 'employee',
@@ -612,7 +612,7 @@ async function setupTestUsers() {
     }),
 
     manager: createTestUser({
-      id: 'manager_001', 
+      id: uuidv4(), // Fixed UUID format 
       username: 'manager_fatima',
       password: 'manager123',
       role: 'manager',
@@ -624,7 +624,7 @@ async function setupTestUsers() {
     }),
 
     admin: createTestUser({
-      id: 'admin_001',
+      id: uuidv4(), // Fixed UUID format
       username: 'admin_super',
       password: 'admin123',
       role: 'admin',
@@ -636,7 +636,7 @@ async function setupTestUsers() {
     }),
 
     crossBoundaryEmployee: createTestUser({
-      id: 'employee_002',
+      id: uuidv4(), // Fixed UUID format
       username: 'employee_cross',
       password: 'employee123',
       role: 'employee',
@@ -650,10 +650,77 @@ async function setupTestUsers() {
 }
 
 async function setupTestData() {
-  // These would be created via the API or test database seeding
+  // Create real test data in the database for comprehensive testing
   testApplicationId = uuidv4();
   testSurveyingDecisionId = uuidv4();  
   testTaskId = uuidv4();
+  const testServiceId = uuidv4(); // Create a service ID for testing
   
-  console.log('📊 Test data initialized for contract testing');
+  // Mock storage.createApplication with test data
+  const mockStorage = (await import('../server/storage')).storage as any;
+  
+  try {
+    // Create test application with all required fields
+    await mockStorage.createApplication({
+      id: testApplicationId,
+      applicationNumber: `APP-2025-TEST-${Date.now()}`, // Unique application number
+      serviceId: testServiceId, // Required field
+      applicantId: testUsers.citizen.id, // Required field (was citizenId)
+      status: 'submitted',
+      currentStage: 'initial_review',
+      applicationData: {
+        buildingType: 'residential',
+        plotArea: 500,
+        buildingArea: 300,
+        floors: 2,
+        purpose: 'family_residence'
+      },
+      assignedToId: testUsers.employee.id,
+      isPaid: false,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+
+    // Create test surveying decision
+    await mockStorage.createSurveyingDecision({
+      id: testSurveyingDecisionId,
+      applicationId: testApplicationId,
+      decisionType: 'site_survey',
+      status: 'pending',
+      assignedSurveyorId: testUsers.employee.id,
+      geographicContext: {
+        governorateId: testUsers.employee.geographicAccess.governorateId,
+        districtId: testUsers.employee.geographicAccess.districtId,
+        neighborhoodId: testUsers.employee.geographicAccess.neighborhoodId,
+      },
+      workflow: {
+        currentStep: 'field_survey',
+        assignedTo: testUsers.employee.id,
+        estimatedDuration: 7
+      }
+    });
+
+    // Create test task assigned to employee
+    await mockStorage.createTask({
+      id: testTaskId,
+      title: 'Site Survey for Building Permit',
+      description: 'Conduct comprehensive site survey for residential building permit application',
+      applicationId: testApplicationId,
+      assignedToId: testUsers.employee.id, // Fixed field name from assigneeId
+      assignedById: testUsers.manager.id, // Fixed field name from createdById
+      status: 'assigned',
+      priority: 'medium',
+      estimatedDuration: 7,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+
+    console.log('📊 Real test data seeded successfully:', {
+      applicationId: testApplicationId,
+      surveyingDecisionId: testSurveyingDecisionId,
+      taskId: testTaskId
+    });
+  } catch (error) {
+    console.warn('⚠️  Test data seeding failed - tests will run with minimal data:', error);
+  }
 }

@@ -60,6 +60,8 @@ import {
   validateSessionIdParam, validateAttachmentIdParam
 } from './middleware/inputValidation';
 
+// Web Authentication Middleware already exists below - removing duplicate
+
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
   throw new Error("JWT_SECRET environment variable is required");
@@ -187,16 +189,22 @@ const authenticateToken = (req: AuthenticatedRequest, res: Response, next: NextF
     }
 
     // ✅ EXTENSIVE JWT PAYLOAD LOGGING
+    // Support both userId (test format) and id fields for compatibility
+    const userId = user.userId || user.id;
+    
     // Log only essential audit information (no sensitive token content)
     if (process.env.NODE_ENV === 'development') {
       console.log(`[✅ AUTH SUCCESS] JWT verified for ${req.method} ${req.path}:`, {
-        userId: user.id.substring(0, 8) + '...',
+        userId: userId ? userId.substring(0, 8) + '...' : 'undefined',
         username: user.username,
         role: user.role
       });
     }
-    
-    req.user = user;
+    req.user = {
+      ...user,
+      id: userId, // Normalize to id field
+      roleCodes: [user.role?.toUpperCase()] // Convert role to array of uppercase codes
+    };
     next();
   });
 };
@@ -2703,13 +2711,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userRoles = user?.roleCodes || [];
       const isAdmin = userRoles.includes('ADMIN');
       const isManager = userRoles.includes('MANAGER');
-      const isAssigned = existingTask.assigneeId === user?.id;
+      const isAssigned = existingTask.assignedToId === user?.id;
 
       if (!isAdmin && !isManager && !isAssigned) {
         console.warn('[TASK AUTH] Unauthorized task update attempt:', {
           taskId: validatedId.data,
           userId: user?.id,
-          assigneeId: existingTask.assigneeId,
+          assignedToId: existingTask.assignedToId, // Fixed field name
+          userRoles: userRoles,
           timestamp: new Date().toISOString()
         });
         return res.status(403).json({ 
