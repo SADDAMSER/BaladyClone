@@ -497,14 +497,23 @@ graph LR
 ✅ task_dependencies            // التبعيات (line 516)
 ```
 
-#### **⚠️ الفجوات الحرجة:**
+#### **⚠️ الفجوات التكاملية الحرجة:**
 ```typescript
+// الفجوات الداخلية للمحرك
 ❌ Declarative state machine enforcement
 ❌ Auto task generation on application submission
 ❌ Reassignment/escalation/timer logic
 ❌ Workflow metrics وmonitoring
-❌ Business rules engine integration
+
+// ⚡ الفجوة الأكبر: عدم التكامل مع المحركات الأخرى
+❌ Event-based communication مع المحرك الإداري
+❌ Real-time synchronization مع المحرك القانوني
+❌ Cross-engine orchestration للعمليات المعقدة
+❌ Unified error handling عبر المحركات
+❌ End-to-end process visibility
 ```
+
+**🔍 التشخيص العميق**: المحرك يعمل في "عزلة" - يقرر تغيير حالة الطلب لكن لا يعرف كيف يخبر المحركات الأخرى، مما يؤدي للحاجة للتدخل اليدوي المستمر.
 
 #### **🎯 معايير القبول:**
 - ✅ **State integrity invariant** - لا توجد حالات غير صحيحة
@@ -526,14 +535,24 @@ graph LR
 ✅ service_requirements          // متطلبات الخدمات (line 1647)
 ```
 
-#### **⚠️ الفجوات الحرجة:**
+#### **⚠️ الفجوات التكاملية الحرجة:**
 ```typescript
+// الفجوات الداخلية للمحرك
 ❌ Rule evaluation engine (لكل service template)
 ❌ Pre-submission validation ضد القوانين
 ❌ Post-submission compliance checks
 ❌ Legal versioning وbackward compatibility
 ❌ Automated compliance reporting
+
+// ⚡ الفجوة الأكبر: الانفصال عن العمليات المباشرة
+❌ Event-driven compliance checking (real-time)
+❌ Dynamic rule injection في workflow steps
+❌ Cross-reference مع المحرك الإداري للصلاحيات
+❌ Legal context awareness في task assignments
+❌ Automated legal review triggers
 ```
+
+**🔍 التشخيص العميق**: المحرك القانوني "منعزل" في قاعدة بيانات - لا يُستشار تلقائياً عند اتخاذ القرارات التشغيلية، مما يعرض المنصة لمخاطر عدم الامتثال.
 
 #### **🎯 معايير القبول:**
 - ✅ **Ruleset version مربوط** بكل application
@@ -554,14 +573,24 @@ graph LR
 ✅ user_geographic_assignments   // التكليفات الجغرافية (line 50)
 ```
 
-#### **⚠️ الفجوات التشغيلية:**
+#### **⚠️ الفجوات التكاملية التشغيلية:**
 ```typescript
+// الفجوات الداخلية للمحرك
 ❌ Assignment policies (positions → queues mapping)
 ❌ Capacity-based task routing
 ❌ LBAC-aware inbox management
 ❌ Workload balancing algorithms
 ❌ Performance tracking per employee
+
+// ⚡ الفجوة الأكبر: عدم الاستجابة للأحداث الخارجية
+❌ Event-driven task assignment من محرك سير العمل
+❌ Real-time capacity adjustment حسب أحداث النظام
+❌ Dynamic LBAC enforcement مع محرك القوانين
+❌ Cross-departmental coordination للعمليات المعقدة
+❌ Intelligent workload distribution عبر المناطق
 ```
+
+**🔍 التشخيص العميق**: المحرك الإداري "رد فعل" وليس "استباقي" - ينتظر طلبات التكليف اليدوية بدلاً من الاستجابة تلقائياً لأحداث سير العمل والقوانين.
 
 #### **🎯 معايير القبول:**
 - ✅ **Tasks ظاهرة فقط** ضمن الجغرافيا والأدوار المسموحة
