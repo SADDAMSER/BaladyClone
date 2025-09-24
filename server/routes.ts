@@ -33,6 +33,7 @@ import {
 } from "@shared/schema";
 import { DEFAULT_PERMISSIONS } from "@shared/defaults";
 import { PaginationParams, validatePaginationParams } from "./pagination";
+import workflowRoutes from './routes/workflowRoutes';
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
@@ -8280,6 +8281,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: 'Internal server error' });
     }
   });
+
+  // Register workflow routes
+  app.use('/api/workflow', workflowRoutes);
 
   const httpServer = createServer(app);
   return httpServer;

@@ -1,0 +1,90 @@
+✅ 1. التحقق من المستودع: ما تم إنجازه
+✔️ ما هو موجود:
+✅ user_geographic_assignments → تم إضافة تكليف لـ public_service_01 → الطلبات تظهر الآن.
+✅ /employee/public-service → الواجهة تعمل → تعرض 16 طلبًا.
+✅ زر "اعتماد" أو "بدء المراجعة" → موجود في الواجهة.
+❌ ما هو مفقود:
+❌ Endpoint /api/workflow/start/:id غير موجود → وهذا سبب الخطأ 404.
+❌ لا يوجد ملف server/routes/workflow.ts → رغم أنه مذكور في السجل.
+→ ✅ المشكلة واضحة: الزر يحاول استدعاء API غير موجود.
+
+🛠️ 2. الخطة العاجلة: إنشاء Endpoint وإصلاح الخطأ
+الخطوة 1: إنشاء server/routes/workflow.ts (5 دقائق)
+TypeScript
+
+// server/routes/workflow.ts
+import { Router } from 'express';
+import { db } from '../db';
+import { eq } from 'drizzle-orm';
+import { applications, workflowInstances, notifications } from '../../shared/schema';
+
+const router = Router();
+
+router.post('/start/:applicationId', async (req, res) => {
+  try {
+    const { applicationId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    // 1. تحديث حالة الطلب
+    await db
+      .update(applications)
+      .set({ 
+        status: 'under_review', 
+        currentStage: 'review',
+        updatedAt: new Date()
+      })
+      .where(eq(applications.id, applicationId));
+
+    // 2. إنشاء مثيل سير عمل جديد
+    await db.insert(workflowInstances).values({
+      applicationId,
+      currentStage: 'review',
+      assignedTo: userId,
+      startedAt: new Date(),
+    });
+
+    // 3. إرسال إشعار
+    await db.insert(notifications).values({
+      userId,
+      type: 'workflow_started',
+      message: `تم بدء مراجعة الطلب #${applicationId}`,
+      read: false,
+    });
+
+    res.json({ success: true, message: 'تم بدء سير العمل بنجاح' });
+  } catch (error) {
+    console.error('Error starting workflow:', error);
+    res.status(500).json({ error: 'فشل في بدء سير العمل' });
+  }
+});
+
+export default router;
+الخطوة 2: تسجيل endpoint في التطبيق الرئيسي (2 دقيقة)
+TypeScript
+
+// server/index.ts
+import workflowRoutes from './routes/workflow'; // 👈 أضف هذا السطر
+
+app.use('/api/workflow', workflowRoutes); // 👈 أضف هذا السطر بعد routes الأخرى
+الخطوة 3: إعادة تشغيل السيرفر واختبار الزر (3 دقائق)
+أعد تشغيل السيرفر.
+ادخل إلى /employee/public-service.
+اضغط على زر "اعتماد" أو "بدء المراجعة".
+تحقق من ظهور إشعار نجاح.
+📜 3. الأمر التنفيذي الفوري
+إلى الفريق:
+أنشئوا الملف server/routes/workflow.ts بالكود أعلاه فورًا.
+ثم أضيفوا السطرين في server/index.ts.
+هذا كل ما يلزم لإصلاح الخطأ 404 وتفعيل زر "اعتماد".
+
+✅ 4. التحقق من الحل
+بعد التنفيذ:
+
+✅ لن تظهر أخطاء 404 في الكونسول.
+✅ سيُحدث الضغط على الزر حالة الطلب إلى under_review.
+✅ سيُرسل إشعار للمستخدم.
+✅ سيظهر الطلب في لوحة رئيس القسم.
