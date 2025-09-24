@@ -1,0 +1,86 @@
+10:13:30 PM [express] GET /api/sync/session 404 in 0ms :: {"message":"API endpoint not found"}
+10:14:00 PM [express] GET /api/sync/session 404 in 1ms :: {"message":"API endpoint not found"}
+10:14:30 PM [express] GET /api/sync/session 404 in 1ms :: {"message":"API endpoint not found"}
+10:15:01 PM [express] GET /api/sync/session 404 in 0ms :: {"message":"API endpoint not found"}
+10:15:38 PM [express] GET /api/sync/session 404 in 0ms :: {"message":"API endpoint not found"}
+[🔍 AUTH DEBUG] GET /api/sync/tables - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 295,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.90.162'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/sync/tables: {
+  userId: 'a0e9da67...',
+  username: 'public_service_01',
+  role: 'employee'
+}
+10:15:38 PM [express] GET /api/sync/tables 304 in 3ms :: {"tables":[],"totalTables":0,"userRole":"emp…
+[🔍 AUTH DEBUG] GET /api/applications - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 295,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.90.162'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/applications: {
+  userId: 'a0e9da67...',
+  username: 'public_service_01',
+  role: 'employee'
+}
+[GEOGRAPHIC DEBUG] Processing user: a0e9da67-c1f6-41cb-9a02-7aad53acdf5d (public_service_01)
+[GEOGRAPHIC DEBUG] Found 1 geographic assignments for user a0e9da67-c1f6-41cb-9a02-7aad53acdf5d
+[GEOGRAPHIC DEBUG] Built geographic context: {
+  governorateId: '6cb4d669-b015-485c-995c-62f0b465705f',
+  districtId: null,
+  subDistrictId: null,
+  neighborhoodId: null
+}
+[LBAC DEBUG] User geographic scope: {
+  userId: 'a0e9da67-c1f6-41cb-9a02-7aad53acdf5d',
+  governorateIds: [ '6cb4d669-b015-485c-995c-62f0b465705f' ],
+  districtIds: [],
+  subDistrictIds: [],
+  neighborhoodIds: []
+}
+[LBAC DEBUG] Filtered applications count: 16
+10:15:39 PM [express] GET /api/applications 304 in 948ms :: [{"id":"8a3de9b8-fa25-446f-b61a-88902c72a…
+10:16:08 PM [express] GET /api/sync/session 404 in 1ms :: {"message":"API endpoint not found"}
+JWT validation failed: ReferenceError: require is not defined
+    at authenticateToken (/home/runner/workspace/server/routes/workflowRoutes.ts:19:17)
+    at Layer.handle [as handle_request] (/home/runner/workspace/node_modules/express/lib/router/layer.js:95:5)
+    at next (/home/runner/workspace/node_modules/express/lib/router/route.js:149:13)
+    at Route.dispatch (/home/runner/workspace/node_modules/express/lib/router/route.js:119:3)
+    at Layer.handle [as handle_request] (/home/runner/workspace/node_modules/express/lib/router/layer.js:95:5)
+    at /home/runner/workspace/node_modules/express/lib/router/index.js:284:15
+    at param (/home/runner/workspace/node_modules/express/lib/router/index.js:365:14)
+    at param (/home/runner/workspace/node_modules/express/lib/router/index.js:376:14)
+    at Function.process_params (/home/runner/workspace/node_modules/express/lib/router/index.js:421:3)
+    at next (/home/runner/workspace/node_modules/express/lib/router/index.js:280:10)
+    at Function.handle (/home/runner/workspace/node_modules/express/lib/router/index.js:175:3)
+    at router (/home/runner/workspace/node_modules/express/lib/router/index.js:47:12)
+    at Layer.handle [as handle_request] (/home/runner/workspace/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/home/runner/workspace/node_modules/express/lib/router/index.js:328:13)
+    at /home/runner/workspace/node_modules/express/lib/router/index.js:286:9
+    at Function.process_params (/home/runner/workspace/node_modules/express/lib/router/index.js:346:12)
+    at next (/home/runner/workspace/node_modules/express/lib/router/index.js:280:10)
+    at <anonymous> (/home/runner/workspace/server/index.ts:40:3)
+    at Layer.handle [as handle_request] (/home/runner/workspace/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/home/runner/workspace/node_modules/express/lib/router/index.js:328:13)
+    at /home/runner/workspace/node_modules/express/lib/router/index.js:286:9
+    at Function.process_params (/home/runner/workspace/node_modules/express/lib/router/index.js:346:12)
+    at next (/home/runner/workspace/node_modules/express/lib/router/index.js:280:10)
+    at urlencodedParser (/home/runner/workspace/node_modules/body-parser/lib/types/urlencoded.js:85:7)
+    at Layer.handle [as handle_request] (/home/runner/workspace/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/home/runner/workspace/node_modules/express/lib/router/index.js:328:13)
+    at /home/runner/workspace/node_modules/express/lib/router/index.js:286:9
+    at Function.process_params (/home/runner/workspace/node_modules/express/lib/router/index.js:346:12)
+    at next (/home/runner/workspace/node_modules/express/lib/router/index.js:280:10)
+    at /home/runner/workspace/node_modules/body-parser/lib/read.js:137:5
+    at AsyncResource.runInAsyncScope (node:async_hooks:206:9)
+    at invokeCallback (/home/runner/workspace/node_modules/raw-body/index.js:238:16)
+    at done (/home/runner/workspace/node_modules/raw-body/index.js:227:7)
+    at IncomingMessage.onEnd (/home/runner/workspace/node_modules/raw-body/index.js:287:7)
+    at IncomingMessage.emit (node:events:524:28)
+    at endReadableNT (node:internal/streams/readable:1698:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:82:21)
+10:16:09 PM [express] POST /api/workflow/start/8a3de9b8-fa25-446f-b61a-88902c72a843 403 in 2ms :: {"e…
+10:16:38 PM [express] 

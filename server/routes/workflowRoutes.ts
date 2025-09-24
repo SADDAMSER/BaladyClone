@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import jwt from 'jsonwebtoken';
 import { workflowService } from '../services/workflowService';
+
 // Authentication middleware with JWT validation
 const authenticateToken = (req: any, res: any, next: any) => {
   const authHeader = req.headers['authorization'];
@@ -16,7 +18,6 @@ const authenticateToken = (req: any, res: any, next: any) => {
 
   try {
     // Use the same JWT secret and verification as the main auth system
-    const jwt = require('jsonwebtoken');
     const decoded = jwt.verify(activeToken, process.env.JWT_SECRET || 'fallback-secret');
     
     req.user = {
