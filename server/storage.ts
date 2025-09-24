@@ -2144,9 +2144,11 @@ export class DatabaseStorage implements IStorage {
 
   // Geographic data
   async getGovernorates(): Promise<Governorate[]> {
+    // Performance optimization: Add limit to prevent loading too many records at once
     return await db.select().from(governorates)
       .where(eq(governorates.isActive, true))
-      .orderBy(asc(governorates.code));
+      .orderBy(asc(governorates.code))
+      .limit(50); // Reasonable limit for governorates
   }
 
   async getGovernorate(id: string): Promise<Governorate | undefined> {
@@ -2330,7 +2332,8 @@ export class DatabaseStorage implements IStorage {
     if (neighborhoodUnitId) {
       return await db.select().from(blocks).where(eq(blocks.neighborhoodUnitId, sql<string>`${neighborhoodUnitId}::uuid`));
     }
-    return await db.select().from(blocks);
+    // Performance optimization: Limit unfiltered queries to prevent slow responses
+    return await db.select().from(blocks).limit(50);
   }
   async getBlock(id: string): Promise<Block | undefined> { 
     const [result] = await db.select().from(blocks).where(eq(blocks.id, id));

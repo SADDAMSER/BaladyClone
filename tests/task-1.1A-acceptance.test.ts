@@ -308,22 +308,27 @@ describe('🧪 Task 1.1A Acceptance Tests - واجهة تقديم الطلب', (
   
   describe('⚡ 3. اختبار الأداء - Performance Testing', () => {
     
-    it('✅ يجب أن تكون أوقات الاستجابة أقل من 2 ثانية', async () => {
-      // Test critical endpoints performance
+    it('✅ يجب أن تكون أوقات الاستجابة أقل من 2 ثانية - STRICT SLA', async () => {
+      // CRITICAL: This test enforces the hard 2-second SLA requirement
       const criticalEndpoints = [
-        () => request(app).get('/api/governorates').set('Authorization', `Bearer ${testToken}`),
-        () => request(app).get('/api/districts').set('Authorization', `Bearer ${testToken}`),
-        () => request(app).get('/api/sectors').set('Authorization', `Bearer ${testToken}`),
+        { name: 'GET /api/governorates', fn: () => request(app).get('/api/governorates').set('Authorization', `Bearer ${testToken}`) },
+        { name: 'GET /api/districts', fn: () => request(app).get('/api/districts').set('Authorization', `Bearer ${testToken}`) },
+        { name: 'GET /api/blocks', fn: () => request(app).get('/api/blocks').set('Authorization', `Bearer ${testToken}`) },
+        { name: 'GET /api/sectors', fn: () => request(app).get('/api/sectors').set('Authorization', `Bearer ${testToken}`) },
       ];
 
-      for (const endpointFn of criticalEndpoints) {
+      for (const endpoint of criticalEndpoints) {
         const startTime = Date.now();
-        const response = await endpointFn();
+        const response = await endpoint.fn();
         const endTime = Date.now();
         const responseTime = endTime - startTime;
         
-        expect(responseTime).toBeLessThan(2000); // < 2 seconds
+        // STRICT ASSERTION: Must be under 2000ms
+        expect(responseTime).toBeLessThan(2000); 
         expect(response.status).toBe(200);
+        
+        // Log for monitoring
+        console.log(`⏱️  ${endpoint.name}: ${responseTime}ms ${responseTime < 2000 ? '✅' : '❌'}`);
       }
     });
 
