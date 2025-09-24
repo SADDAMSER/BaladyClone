@@ -235,14 +235,23 @@ export default function PublicServiceDashboard() {
     refetchOnWindowFocus: false
   });
 
-  // Review application mutation
+  // Review application mutation - Updated for Task 1.2 Workflow
   const reviewMutation = useMutation({
     mutationFn: async (data: { applicationId: string; reviewData: ReviewData }) => {
       const originalToken = localStorage.getItem("auth-token");
       localStorage.setItem("auth-token", authToken);
       
       try {
-        const response = await apiRequest('POST', `/api/applications/${data.applicationId}/public-service-review`, data.reviewData);
+        // First, start workflow if not started
+        const workflowResponse = await apiRequest('POST', `/api/workflow/start/${data.applicationId}`, {});
+        const workflowData = await workflowResponse.json();
+        
+        // Then process the public service review via workflow
+        const response = await apiRequest('POST', `/api/workflow/public-service-review/${workflowData.data?.instanceId}`, {
+          documentVerification: data.reviewData.decision === 'approved' ? 'verified' : 'rejected',
+          feeCalculation: data.reviewData.calculatedFees,
+          notes: data.reviewData.reviewerComments
+        });
         return await response.json();
       } finally {
         if (originalToken) {
@@ -252,15 +261,18 @@ export default function PublicServiceDashboard() {
         }
       }
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast({
         title: "تم بنجاح",
-        description: reviewData.decision === 'approved' ? "تم اعتماد الطلب بنجاح" : "تم رفض الطلب",
+        description: reviewData.decision === 'approved' ? "تم اعتماد الطلب وإرسال إشعار للصندوق" : "تم رفض الطلب",
         variant: reviewData.decision === 'approved' ? "default" : "destructive",
       });
       queryClient.invalidateQueries({ queryKey: ['/api/applications'] });
       setSelectedApplication(null);
       setReviewData({ decision: 'approved', notes: '', calculatedFees: 0, reviewerComments: '' });
+      
+      // Log workflow transition
+      console.log('[WORKFLOW] Public service review completed:', data);
     },
     onError: (error) => {
       toast({
