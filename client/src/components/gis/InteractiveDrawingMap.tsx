@@ -42,6 +42,8 @@ interface InteractiveDrawingMapProps {
   center?: [number, number];
   zoom?: number;
   isEnabled?: boolean;
+  // ✅ PHASE 1: Add location selection support
+  onLocationSelect?: (coordinates: { lat: number; lng: number }) => void;
   // Geographic boundary props
   selectedGovernorateId?: string;
   selectedDistrictId?: string;
@@ -163,13 +165,15 @@ function DrawingHandler({
   onFeatureDrawn, 
   isEnabled,
   drawingState,
-  setDrawingState
+  setDrawingState,
+  onLocationSelect
 }: { 
   currentMode: DrawingMode;
   onFeatureDrawn: (feature: DrawingFeature) => void;
   isEnabled: boolean;
   drawingState: DrawingState;
   setDrawingState: React.Dispatch<React.SetStateAction<DrawingState>>;
+  onLocationSelect?: (coordinates: { lat: number; lng: number }) => void;
 }) {
   const map = useMap();
 
@@ -186,6 +190,15 @@ function DrawingHandler({
 
   const mapEvents = useMapEvents({
     click: (e: LeafletMouseEvent) => {
+      // ✅ PHASE 1: Support location selection when not drawing  
+      if (currentMode === 'pan' && onLocationSelect) {
+        onLocationSelect({
+          lat: e.latlng.lat,
+          lng: e.latlng.lng
+        });
+        return;
+      }
+      
       if (!isEnabled || currentMode === 'pan') return;
 
       const { lat, lng } = e.latlng;
@@ -589,6 +602,7 @@ export default function InteractiveDrawingMap({
   center = [15.3694, 44.1910], // Yemen center
   zoom = 7,
   isEnabled = true,
+  onLocationSelect, // ✅ PHASE 1: Add location selection support
   selectedGovernorateId,
   selectedDistrictId,
   selectedSubDistrictId,
@@ -699,6 +713,7 @@ export default function InteractiveDrawingMap({
             isEnabled={isEnabled}
             drawingState={drawingState}
             setDrawingState={setDrawingState}
+            onLocationSelect={onLocationSelect}
           />
           
           {/* Geographic Boundaries */}

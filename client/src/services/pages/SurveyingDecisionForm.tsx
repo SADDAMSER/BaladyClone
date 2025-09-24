@@ -969,11 +969,34 @@ export default function SurveyingDecisionForm() {
               <div className="mt-6">
                 <Label className="text-base font-semibold mb-3 block">تحديد الموقع على الخريطة</Label>
                 <div className="border rounded-lg overflow-hidden">
-                  <InteractiveMap
+                  <InteractiveDrawingMap
                     center={[15.3694, 44.1910]} // إحداثيات صنعاء، اليمن
                     zoom={7}
                     height="500px"
+                    isEnabled={false} // تعطيل أدوات الرسم في هذه الخطوة
+                    selectedGovernorateId={formData.governorate}
+                    selectedDistrictId={formData.district}
+                    selectedSubDistrictId={formData.subDistrict}
+                    selectedSectorId={formData.sector}
+                    selectedNeighborhoodUnitId={formData.neighborhoodUnit}
                     onLocationSelect={isSelectingCoordinates ? handleLocationSelect : undefined}
+                    onBoundaryClick={(type, id, name) => {
+                      if (type === 'governorate') {
+                        handleGovernorateChange(id);
+                        toast({
+                          title: "تم اختيار المحافظة",
+                          description: `تم اختيار محافظة ${name}`,
+                          variant: "default",
+                        });
+                      } else if (type === 'district') {
+                        handleDistrictChange(id);
+                        toast({
+                          title: "تم اختيار المديرية", 
+                          description: `تم اختيار مديرية ${name}`,
+                          variant: "default",
+                        });
+                      }
+                    }}
                   />
                 </div>
                 <p className="text-sm text-muted-foreground mt-2">
