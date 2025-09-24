@@ -20,22 +20,19 @@ const authenticateToken = (req: any, res: any, next: any) => {
     const decoded = jwt.verify(activeToken, process.env.JWT_SECRET || 'fallback-secret');
     
     req.user = {
-      id: decoded.id || 'test-user-id',
-      username: decoded.username || 'test-user',
-      role: decoded.role || 'employee',
+      id: decoded.id,
+      username: decoded.username,
+      role: decoded.role,
       departmentId: decoded.departmentId
     };
     
     next();
   } catch (err) {
-    // For development/testing, allow mock authentication
-    console.log('JWT validation failed, using mock auth for development');
-    req.user = {
-      id: 'test-user-id',
-      username: 'test-user', 
-      role: 'employee'
-    };
-    next();
+    console.error('JWT validation failed:', err);
+    return res.status(403).json({ 
+      error: 'Invalid or expired token',
+      message: 'Authentication failed - please login again'
+    });
   }
 };
 
@@ -319,7 +316,7 @@ router.get('/stats', authenticateToken, async (req, res) => {
  * موظف خدمة الجمهور - مراجعة الطلب
  * POST /api/workflow/public-service-review/:instanceId
  */
-router.post('/public-service-review/:instanceId', authenticateToken, async (req, res) => {
+router.post('/public-service-review/:instanceId', authenticateToken, requireRole(['public_service_employee']), async (req, res) => {
   try {
     const { instanceId } = req.params;
     const userId = (req as any).user.id;
@@ -364,7 +361,7 @@ router.post('/public-service-review/:instanceId', authenticateToken, async (req,
  * موظف الصندوق - تأكيد السداد
  * POST /api/workflow/cashier-payment/:instanceId
  */
-router.post('/cashier-payment/:instanceId', authenticateToken, async (req, res) => {
+router.post('/cashier-payment/:instanceId', authenticateToken, requireRole(['cashier']), async (req, res) => {
   try {
     const { instanceId } = req.params;
     const userId = (req as any).user.id;
@@ -409,7 +406,7 @@ router.post('/cashier-payment/:instanceId', authenticateToken, async (req, res) 
  * رئيس قسم المساحة - تكليف المساح
  * POST /api/workflow/assign-surveyor/:instanceId
  */
-router.post('/assign-surveyor/:instanceId', authenticateToken, async (req, res) => {
+router.post('/assign-surveyor/:instanceId', authenticateToken, requireRole(['section_head']), async (req, res) => {
   try {
     const { instanceId } = req.params;
     const userId = (req as any).user.id;
@@ -459,7 +456,7 @@ router.post('/assign-surveyor/:instanceId', authenticateToken, async (req, res) 
  * مساعد رئيس القسم - جدولة الموعد
  * POST /api/workflow/assistant-scheduling/:instanceId
  */
-router.post('/assistant-scheduling/:instanceId', authenticateToken, async (req, res) => {
+router.post('/assistant-scheduling/:instanceId', authenticateToken, requireRole(['assistant_head']), async (req, res) => {
   try {
     const { instanceId } = req.params;
     const userId = (req as any).user.id;
@@ -504,7 +501,7 @@ router.post('/assistant-scheduling/:instanceId', authenticateToken, async (req, 
  * المساح - تسليم بيانات الرفع المساحي
  * POST /api/workflow/surveyor-submit/:instanceId
  */
-router.post('/surveyor-submit/:instanceId', authenticateToken, async (req, res) => {
+router.post('/surveyor-submit/:instanceId', authenticateToken, requireRole(['surveyor']), async (req, res) => {
   try {
     const { instanceId } = req.params;
     const userId = (req as any).user.id;
@@ -552,7 +549,7 @@ router.post('/surveyor-submit/:instanceId', authenticateToken, async (req, res) 
  * المراجع الفني - مراجعة تقنية
  * POST /api/workflow/technical-review/:instanceId
  */
-router.post('/technical-review/:instanceId', authenticateToken, async (req, res) => {
+router.post('/technical-review/:instanceId', authenticateToken, requireRole(['technical_reviewer']), async (req, res) => {
   try {
     const { instanceId } = req.params;
     const userId = (req as any).user.id;
@@ -600,7 +597,7 @@ router.post('/technical-review/:instanceId', authenticateToken, async (req, res)
  * الاعتماد النهائي
  * POST /api/workflow/final-approval/:instanceId
  */
-router.post('/final-approval/:instanceId', authenticateToken, async (req, res) => {
+router.post('/final-approval/:instanceId', authenticateToken, requireRole(['department_manager', 'branch_manager']), async (req, res) => {
   try {
     const { instanceId } = req.params;
     const userId = (req as any).user.id;
