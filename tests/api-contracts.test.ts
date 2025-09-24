@@ -572,12 +572,25 @@ describe('🧪 API Contract Tests - Surveying Decision Service (Task 0.1)', () =
 // ================================================================
 
 async function setupTestUsers() {
-  // Create JWT tokens for different user types with LBAC contexts
+  // CRITICAL: Get actual user IDs from database to create matching JWT tokens
+  const mockStorage = (await import('../server/storage')).storage as any;
+  const existingUsers = await mockStorage.getUsers();
+  
+  // Map database users to test user IDs
+  const actualUserIds = {
+    citizen: existingUsers.find((u: any) => u.username === 'citizen_mohammed')?.id,
+    employee: existingUsers.find((u: any) => u.username === 'employee_ahmed')?.id,
+    manager: existingUsers.find((u: any) => u.username === 'manager_fatima')?.id,
+    admin: existingUsers.find((u: any) => u.username === 'admin_super')?.id,
+    crossBoundaryEmployee: existingUsers.find((u: any) => u.username === 'employee_cross')?.id,
+  };
+
+  // Create JWT tokens for different user types with LBAC contexts using actual database IDs
   const createTestUser = (userData: Omit<TestUser, 'token'>) => ({
     ...userData,
     token: jwt.sign(
       {
-        userId: userData.id,
+        userId: userData.id, // Use actual database ID
         role: userData.role,
         geographic: userData.geographicAccess
       },
@@ -588,7 +601,7 @@ async function setupTestUsers() {
 
   testUsers = {
     citizen: createTestUser({
-      id: uuidv4(), // Fixed UUID format
+      id: actualUserIds.citizen || uuidv4(), // Use actual DB ID or fallback
       username: 'citizen_mohammed',
       password: 'citizen123',
       role: 'citizen',
@@ -600,7 +613,7 @@ async function setupTestUsers() {
     }),
     
     employee: createTestUser({
-      id: uuidv4(), // Fixed UUID format
+      id: actualUserIds.employee || uuidv4(), // Use actual DB ID or fallback
       username: 'employee_ahmed',
       password: 'employee123',
       role: 'employee',
@@ -612,7 +625,7 @@ async function setupTestUsers() {
     }),
 
     manager: createTestUser({
-      id: uuidv4(), // Fixed UUID format 
+      id: actualUserIds.manager || uuidv4(), // Use actual DB ID or fallback 
       username: 'manager_fatima',
       password: 'manager123',
       role: 'manager',
@@ -624,7 +637,7 @@ async function setupTestUsers() {
     }),
 
     admin: createTestUser({
-      id: uuidv4(), // Fixed UUID format
+      id: actualUserIds.admin || uuidv4(), // Use actual DB ID or fallback
       username: 'admin_super',
       password: 'admin123',
       role: 'admin',
@@ -636,7 +649,7 @@ async function setupTestUsers() {
     }),
 
     crossBoundaryEmployee: createTestUser({
-      id: uuidv4(), // Fixed UUID format
+      id: actualUserIds.crossBoundaryEmployee || uuidv4(), // Use actual DB ID or fallback
       username: 'employee_cross',
       password: 'employee123',
       role: 'employee',
@@ -647,6 +660,14 @@ async function setupTestUsers() {
       }
     })
   };
+
+  console.log('🔑 Test user IDs mapped:', {
+    citizen: actualUserIds.citizen,
+    employee: actualUserIds.employee,
+    manager: actualUserIds.manager,
+    admin: actualUserIds.admin,
+    crossBoundaryEmployee: actualUserIds.crossBoundaryEmployee
+  });
 }
 
 async function setupTestData() {
@@ -660,6 +681,87 @@ async function setupTestData() {
   const mockStorage = (await import('../server/storage')).storage as any;
   
   try {
+    // CRITICAL: First create actual test users in database
+    for (const [userType, userData] of Object.entries(testUsers)) {
+      try {
+        await mockStorage.createUser({
+          id: userData.id,
+          username: userData.username,
+          email: `${userData.username}@yemenplatform.gov.ye`,
+          fullName: `Test User ${userData.username}`,
+          password: '$2b$10$test.hash.for.testing', // Fixed field name
+          role: userData.role.toUpperCase(),
+          departmentId: null,
+          positionId: null,
+          isActive: true,
+          phone: `+967-${Math.random().toString().substr(2, 8)}`,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        });
+        console.log(`✅ Created test user: ${userType} (${userData.id})`);
+      } catch (error) {
+        console.log(`ℹ️ Test user ${userType} may already exist:`, error);
+      }
+    }
+
+    // CRITICAL: Create geographic assignments for users (LBAC setup)
+    // Use actual governorate/district UUIDs from database instead of string codes
+    const geographicMappings = {
+      'gov_sanaa': '6cb4d669-b015-485c-995c-62f0b465705f', // صنعاء
+      'gov_aden': '2444ec74-fb5f-45b8-aba0-308181620743'   // عدن
+    };
+
+    // CRITICAL: Get actual user IDs from database instead of using generated ones
+    const existingUsers = await mockStorage.getUsers();
+    const userIdMappings: { [key: string]: string } = {};
+    
+    for (const dbUser of existingUsers) {
+      if (dbUser.username === 'citizen_mohammed') userIdMappings.citizen = dbUser.id;
+      if (dbUser.username === 'employee_ahmed') userIdMappings.employee = dbUser.id; 
+      if (dbUser.username === 'manager_fatima') userIdMappings.manager = dbUser.id;
+      if (dbUser.username === 'admin_super') userIdMappings.admin = dbUser.id;
+      if (dbUser.username === 'employee_cross') userIdMappings.crossBoundaryEmployee = dbUser.id;
+    }
+    
+    for (const [userType, userData] of Object.entries(testUsers)) {
+      try {
+        // Skip admin with '*' access - they don't need specific geographic assignments
+        if (userData.role === 'admin') continue;
+        
+        const actualUserId = userIdMappings[userType];
+        if (!actualUserId) {
+          console.log(`⚠️ No actual user ID found for: ${userType}`);
+          continue;
+        }
+        
+        const governorateUuid = geographicMappings[userData.geographicAccess.governorateId as keyof typeof geographicMappings];
+        if (!governorateUuid) {
+          console.log(`⚠️ No UUID mapping for governorate: ${userData.geographicAccess.governorateId}`);
+          continue;
+        }
+        
+        await mockStorage.createUserGeographicAssignment({
+          id: uuidv4(),
+          userId: actualUserId, // Use actual DB user ID
+          governorateId: governorateUuid, // Use actual UUID
+          districtId: null, // Simplified - assign at governorate level for now
+          subDistrictId: null,
+          neighborhoodId: null,
+          assignmentLevel: 'governorate', // Changed to match actual assignment
+          assignmentType: 'permanent',
+          canRead: true,
+          canWrite: true,
+          canApprove: userData.role === 'manager',
+          isActive: true,
+          startDate: new Date(),
+          endDate: null,
+          createdAt: new Date()
+        });
+        console.log(`✅ Created geographic assignment: ${userType} (${actualUserId}) -> ${governorateUuid}`);
+      } catch (error) {
+        console.log(`ℹ️ Geographic assignment for ${userType} may already exist:`, error);
+      }
+    }
     // Create test application with all required fields
     await mockStorage.createApplication({
       id: testApplicationId,

@@ -359,7 +359,19 @@ export interface IStorage {
   removeServiceRequirement(serviceId: string, requirementId: string): Promise<void>;
 
   // Applications
-  getApplications(filters?: { status?: string; applicantId?: string; assignedToId?: string }): Promise<Application[]>;
+  getApplications(filters?: { 
+    status?: string; 
+    applicantId?: string; 
+    assignedToId?: string;
+    // LBAC filtering for geographic access control
+    userGeographicScope?: {
+      userId: string;
+      governorateIds?: string[];
+      districtIds?: string[];
+      subDistrictIds?: string[];
+      neighborhoodIds?: string[];
+    };
+  }): Promise<Application[]>;
   getApplicationsPaginated(params: PaginationParams): Promise<PaginatedResponse<Application>>;
   getApplication(id: string): Promise<Application | undefined>;
   getApplicationByNumber(applicationNumber: string): Promise<Application | undefined>;
@@ -368,7 +380,18 @@ export interface IStorage {
   deleteApplication(id: string): Promise<void>;
 
   // Surveying decisions
-  getSurveyingDecisions(filters?: { status?: string; surveyorId?: string }): Promise<SurveyingDecision[]>;
+  getSurveyingDecisions(filters?: { 
+    status?: string; 
+    surveyorId?: string;
+    // LBAC filtering for geographic access control
+    userGeographicScope?: {
+      userId: string;
+      governorateIds?: string[];
+      districtIds?: string[];
+      subDistrictIds?: string[];
+      neighborhoodIds?: string[];
+    };
+  }): Promise<SurveyingDecision[]>;
   getSurveyingDecision(id: string): Promise<SurveyingDecision | undefined>;
   getSurveyingDecisionByNumber(decisionNumber: string): Promise<SurveyingDecision | undefined>;
   createSurveyingDecision(decision: InsertSurveyingDecision): Promise<SurveyingDecision>;
@@ -2599,14 +2622,56 @@ export class DatabaseStorage implements IStorage {
       ));
   }
 
-  // Applications
-  async getApplications(filters?: { status?: string; applicantId?: string; assignedToId?: string; currentStage?: string }): Promise<Application[]> {
+  // Applications with LBAC filtering
+  async getApplications(filters?: { 
+    status?: string; 
+    applicantId?: string; 
+    assignedToId?: string; 
+    currentStage?: string;
+    userGeographicScope?: {
+      userId: string;
+      governorateIds?: string[];
+      districtIds?: string[];
+      subDistrictIds?: string[];
+      neighborhoodIds?: string[];
+    };
+  }): Promise<Application[]> {
+    
     if (filters) {
       const conditions = [];
       if (filters.status) conditions.push(eq(applications.status, filters.status));
       if (filters.applicantId) conditions.push(eq(applications.applicantId, filters.applicantId));
       if (filters.assignedToId) conditions.push(eq(applications.assignedToId, filters.assignedToId));
       if (filters.currentStage) conditions.push(eq(applications.currentStage, filters.currentStage));
+      
+      // CRITICAL: Apply LBAC filtering based on user's geographic scope
+      if (filters.userGeographicScope) {
+        const { governorateIds, districtIds, subDistrictIds, neighborhoodIds } = filters.userGeographicScope;
+        
+        // Build geographic conditions - applications should be within user's authorized scope
+        const geographicConditions = [];
+        
+        if (governorateIds && governorateIds.length > 0) {
+          // SIMPLIFIED APPROACH: For now, let all users in the same governorate see all applications
+          // This gives us working LBAC while we build more sophisticated geographic linking
+          
+          // First, find all users in the same governorates as the current user
+          const usersInSameGovernorates = db
+            .select({ userId: userGeographicAssignments.userId })
+            .from(userGeographicAssignments)
+            .where(and(
+              inArray(userGeographicAssignments.governorateId, governorateIds),
+              eq(userGeographicAssignments.isActive, true)
+            ));
+          
+          // Then filter applications by these users
+          geographicConditions.push(inArray(applications.applicantId, usersInSameGovernorates));
+        }
+        
+        if (geographicConditions.length > 0) {
+          conditions.push(or(...geographicConditions));
+        }
+      }
       
       if (conditions.length > 0) {
         return await db.select().from(applications)
@@ -2672,12 +2737,42 @@ export class DatabaseStorage implements IStorage {
     await db.delete(applications).where(eq(applications.id, id));
   }
 
-  // Surveying decisions
-  async getSurveyingDecisions(filters?: { status?: string; surveyorId?: string }): Promise<SurveyingDecision[]> {
+  // Surveying decisions with LBAC filtering
+  async getSurveyingDecisions(filters?: { 
+    status?: string; 
+    surveyorId?: string;
+    userGeographicScope?: {
+      userId: string;
+      governorateIds?: string[];
+      districtIds?: string[];
+      subDistrictIds?: string[];
+      neighborhoodIds?: string[];
+    };
+  }): Promise<SurveyingDecision[]> {
     if (filters) {
       const conditions = [];
       if (filters.status) conditions.push(eq(surveyingDecisions.status, filters.status));
       if (filters.surveyorId) conditions.push(eq(surveyingDecisions.surveyorId, filters.surveyorId));
+      
+      // CRITICAL: Apply LBAC filtering based on user's geographic scope
+      if (filters.userGeographicScope) {
+        const { governorateIds } = filters.userGeographicScope;
+        
+        if (governorateIds && governorateIds.length > 0) {
+          // SIMPLIFIED APPROACH: For surveying decisions, filter by surveyors in same governorate
+          // Find all users (surveyors) in the same governorates as the current user
+          const surveyorsInSameGovernorates = db
+            .select({ userId: userGeographicAssignments.userId })
+            .from(userGeographicAssignments)
+            .where(and(
+              inArray(userGeographicAssignments.governorateId, governorateIds),
+              eq(userGeographicAssignments.isActive, true)
+            ));
+          
+          // Filter decisions by these surveyors
+          conditions.push(inArray(surveyingDecisions.surveyorId, surveyorsInSameGovernorates));
+        }
+      }
       
       if (conditions.length > 0) {
         return await db.select().from(surveyingDecisions)

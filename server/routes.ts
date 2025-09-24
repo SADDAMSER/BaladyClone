@@ -2381,14 +2381,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      // Get authenticated user from token
+      const user = (req as any).user;
+      if (!user?.id) {
+        return res.status(401).json({ message: "User not authenticated" });
+      }
+
+      console.log(`[GEOGRAPHIC DEBUG] Processing user: ${user.id} (${user.username || 'unknown'})`);
+
+      // Get user's geographic assignments for LBAC filtering
+      const userGeographicAssignments = await storage.getUserGeographicAssignments({
+        userId: user.id,
+        isActive: true
+      });
+
+      console.log(`[GEOGRAPHIC DEBUG] Found ${userGeographicAssignments.length} geographic assignments for user ${user.id}`);
+
+      // Build geographic context from user's primary assignment
+      let geographicContext = null;
+      if (userGeographicAssignments.length > 0) {
+        const primaryAssignment = userGeographicAssignments[0]; // Use first active assignment
+        geographicContext = {
+          governorateId: primaryAssignment.governorateId || null,
+          districtId: primaryAssignment.districtId || null,
+          subDistrictId: primaryAssignment.subDistrictId || null,
+          neighborhoodId: primaryAssignment.neighborhoodId || null
+        };
+        console.log(`[GEOGRAPHIC DEBUG] Built geographic context:`, geographicContext);
+      } else {
+        console.log(`[GEOGRAPHIC DEBUG] No geographic assignments found for user ${user.id} - context will be null`);
+      }
+
       const { status, applicantId, assignedToId, currentStage } = validatedQuery.data;
+      
+      // Build user geographic scope for LBAC filtering
+      const userGeographicScope = userGeographicAssignments.length > 0 ? {
+        userId: user.id,
+        governorateIds: userGeographicAssignments.map(a => a.governorateId).filter(Boolean),
+        districtIds: userGeographicAssignments.map(a => a.districtId).filter(Boolean),
+        subDistrictIds: userGeographicAssignments.map(a => a.subDistrictId).filter(Boolean),
+        neighborhoodIds: userGeographicAssignments.map(a => a.neighborhoodId).filter(Boolean)
+      } : undefined;
+
+      console.log(`[LBAC DEBUG] User geographic scope:`, userGeographicScope);
+
+      // CRITICAL SECURITY: Enforce strict LBAC - no assignments = no access
+      if (!userGeographicScope || !userGeographicScope.governorateIds || userGeographicScope.governorateIds.length === 0) {
+        console.log(`[LBAC SECURITY] User ${user.id} has no geographic assignments - returning empty set`);
+        return res.json([]); // Return empty array instead of all applications
+      }
+
       const applications = await storage.getApplications({
         status,
         applicantId,
         assignedToId,
         currentStage,
+        userGeographicScope // CRITICAL: Apply LBAC filtering at storage layer
       });
-      res.json(applications);
+
+      console.log(`[LBAC DEBUG] Filtered applications count: ${applications.length}`);
+
+      // Enrich applications with their ACTUAL geographic context (not user's context)
+      const enrichedApplications = applications.map(application => {
+        // Extract actual geographic context from application data if available
+        let actualGeographicContext = null;
+        if (application.applicationData && typeof application.applicationData === 'object') {
+          const appData = application.applicationData as any;
+          actualGeographicContext = {
+            governorateId: appData.governorateId || appData.location?.governorateId || null,
+            districtId: appData.districtId || appData.location?.districtId || null,
+            subDistrictId: appData.subDistrictId || appData.location?.subDistrictId || null,
+            neighborhoodId: appData.neighborhoodId || appData.location?.neighborhoodId || null
+          };
+        }
+        
+        return {
+          ...application,
+          geographicContext: actualGeographicContext || geographicContext // Fallback to user context if no app context
+        };
+      });
+
+      res.json(enrichedApplications);
     } catch (error) {
       console.error('[API ERROR] Get applications failed:', error);
       res.status(500).json({ message: "Internal server error" });
@@ -2538,12 +2611,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      // Get authenticated user from token
+      const user = (req as any).user;
+      if (!user?.id) {
+        return res.status(401).json({ message: "User not authenticated" });
+      }
+
+      console.log(`[SURVEYING LBAC DEBUG] Processing user: ${user.id}`);
+
+      // Get user's geographic assignments for LBAC filtering
+      const userGeographicAssignments = await storage.getUserGeographicAssignments({
+        userId: user.id,
+        isActive: true
+      });
+
+      console.log(`[SURVEYING LBAC DEBUG] Found ${userGeographicAssignments.length} geographic assignments`);
+
+      // Build geographic context from user's primary assignment
+      let geographicContext = null;
+      if (userGeographicAssignments.length > 0) {
+        const primaryAssignment = userGeographicAssignments[0];
+        geographicContext = {
+          governorateId: primaryAssignment.governorateId || null,
+          districtId: primaryAssignment.districtId || null,
+          subDistrictId: primaryAssignment.subDistrictId || null,
+          neighborhoodId: primaryAssignment.neighborhoodId || null
+        };
+        console.log(`[SURVEYING LBAC DEBUG] Built geographic context:`, geographicContext);
+      }
+
+      // Build user geographic scope for LBAC filtering
+      const userGeographicScope = userGeographicAssignments.length > 0 ? {
+        userId: user.id,
+        governorateIds: userGeographicAssignments.map(a => a.governorateId).filter(Boolean),
+        districtIds: userGeographicAssignments.map(a => a.districtId).filter(Boolean),
+        subDistrictIds: userGeographicAssignments.map(a => a.subDistrictId).filter(Boolean),
+        neighborhoodIds: userGeographicAssignments.map(a => a.neighborhoodId).filter(Boolean)
+      } : undefined;
+
+      // CRITICAL SECURITY: Enforce strict LBAC - no assignments = no access
+      if (!userGeographicScope || !userGeographicScope.governorateIds || userGeographicScope.governorateIds.length === 0) {
+        console.log(`[SURVEYING LBAC SECURITY] User ${user.id} has no geographic assignments - returning empty set`);
+        return res.json([]);
+      }
+
       const { status, surveyorId } = validatedQuery.data;
       const decisions = await storage.getSurveyingDecisions({
         status,
         surveyorId,
+        userGeographicScope // CRITICAL: Apply LBAC filtering at storage layer
       });
-      res.json(decisions);
+
+      console.log(`[SURVEYING LBAC DEBUG] Filtered decisions count: ${decisions.length}`);
+
+      // Enrich decisions with their ACTUAL geographic context
+      const enrichedDecisions = decisions.map(decision => {
+        // For surveying decisions, use the geographic context built from user's assignments
+        return {
+          ...decision,
+          geographicContext: geographicContext
+        };
+      });
+
+      res.json(enrichedDecisions);
     } catch (error) {
       console.error('[API ERROR] Get surveying decisions failed:', error);
       res.status(500).json({ message: "Internal server error" });
