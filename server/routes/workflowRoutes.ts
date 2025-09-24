@@ -3,38 +3,55 @@ import { z } from 'zod';
 import jwt from 'jsonwebtoken';
 import { workflowService } from '../services/workflowService';
 
-// Authentication middleware with JWT validation
+// Use same JWT secret as main routes
+const jwtSecret = process.env.JWT_SECRET || 'fallback-secret';
+
+// Copy of main authenticateToken middleware to avoid circular dependency
 const authenticateToken = (req: any, res: any, next: any) => {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+  const token = authHeader && authHeader.split(' ')[1];
 
-  // For testing, check if token is present in localStorage-style header
-  const testToken = req.headers['auth-token'];
-  const activeToken = token || testToken;
+  console.log(`[🔍 WORKFLOW AUTH DEBUG] ${req.method} ${req.path} - Token verification start`, {
+    hasAuthHeader: !!authHeader,
+    tokenLength: token ? token.length : 0,
+    userAgent: req.headers['user-agent'],
+    ip: req.ip
+  });
 
-  if (!activeToken) {
-    return res.status(401).json({ error: 'Access token required' });
+  if (!token) {
+    console.error(`[❌ WORKFLOW AUTH] Missing token for ${req.method} ${req.path}`);
+    return res.status(401).json({ message: 'Access token required' });
   }
 
-  try {
-    // Use the same JWT secret and verification as the main auth system
-    const decoded = jwt.verify(activeToken, process.env.JWT_SECRET || 'fallback-secret');
+  jwt.verify(token, jwtSecret, (err: any, user: any) => {
+    if (err) {
+      console.error(`[❌ WORKFLOW AUTH] JWT verification failed for ${req.method} ${req.path}:`, {
+        errorName: err.name,
+        errorMessage: err.message,
+        tokenSample: token.substring(0, 50) + '...',
+        jwtSecretPresent: !!jwtSecret
+      });
+      return res.status(403).json({ message: 'Invalid or expired token' });
+    }
+
+    // Support both userId (test format) and id fields for compatibility
+    const userId = user.userId || user.id;
     
+    // Log only essential audit information
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[✅ WORKFLOW AUTH SUCCESS] JWT verified for ${req.method} ${req.path}:`, {
+        userId: userId ? userId.substring(0, 8) + '...' : 'undefined',
+        username: user.username,
+        role: user.role
+      });
+    }
     req.user = {
-      id: decoded.id,
-      username: decoded.username,
-      role: decoded.role,
-      departmentId: decoded.departmentId
+      ...user,
+      id: userId, // Normalize to id field
+      roleCodes: [user.role?.toUpperCase()] // Convert role to array of uppercase codes
     };
-    
     next();
-  } catch (err) {
-    console.error('JWT validation failed:', err);
-    return res.status(403).json({ 
-      error: 'Invalid or expired token',
-      message: 'Authentication failed - please login again'
-    });
-  }
+  });
 };
 
 // Role-based access control middleware
