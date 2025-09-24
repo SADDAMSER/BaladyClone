@@ -1593,82 +1593,278 @@ export default function SurveyingDecisionForm() {
             </div>
           )}
           
-          {/* ✅ PHASE 1 STEP 5: Application Confirmation */}
+          {/* ✅ PHASE 1 STEP 5: Enhanced Application Confirmation */}
           {currentStep === 5 && (
-            <div className="space-y-6">
-              <div className="text-center mb-6">
-                <h3 className="text-2xl font-bold">تأكيد الطلب</h3>
-                <p className="text-muted-foreground">مراجعة شاملة ونهائية للبيانات المدخلة</p>
+            <div className="space-y-8">
+              <div className="text-center mb-8">
+                <CheckCircle className="h-16 w-16 mx-auto mb-4 text-green-600" />
+                <h3 className="text-3xl font-bold">مراجعة الطلب النهائية</h3>
+                <p className="text-muted-foreground mt-2">تأكد من صحة جميع البيانات قبل إرسال الطلب</p>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* معلومات المتقدم */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <FileText className="h-5 w-5" />
+                <Card className="shadow-sm">
+                  <CardHeader className="bg-slate-50">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <User className="h-5 w-5 text-blue-600" />
                       بيانات المتقدم
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-2">
-                    <div><strong>الاسم:</strong> {formData.applicantName}</div>
-                    <div><strong>رقم الهوية:</strong> {formData.applicantId}</div>
-                    <div><strong>الهاتف:</strong> {formData.contactPhone}</div>
-                    {formData.email && <div><strong>البريد:</strong> {formData.email}</div>}
+                  <CardContent className="space-y-3 pt-4">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">الاسم الكامل:</span>
+                      <span className="font-medium">{formData.applicantName}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">رقم الهوية:</span>
+                      <span className="font-medium">{formData.applicantId}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">رقم الهاتف:</span>
+                      <span className="font-medium">{formData.contactPhone}</span>
+                    </div>
+                    {formData.email && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">البريد الإلكتروني:</span>
+                        <span className="font-medium">{formData.email}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">نوع الهوية:</span>
+                      <span className="font-medium">{formData.identityType}</span>
+                    </div>
                   </CardContent>
                 </Card>
                 
-                {/* معلومات الموقع */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <MapPin className="h-5 w-5" />
-                      معلومات الموقع
+                {/* الموقع الجغرافي */}
+                <Card className="shadow-sm">
+                  <CardHeader className="bg-slate-50">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <MapPin className="h-5 w-5 text-green-600" />
+                      الموقع الجغرافي
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-2">
-                    <div><strong>المحافظة:</strong> {formData.governorate}</div>
-                    <div><strong>المديرية:</strong> {formData.district}</div>
-                    {formData.area && <div><strong>المنطقة:</strong> {formData.area}</div>}
-                    <div><strong>رقم القطعة:</strong> {formData.landNumber}</div>
-                    {formData.plotNumber && <div><strong>رقم المخطط:</strong> {formData.plotNumber}</div>}
+                  <CardContent className="space-y-3 pt-4">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">المحافظة:</span>
+                      <span className="font-medium">{formData.governorate}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">المديرية:</span>
+                      <span className="font-medium">{formData.district}</span>
+                    </div>
+                    {formData.subDistrict && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">العزلة:</span>
+                        <span className="font-medium">{formData.subDistrict}</span>
+                      </div>
+                    )}
+                    {formData.sector && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">القطاع:</span>
+                        <span className="font-medium">{formData.sector}</span>
+                      </div>
+                    )}
+                    {formData.neighborhoodUnit && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">وحدة الجوار:</span>
+                        <span className="font-medium">{formData.neighborhoodUnit}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">رقم القطعة:</span>
+                      <span className="font-medium">{formData.landNumber}</span>
+                    </div>
+                    {formData.coordinates && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">الإحداثيات:</span>
+                        <span className="font-medium text-xs">{formData.coordinates}</span>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
                 
-                {/* نوع القرار */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Calculator className="h-5 w-5" />
-                      تفاصيل القرار
+                {/* نوع القرار والتفاصيل */}
+                <Card className="shadow-sm">
+                  <CardHeader className="bg-slate-50">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Calculator className="h-5 w-5 text-purple-600" />
+                      نوع القرار والتفاصيل
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-2">
-                    <div><strong>نوع القرار:</strong> {surveyTypes.find(t => t.value === formData.surveyType)?.label}</div>
-                    <div><strong>الغرض:</strong> {formData.purpose}</div>
-                    {formData.description && <div><strong>وصف إضافي:</strong> {formData.description}</div>}
+                  <CardContent className="space-y-3 pt-4">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">نوع القرار:</span>
+                      <span className="font-medium">{surveyTypes.find(t => t.value === formData.surveyType)?.label}</span>
+                    </div>
+                    <div className="space-y-2">
+                      <span className="text-muted-foreground">الغرض:</span>
+                      <p className="text-sm bg-slate-50 p-2 rounded">{formData.purpose}</p>
+                    </div>
+                    {formData.description && (
+                      <div className="space-y-2">
+                        <span className="text-muted-foreground">وصف إضافي:</span>
+                        <p className="text-sm bg-slate-50 p-2 rounded">{formData.description}</p>
+                      </div>
+                    )}
+                    
+                    {/* تفاصيل إضافية حسب نوع القرار */}
+                    {(formData.engineerName || formData.oldDropYear || formData.disputeParties) && (
+                      <div className="border-t pt-3 mt-3">
+                        <h5 className="font-semibold mb-2">تفاصيل إضافية:</h5>
+                        {formData.engineerName && (
+                          <div className="space-y-1 text-sm">
+                            <div><strong>المهندس:</strong> {formData.engineerName}</div>
+                            <div><strong>رقم الرخصة:</strong> {formData.engineerLicense}</div>
+                            {formData.engineerPhone && <div><strong>الهاتف:</strong> {formData.engineerPhone}</div>}
+                          </div>
+                        )}
+                        {formData.oldDropYear && (
+                          <div className="space-y-1 text-sm">
+                            <div><strong>سنة الإسقاط:</strong> {formData.oldDropYear}</div>
+                            <div><strong>رقم الإسقاط:</strong> {formData.oldDropNumber}</div>
+                          </div>
+                        )}
+                        {formData.disputeParties && (
+                          <div className="space-y-1 text-sm">
+                            <div><strong>أطراف النزاع:</strong> {formData.disputeParties}</div>
+                            <div><strong>وصف النزاع:</strong> {formData.disputeDescription}</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+                
+                {/* الملفات والمرفقات */}
+                <Card className="shadow-sm">
+                  <CardHeader className="bg-slate-50">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <FileText className="h-5 w-5 text-orange-600" />
+                      الملفات والمرفقات
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3 pt-4">
+                    <div className="space-y-3">
+                      {/* وثيقة الملكية */}
+                      <div className="flex items-center justify-between p-2 bg-green-50 rounded">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          <span className="text-sm">وثيقة الملكية</span>
+                        </div>
+                        {formData.ownershipDocument && (
+                          <span className="text-xs text-muted-foreground">
+                            {(formData.ownershipDocument.size / (1024 * 1024)).toFixed(1)}MB
+                          </span>
+                        )}
+                      </div>
+                      
+                      {/* السجل التجاري للوقف */}
+                      {formData.commercialRegistry && (
+                        <div className="flex items-center justify-between p-2 bg-orange-50 rounded">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="h-4 w-4 text-orange-600" />
+                            <span className="text-sm">السجل التجاري</span>
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {(formData.commercialRegistry.size / (1024 * 1024)).toFixed(1)}MB
+                          </span>
+                        </div>
+                      )}
+                      
+                      {/* المرفقات الإضافية */}
+                      {formData.otherAttachments.length > 0 && (
+                        <div className="space-y-2">
+                          <span className="text-sm font-medium">مرفقات إضافية:</span>
+                          {formData.otherAttachments.map((file: File, index: number) => (
+                            <div key={index} className="flex items-center justify-between p-2 bg-blue-50 rounded">
+                              <div className="flex items-center gap-2">
+                                <CheckCircle className="h-4 w-4 text-blue-600" />
+                                <span className="text-xs truncate max-w-[150px]">{file.name}</span>
+                              </div>
+                              <span className="text-xs text-muted-foreground">
+                                {(file.size / (1024 * 1024)).toFixed(1)}MB
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {/* إجمالي الملفات */}
+                      <div className="border-t pt-2 mt-3">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">إجمالي الملفات:</span>
+                          <span className="font-medium">
+                            {[formData.ownershipDocument, formData.commercialRegistry, ...formData.otherAttachments].filter(Boolean).length} ملف
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
                 
                 {/* البيانات الجغرافية */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <MapPin className="h-5 w-5" />
-                      البيانات الجغرافية
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <div><strong>عدد المعالم:</strong> {formData.drawnFeatures.length}</div>
-                    {formData.totalArea > 0 && (
-                      <div><strong>المساحة الإجمالية:</strong> {Math.round(formData.totalArea / 1000000).toLocaleString()} كم²</div>
-                    )}
-                    {formData.totalLength > 0 && (
-                      <div><strong>الطول الإجمالي:</strong> {Math.round(formData.totalLength / 1000).toLocaleString()} كم</div>
-                    )}
-                  </CardContent>
-                </Card>
+                {formData.drawnFeatures.length > 0 && (
+                  <Card className="shadow-sm lg:col-span-2">
+                    <CardHeader className="bg-slate-50">
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <MapIcon className="h-5 w-5 text-indigo-600" />
+                        البيانات الجغرافية المرسومة
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-4">
+                      <div className="grid grid-cols-3 gap-4 mb-4">
+                        <div className="text-center p-3 bg-blue-50 rounded">
+                          <div className="text-2xl font-bold text-blue-600">{formData.drawnFeatures.length}</div>
+                          <div className="text-sm text-muted-foreground">معلم جغرافي</div>
+                        </div>
+                        {formData.totalArea > 0 && (
+                          <div className="text-center p-3 bg-green-50 rounded">
+                            <div className="text-2xl font-bold text-green-600">
+                              {Math.round(formData.totalArea / 1000000).toLocaleString()}
+                            </div>
+                            <div className="text-sm text-muted-foreground">كيلومتر مربع</div>
+                          </div>
+                        )}
+                        {formData.totalLength > 0 && (
+                          <div className="text-center p-3 bg-purple-50 rounded">
+                            <div className="text-2xl font-bold text-purple-600">
+                              {Math.round(formData.totalLength / 1000).toLocaleString()}
+                            </div>
+                            <div className="text-sm text-muted-foreground">كيلومتر</div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* معاينة صغيرة للخريطة */}
+                      <div className="border rounded-lg p-4">
+                        <InteractiveDrawingMap
+                          features={formData.drawnFeatures}
+                          height="300px"
+                          isEnabled={false}
+                          center={[15.3694, 44.1910]}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
+              
+              {/* إشعار التأكيد */}
+              <Card className="border-l-4 border-l-blue-500 bg-blue-50">
+                <CardContent className="p-6">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="h-6 w-6 text-blue-600 mt-1" />
+                    <div>
+                      <h4 className="font-semibold text-blue-900">تنبيه مهم</h4>
+                      <p className="text-blue-800 text-sm mt-1">
+                        يرجى مراجعة جميع البيانات بعناية قبل إرسال الطلب. بعد الإرسال، لن يمكن تعديل البيانات إلا بموافقة إدارية.
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           )}
         </CardContent>
