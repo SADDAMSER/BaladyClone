@@ -745,285 +745,326 @@ export default function SurveyingDecisionForm() {
                 <p className="text-muted-foreground">حدد موقع الأرض أو العقار المطلوب مسحه</p>
               </div>
               
-              {/* ✅ PHASE 1: Enhanced Cascading Geographic Selectors */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div>
-                  <Label htmlFor="governorate">المحافظة *</Label>
-                  <Select value={formData.governorate} onValueChange={handleGovernorateChange}>
-                    <SelectTrigger data-testid="select-governorate">
-                      <SelectValue placeholder="اختر المحافظة" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {isLoadingGovernorates ? (
-                        <SelectItem value="loading" disabled>جاري التحميل...</SelectItem>
-                      ) : governoratesError ? (
-                        <SelectItem value="error" disabled>خطأ في تحميل المحافظات</SelectItem>
-                      ) : (
-                        governorates.map((gov) => (
-                          <SelectItem key={gov.id} value={gov.id} data-testid={`option-governorate-${gov.code}`}>
-                            {gov.nameAr}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div>
-                  <Label htmlFor="district">المديرية *</Label>
-                  <Select value={formData.district} onValueChange={handleDistrictChange} disabled={!formData.governorate}>
-                    <SelectTrigger data-testid="select-district">
-                      <SelectValue placeholder={!formData.governorate ? "اختر المحافظة أولاً" : "اختر المديرية"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {isLoadingDistricts ? (
-                        <SelectItem value="loading" disabled>جاري التحميل...</SelectItem>
-                      ) : districtsError ? (
-                        <SelectItem value="error" disabled>خطأ في تحميل المديريات</SelectItem>
-                      ) : districts.length === 0 && formData.governorate ? (
-                        <SelectItem value="no-districts" disabled>لا توجد مديريات متاحة</SelectItem>
-                      ) : (
-                        districts.map((district) => (
-                          <SelectItem key={district.id} value={district.id} data-testid={`option-district-${district.id}`}>
-                            {district.nameAr}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="subDistrict">العزلة</Label>
-                  <Select value={formData.subDistrict} onValueChange={handleSubDistrictChange} disabled={!formData.district}>
-                    <SelectTrigger data-testid="select-sub-district">
-                      <SelectValue placeholder={!formData.district ? "اختر المديرية أولاً" : "اختر العزلة"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {isLoadingSubDistricts ? (
-                        <SelectItem value="loading" disabled>جاري التحميل...</SelectItem>
-                      ) : subDistrictsError ? (
-                        <SelectItem value="error" disabled>خطأ في تحميل العزل</SelectItem>
-                      ) : subDistricts.length === 0 && formData.district ? (
-                        <SelectItem value="no-sub-districts" disabled>لا توجد عزل متاحة</SelectItem>
-                      ) : (
-                        subDistricts.map((subDistrict) => (
-                          <SelectItem key={subDistrict.id} value={subDistrict.id} data-testid={`option-sub-district-${subDistrict.id}`}>
-                            {subDistrict.nameAr}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="sector">القطاع</Label>
-                  <Select value={formData.sector} onValueChange={handleSectorChange} disabled={!formData.subDistrict}>
-                    <SelectTrigger data-testid="select-sector">
-                      <SelectValue placeholder={!formData.subDistrict ? "اختر العزلة أولاً" : "اختر القطاع"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {isLoadingSectors ? (
-                        <SelectItem value="loading" disabled>جاري التحميل...</SelectItem>
-                      ) : sectorsError ? (
-                        <SelectItem value="error" disabled>خطأ في تحميل القطاعات</SelectItem>
-                      ) : sectors.length === 0 && formData.subDistrict ? (
-                        <SelectItem value="no-sectors" disabled>لا توجد قطاعات متاحة</SelectItem>
-                      ) : (
-                        sectors.map((sector) => (
-                          <SelectItem key={sector.id} value={sector.id} data-testid={`option-sector-${sector.id}`}>
-                            {sector.nameAr}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="neighborhoodUnit">وحدة الجوار</Label>
-                  <Select value={formData.neighborhoodUnit} onValueChange={(value) => handleInputChange('neighborhoodUnit', value)} disabled={!formData.sector}>
-                    <SelectTrigger data-testid="select-neighborhood-unit">
-                      <SelectValue placeholder={!formData.sector ? "اختر القطاع أولاً" : "اختر وحدة الجوار"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {isLoadingNeighborhoodUnits ? (
-                        <SelectItem value="loading" disabled>جاري التحميل...</SelectItem>
-                      ) : neighborhoodUnitsError ? (
-                        <SelectItem value="error" disabled>خطأ في تحميل وحدات الجوار</SelectItem>
-                      ) : neighborhoodUnits.length === 0 && formData.sector ? (
-                        <SelectItem value="no-neighborhood-units" disabled>لا توجد وحدات جوار متاحة</SelectItem>
-                      ) : (
-                        neighborhoodUnits.map((unit) => (
-                          <SelectItem key={unit.id} value={unit.id} data-testid={`option-neighborhood-unit-${unit.id}`}>
-                            {unit.nameAr}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div>
-                  <Label htmlFor="area">المنطقة/القرية</Label>
-                  <Input
-                    id="area"
-                    value={formData.area}
-                    onChange={(e) => handleInputChange('area', e.target.value)}
-                    placeholder="أدخل اسم المنطقة"
-                    data-testid="input-area"
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="landNumber">رقم القطعة *</Label>
-                  <Input
-                    id="landNumber"
-                    value={formData.landNumber}
-                    onChange={(e) => handleInputChange('landNumber', e.target.value)}
-                    placeholder="رقم قطعة الأرض"
-                    data-testid="input-land-number"
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="plotNumber">رقم المخطط</Label>
-                  <Input
-                    id="plotNumber"
-                    value={formData.plotNumber}
-                    onChange={(e) => handleInputChange('plotNumber', e.target.value)}
-                    placeholder="رقم المخطط إن وجد"
-                    data-testid="input-plot-number"
-                  />
-                </div>
-                
-                <div className="relative">
-                  <Label htmlFor="coordinates">الإحداثيات</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="coordinates"
-                      value={formData.coordinates}
-                      onChange={(e) => handleInputChange('coordinates', e.target.value)}
-                      placeholder="إحداثيات GPS إن وجدت"
-                      data-testid="input-coordinates"
-                      className="flex-1"
-                    />
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      size="sm"
-                      onClick={handleSetCoordinatesFromMap}
-                      data-testid="button-set-coordinates"
-                      className="px-3"
-                    >
-                      <MapPin className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    انقر على الزر لتحديد الإحداثيات من الخريطة
-                  </p>
-                </div>
-              </div>
-
-              {/* ✅ PHASE 1: GeoTIFF Viewer Section */}
-              <div className="mt-6 p-4 border rounded-lg bg-slate-50">
-                <Label className="text-base font-semibold mb-3 block flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  عرض ملف GeoTIFF
-                </Label>
-                {formData.hasGeoTiff ? (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 text-green-600">
-                      <CheckCircle className="h-4 w-4" />
-                      <span className="text-sm">يتوفر ملف GeoTIFF لهذا الموقع</span>
-                    </div>
-                    {formData.geoTiffViewer ? (
-                      <div className="border rounded bg-white p-4 h-64 flex items-center justify-center">
-                        <div className="text-center text-muted-foreground">
-                          <FileText className="h-12 w-12 mx-auto mb-2" />
-                          <p>عارض ملف GeoTIFF</p>
-                          <p className="text-xs">سيتم إضافة العارض في التحديث القادم</p>
-                        </div>
+              {/* ✅ PHASE 1: Geographic Data Layout like /geographic-data */}
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                {/* Control Panel - Sidebar with selectors */}
+                <div className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">اختيار الموقع الجغرافي</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div>
+                        <Label htmlFor="governorate" className="text-sm font-medium">المحافظة *</Label>
+                        <Select value={formData.governorate} onValueChange={handleGovernorateChange}>
+                          <SelectTrigger data-testid="select-governorate">
+                            <SelectValue placeholder="اختر المحافظة" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {isLoadingGovernorates ? (
+                              <SelectItem value="loading" disabled>جاري التحميل...</SelectItem>
+                            ) : governoratesError ? (
+                              <SelectItem value="error" disabled>خطأ في تحميل المحافظات</SelectItem>
+                            ) : (
+                              governorates.map((gov) => (
+                                <SelectItem key={gov.id} value={gov.id} data-testid={`option-governorate-${gov.code}`}>
+                                  {gov.nameAr}
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
                       </div>
-                    ) : (
-                      <Button 
-                        type="button" 
-                        variant="outline" 
-                        onClick={() => handleInputChange('geoTiffViewer', true)}
-                        data-testid="button-view-geotiff"
-                      >
-                        عرض الملف
-                      </Button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 text-amber-600">
-                    <AlertCircle className="h-4 w-4" />
-                    <span className="text-sm">لا يتوفر ملف GeoTIFF لهذا الموقع حالياً</span>
-                  </div>
-                )}
-              </div>
-              
-              {/* خريطة تفاعلية لتحديد الموقع */}
-              <div className="mt-6">
-                <Label className="text-base font-semibold mb-3 block">تحديد الموقع على الخريطة</Label>
-                <div className="border rounded-lg overflow-hidden">
-                  <InteractiveDrawingMap
-                    center={[15.3694, 44.1910]} // إحداثيات صنعاء، اليمن
-                    zoom={7}
-                    height="500px"
-                    isEnabled={false} // تعطيل أدوات الرسم في هذه الخطوة
-                    selectedGovernorateId={formData.governorate}
-                    selectedDistrictId={formData.district}
-                    selectedSubDistrictId={formData.subDistrict}
-                    selectedSectorId={formData.sector}
-                    selectedNeighborhoodUnitId={formData.neighborhoodUnit}
-                    onLocationSelect={isSelectingCoordinates ? handleLocationSelect : undefined}
-                    onBoundaryClick={(type, id, name) => {
-                      if (type === 'governorate') {
-                        handleGovernorateChange(id);
-                        toast({
-                          title: "تم اختيار المحافظة",
-                          description: `تم اختيار محافظة ${name}`,
-                          variant: "default",
-                        });
-                      } else if (type === 'district') {
-                        handleDistrictChange(id);
-                        toast({
-                          title: "تم اختيار المديرية", 
-                          description: `تم اختيار مديرية ${name}`,
-                          variant: "default",
-                        });
-                      }
-                    }}
-                  />
+                      
+                      {formData.governorate && (
+                        <div>
+                          <Label htmlFor="district" className="text-sm font-medium">المديرية *</Label>
+                          <Select value={formData.district} onValueChange={handleDistrictChange}>
+                            <SelectTrigger data-testid="select-district">
+                              <SelectValue placeholder="اختر المديرية" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {isLoadingDistricts ? (
+                                <SelectItem value="loading" disabled>جاري التحميل...</SelectItem>
+                              ) : districtsError ? (
+                                <SelectItem value="error" disabled>خطأ في تحميل المديريات</SelectItem>
+                              ) : districts.length === 0 ? (
+                                <SelectItem value="no-districts" disabled>لا توجد مديريات متاحة</SelectItem>
+                              ) : (
+                                districts.map((district) => (
+                                  <SelectItem key={district.id} value={district.id} data-testid={`option-district-${district.id}`}>
+                                    {district.nameAr}
+                                  </SelectItem>
+                                ))
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      {formData.district && (
+                        <div>
+                          <Label htmlFor="subDistrict" className="text-sm font-medium">العزلة</Label>
+                          <Select value={formData.subDistrict} onValueChange={handleSubDistrictChange}>
+                            <SelectTrigger data-testid="select-sub-district">
+                              <SelectValue placeholder="اختر العزلة" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {isLoadingSubDistricts ? (
+                                <SelectItem value="loading" disabled>جاري التحميل...</SelectItem>
+                              ) : subDistrictsError ? (
+                                <SelectItem value="error" disabled>خطأ في تحميل العزل</SelectItem>
+                              ) : subDistricts.length === 0 ? (
+                                <SelectItem value="no-sub-districts" disabled>لا توجد عزل متاحة</SelectItem>
+                              ) : (
+                                subDistricts.map((subDistrict) => (
+                                  <SelectItem key={subDistrict.id} value={subDistrict.id} data-testid={`option-sub-district-${subDistrict.id}`}>
+                                    {subDistrict.nameAr}
+                                  </SelectItem>
+                                ))
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      {formData.subDistrict && (
+                        <div>
+                          <Label htmlFor="sector" className="text-sm font-medium">القطاع</Label>
+                          <Select value={formData.sector} onValueChange={handleSectorChange}>
+                            <SelectTrigger data-testid="select-sector">
+                              <SelectValue placeholder="اختر القطاع" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {isLoadingSectors ? (
+                                <SelectItem value="loading" disabled>جاري التحميل...</SelectItem>
+                              ) : sectorsError ? (
+                                <SelectItem value="error" disabled>خطأ في تحميل القطاعات</SelectItem>
+                              ) : sectors.length === 0 ? (
+                                <SelectItem value="no-sectors" disabled>لا توجد قطاعات متاحة</SelectItem>
+                              ) : (
+                                sectors.map((sector) => (
+                                  <SelectItem key={sector.id} value={sector.id} data-testid={`option-sector-${sector.id}`}>
+                                    {sector.nameAr}
+                                  </SelectItem>
+                                ))
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      {formData.sector && (
+                        <div>
+                          <Label htmlFor="neighborhoodUnit" className="text-sm font-medium">وحدة الجوار</Label>
+                          <Select value={formData.neighborhoodUnit} onValueChange={(value) => handleInputChange('neighborhoodUnit', value)}>
+                            <SelectTrigger data-testid="select-neighborhood-unit">
+                              <SelectValue placeholder="اختر وحدة الجوار" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {isLoadingNeighborhoodUnits ? (
+                                <SelectItem value="loading" disabled>جاري التحميل...</SelectItem>
+                              ) : neighborhoodUnitsError ? (
+                                <SelectItem value="error" disabled>خطأ في تحميل وحدات الجوار</SelectItem>
+                              ) : neighborhoodUnits.length === 0 ? (
+                                <SelectItem value="no-neighborhood-units" disabled>لا توجد وحدات جوار متاحة</SelectItem>
+                              ) : (
+                                neighborhoodUnits.map((unit) => (
+                                  <SelectItem key={unit.id} value={unit.id} data-testid={`option-neighborhood-unit-${unit.id}`}>
+                                    {unit.nameAr}
+                                  </SelectItem>
+                                ))
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">بيانات إضافية</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div>
+                        <Label htmlFor="area" className="text-sm font-medium">المنطقة/القرية</Label>
+                        <Input
+                          id="area"
+                          value={formData.area}
+                          onChange={(e) => handleInputChange('area', e.target.value)}
+                          placeholder="أدخل اسم المنطقة"
+                          data-testid="input-area"
+                        />
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="landNumber" className="text-sm font-medium">رقم القطعة *</Label>
+                        <Input
+                          id="landNumber"
+                          value={formData.landNumber}
+                          onChange={(e) => handleInputChange('landNumber', e.target.value)}
+                          placeholder="رقم قطعة الأرض"
+                          data-testid="input-land-number"
+                        />
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="plotNumber" className="text-sm font-medium">رقم المخطط</Label>
+                        <Input
+                          id="plotNumber"
+                          value={formData.plotNumber}
+                          onChange={(e) => handleInputChange('plotNumber', e.target.value)}
+                          placeholder="رقم المخطط إن وجد"
+                          data-testid="input-plot-number"
+                        />
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="coordinates" className="text-sm font-medium">الإحداثيات</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            id="coordinates"
+                            value={formData.coordinates}
+                            onChange={(e) => handleInputChange('coordinates', e.target.value)}
+                            placeholder="إحداثيات GPS إن وجدت"
+                            data-testid="input-coordinates"
+                            className="flex-1"
+                          />
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            size="sm"
+                            onClick={handleSetCoordinatesFromMap}
+                            data-testid="button-set-coordinates"
+                            className="px-3"
+                          >
+                            <MapPin className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          انقر على الزر لتحديد الإحداثيات من الخريطة
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  {isSelectingCoordinates 
-                    ? "انقر على الخريطة لتحديد الإحداثيات الدقيقة للموقع" 
-                    : "اختر المحافظة والمديرية من القوائم أعلاه أو انقر على الحدود الجغرافية في الخريطة"}
-                </p>
-                {isSelectingCoordinates && (
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => {
-                      setIsSelectingCoordinates(false);
-                      toast({
-                        title: "تم إلغاء تحديد الإحداثيات",
-                        description: "يمكنك تفعيل وضع التحديد مرة أخرى عند الحاجة",
-                        variant: "default",
-                      });
-                    }}
-                    className="mt-2"
-                  >
-                    <X className="h-4 w-4 mr-2" />
-                    إلغاء تحديد الإحداثيات
-                  </Button>
-                )}
+
+                {/* Map Area - 3 columns */}
+                <div className="lg:col-span-3">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Map className="h-5 w-5" />
+                        الخريطة التفاعلية
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <div className="h-[600px]">
+                        <InteractiveDrawingMap
+                          center={[15.3694, 44.1910]} // إحداثيات صنعاء، اليمن
+                          zoom={7}
+                          height="600px"
+                          isEnabled={false} // تعطيل أدوات الرسم في هذه الخطوة
+                          selectedGovernorateId={formData.governorate}
+                          selectedDistrictId={formData.district}
+                          selectedSubDistrictId={formData.subDistrict}
+                          selectedSectorId={formData.sector}
+                          selectedNeighborhoodUnitId={formData.neighborhoodUnit}
+                          onLocationSelect={isSelectingCoordinates ? handleLocationSelect : undefined}
+                          onBoundaryClick={(type, id, name) => {
+                            if (type === 'governorate') {
+                              handleGovernorateChange(id);
+                              toast({
+                                title: "تم اختيار المحافظة",
+                                description: `تم اختيار محافظة ${name}`,
+                                variant: "default",
+                              });
+                            } else if (type === 'district') {
+                              handleDistrictChange(id);
+                              toast({
+                                title: "تم اختيار المديرية", 
+                                description: `تم اختيار مديرية ${name}`,
+                                variant: "default",
+                              });
+                            }
+                          }}
+                        />
+                      </div>
+                      <div className="p-4 bg-muted/50">
+                        <p className="text-sm text-muted-foreground">
+                          {isSelectingCoordinates 
+                            ? "انقر على الخريطة لتحديد الإحداثيات الدقيقة للموقع" 
+                            : "اختر المحافظة والمديرية من القوائم الجانبية أو انقر على الحدود الجغرافية في الخريطة"}
+                        </p>
+                        {isSelectingCoordinates && (
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => {
+                              setIsSelectingCoordinates(false);
+                              toast({
+                                title: "تم إلغاء تحديد الإحداثيات",
+                                description: "يمكنك تفعيل وضع التحديد مرة أخرى عند الحاجة",
+                                variant: "default",
+                              });
+                            }}
+                            className="mt-2"
+                          >
+                            <X className="h-4 w-4 mr-2" />
+                            إلغاء تحديد الإحداثيات
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
+
+              {/* ✅ PHASE 1: GeoTIFF Viewer Section - Now integrated in sidebar */}
+              <Card className="mt-6">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    عرض ملف GeoTIFF
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {formData.hasGeoTiff ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-green-600">
+                        <CheckCircle className="h-4 w-4" />
+                        <span className="text-sm">يتوفر ملف GeoTIFF لهذا الموقع</span>
+                      </div>
+                      {formData.geoTiffViewer ? (
+                        <div className="border rounded bg-white p-4 h-48 flex items-center justify-center">
+                          <div className="text-center text-muted-foreground">
+                            <FileText className="h-8 w-8 mx-auto mb-2" />
+                            <p className="text-sm">عارض ملف GeoTIFF</p>
+                            <p className="text-xs">سيتم إضافة العارض في التحديث القادم</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          onClick={() => handleInputChange('geoTiffViewer', true)}
+                          data-testid="button-view-geotiff"
+                          className="w-full"
+                        >
+                          عرض الملف
+                        </Button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-amber-600">
+                      <AlertCircle className="h-4 w-4" />
+                      <span className="text-sm">لا يتوفر ملف GeoTIFF لهذا الموقع حالياً</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
           )}
           
