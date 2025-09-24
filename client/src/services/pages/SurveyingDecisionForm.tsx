@@ -392,6 +392,10 @@ export default function SurveyingDecisionForm() {
   // ✅ PHASE 1: Step 3 Modal states
   const [showSurveyTypeModal, setShowSurveyTypeModal] = useState(false);
   const [selectedSurveyTypeDetails, setSelectedSurveyTypeDetails] = useState<any>(null);
+  
+  // ✅ PHASE 1: Step 4 Enhanced file upload states
+  const [fileUploadErrors, setFileUploadErrors] = useState<{[key: string]: string}>({});
+  const [uploadProgress, setUploadProgress] = useState<{[key: string]: number}>({});
 
   const handleLocationSelect = (coordinates: { lat: number; lng: number }) => {
     const coordinatesString = `${coordinates.lat.toFixed(6)}, ${coordinates.lng.toFixed(6)}`;
@@ -406,6 +410,71 @@ export default function SurveyingDecisionForm() {
     toast({
       title: "تم تحديد الموقع",
       description: `تم تحديث الإحداثيات: ${coordinatesString}`,
+      variant: "default",
+    });
+  };
+
+  // ✅ PHASE 1: Enhanced file validation functions
+  const validateFileSize = (file: File, maxSizeMB: number = 10): boolean => {
+    const maxSizeBytes = maxSizeMB * 1024 * 1024;
+    return file.size <= maxSizeBytes;
+  };
+
+  const validateFileType = (file: File, allowedTypes: string[]): boolean => {
+    const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
+    return allowedTypes.includes(fileExtension);
+  };
+
+  const handleFileUpload = (
+    file: File | File[] | null, 
+    fieldName: string, 
+    options: {
+      maxSizeMB?: number;
+      allowedTypes?: string[];
+      multiple?: boolean;
+    } = {}
+  ) => {
+    const { maxSizeMB = 10, allowedTypes = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png'], multiple = false } = options;
+    
+    // Clear previous errors
+    setFileUploadErrors(prev => ({
+      ...prev,
+      [fieldName]: ''
+    }));
+
+    if (!file) {
+      handleInputChange(fieldName, null);
+      return;
+    }
+
+    const files = Array.isArray(file) ? file : [file];
+    
+    // Validate each file
+    for (const singleFile of files) {
+      if (!validateFileSize(singleFile, maxSizeMB)) {
+        setFileUploadErrors(prev => ({
+          ...prev,
+          [fieldName]: `حجم الملف ${singleFile.name} كبير جداً. الحد الأقصى ${maxSizeMB}MB`
+        }));
+        return;
+      }
+
+      if (!validateFileType(singleFile, allowedTypes)) {
+        setFileUploadErrors(prev => ({
+          ...prev,
+          [fieldName]: `نوع الملف ${singleFile.name} غير مدعوم. الأنواع المسموحة: ${allowedTypes.join(', ')}`
+        }));
+        return;
+      }
+    }
+
+    // If all validations pass
+    const result = multiple ? files : files[0];
+    handleInputChange(fieldName, result);
+    
+    toast({
+      title: "تم رفع الملف بنجاح",
+      description: `تم رفع ${files.length} ملف${files.length > 1 ? 'ات' : ''}`,
       variant: "default",
     });
   };
@@ -1235,71 +1304,154 @@ export default function SurveyingDecisionForm() {
                   </Select>
                 </div>
                 
-                {/* Ownership Document Upload (Required) */}
+                {/* Enhanced Ownership Document Upload (Required) */}
                 <div>
                   <Label htmlFor="ownershipDocument">وثيقة الملكية (إلزامي) *</Label>
-                  <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
+                  <div className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                    fileUploadErrors.ownershipDocument 
+                      ? 'border-red-300 bg-red-50' 
+                      : formData.ownershipDocument 
+                        ? 'border-green-300 bg-green-50' 
+                        : 'border-muted-foreground/25 hover:border-primary/50'
+                  }`}>
                     <input
                       type="file"
                       id="ownershipDocument"
                       accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
                       onChange={(e) => {
                         const file = e.target.files?.[0] || null;
-                        handleInputChange('ownershipDocument', file);
+                        handleFileUpload(file, 'ownershipDocument', {
+                          maxSizeMB: 10,
+                          allowedTypes: ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png']
+                        });
                       }}
                       className="hidden"
                       data-testid="input-ownership-document"
                     />
                     <label htmlFor="ownershipDocument" className="cursor-pointer">
                       <div className="flex flex-col items-center gap-2">
-                        <FileText className="h-8 w-8 text-muted-foreground" />
-                        <p className="text-sm text-muted-foreground">انقر لتحميل وثيقة الملكية</p>
+                        {formData.ownershipDocument ? (
+                          <CheckCircle className="h-8 w-8 text-green-600" />
+                        ) : (
+                          <FileText className="h-8 w-8 text-muted-foreground" />
+                        )}
+                        <p className="text-sm font-medium">
+                          {formData.ownershipDocument ? 'تم رفع الوثيقة بنجاح' : 'انقر لتحميل وثيقة الملكية'}
+                        </p>
                         <p className="text-xs text-muted-foreground">PDF, DOC, DOCX, JPG, PNG (حتى 10MB)</p>
                         {formData.ownershipDocument && (
-                          <Badge variant="default" className="mt-2">
-                            تم اختيار: {formData.ownershipDocument.name}
-                          </Badge>
+                          <div className="bg-white p-3 rounded-lg border mt-2 max-w-xs">
+                            <div className="flex items-center gap-2">
+                              <FileText className="h-4 w-4 text-blue-600" />
+                              <span className="text-sm truncate">{formData.ownershipDocument.name}</span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleFileUpload(null, 'ownershipDocument');
+                                }}
+                                className="h-6 w-6 p-0 hover:bg-red-100"
+                              >
+                                <X className="h-3 w-3 text-red-500" />
+                              </Button>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {(formData.ownershipDocument.size / (1024 * 1024)).toFixed(2)} MB
+                            </p>
+                          </div>
                         )}
                       </div>
                     </label>
                   </div>
+                  {fileUploadErrors.ownershipDocument && (
+                    <p className="text-sm text-red-600 mt-2 flex items-center gap-1">
+                      <AlertCircle className="h-4 w-4" />
+                      {fileUploadErrors.ownershipDocument}
+                    </p>
+                  )}
                 </div>
                 
-                {/* Commercial Registry (Required for Waqf) */}
+                {/* Enhanced Commercial Registry (Required for Waqf) */}
                 {formData.ownershipClassification === 'waqf' && (
                   <div>
                     <Label htmlFor="commercialRegistry">سجل تجاري (إلزامي للوقف) *</Label>
-                    <div className="border-2 border-dashed border-orange-200 rounded-lg p-4 text-center bg-orange-50">
+                    <div className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
+                      fileUploadErrors.commercialRegistry 
+                        ? 'border-red-300 bg-red-50' 
+                        : formData.commercialRegistry 
+                          ? 'border-orange-300 bg-orange-50' 
+                          : 'border-orange-200 bg-orange-50 hover:border-orange-400'
+                    }`}>
                       <input
                         type="file"
                         id="commercialRegistry"
                         accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
                         onChange={(e) => {
                           const file = e.target.files?.[0] || null;
-                          handleInputChange('commercialRegistry', file);
+                          handleFileUpload(file, 'commercialRegistry', {
+                            maxSizeMB: 10,
+                            allowedTypes: ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png']
+                          });
                         }}
                         className="hidden"
                         data-testid="input-commercial-registry"
                       />
                       <label htmlFor="commercialRegistry" className="cursor-pointer">
                         <div className="flex flex-col items-center gap-2">
-                          <Building2 className="h-6 w-6 text-orange-600" />
-                          <p className="text-sm text-orange-800">تحميل السجل التجاري</p>
+                          {formData.commercialRegistry ? (
+                            <CheckCircle className="h-6 w-6 text-orange-600" />
+                          ) : (
+                            <Building2 className="h-6 w-6 text-orange-600" />
+                          )}
+                          <p className="text-sm font-medium text-orange-800">
+                            {formData.commercialRegistry ? 'تم رفع السجل التجاري' : 'تحميل السجل التجاري'}
+                          </p>
                           {formData.commercialRegistry && (
-                            <Badge variant="secondary" className="bg-orange-100 text-orange-800">
-                              {formData.commercialRegistry.name}
-                            </Badge>
+                            <div className="bg-white p-2 rounded border mt-1">
+                              <div className="flex items-center gap-2 text-xs">
+                                <FileText className="h-3 w-3 text-orange-600" />
+                                <span className="truncate max-w-[150px]">{formData.commercialRegistry.name}</span>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleFileUpload(null, 'commercialRegistry');
+                                  }}
+                                  className="h-4 w-4 p-0"
+                                >
+                                  <X className="h-2 w-2 text-red-500" />
+                                </Button>
+                              </div>
+                            </div>
                           )}
                         </div>
                       </label>
                     </div>
+                    {fileUploadErrors.commercialRegistry && (
+                      <p className="text-sm text-red-600 mt-2 flex items-center gap-1">
+                        <AlertCircle className="h-4 w-4" />
+                        {fileUploadErrors.commercialRegistry}
+                      </p>
+                    )}
                   </div>
                 )}
                 
-                {/* Other Attachments (Optional) */}
+                {/* Enhanced Other Attachments (Optional) */}
                 <div>
                   <Label htmlFor="otherAttachments">مرفقات أخرى (اختياري)</Label>
-                  <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4 text-center">
+                  <div className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
+                    fileUploadErrors.otherAttachments 
+                      ? 'border-red-300 bg-red-50' 
+                      : formData.otherAttachments.length > 0 
+                        ? 'border-blue-300 bg-blue-50' 
+                        : 'border-muted-foreground/25 hover:border-primary/50'
+                  }`}>
                     <input
                       type="file"
                       id="otherAttachments"
@@ -1307,28 +1459,82 @@ export default function SurveyingDecisionForm() {
                       multiple
                       onChange={(e) => {
                         const files = Array.from(e.target.files || []);
-                        handleInputChange('otherAttachments', files);
+                        handleFileUpload(files, 'otherAttachments', {
+                          maxSizeMB: 15,
+                          allowedTypes: ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png', '.zip'],
+                          multiple: true
+                        });
                       }}
                       className="hidden"
                       data-testid="input-other-attachments"
                     />
                     <label htmlFor="otherAttachments" className="cursor-pointer">
                       <div className="flex flex-col items-center gap-2">
-                        <Upload className="h-6 w-6 text-muted-foreground" />
-                        <p className="text-sm text-muted-foreground">انقر لتحميل ملفات إضافية</p>
-                        <p className="text-xs text-muted-foreground">يمكن اختيار ملفات متعددة</p>
+                        {formData.otherAttachments.length > 0 ? (
+                          <CheckCircle className="h-6 w-6 text-blue-600" />
+                        ) : (
+                          <Upload className="h-6 w-6 text-muted-foreground" />
+                        )}
+                        <p className="text-sm font-medium">
+                          {formData.otherAttachments.length > 0 
+                            ? `تم رفع ${formData.otherAttachments.length} ملف` 
+                            : 'انقر لتحميل ملفات إضافية'
+                          }
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          PDF, DOC, JPG, PNG, ZIP (حتى 15MB لكل ملف)
+                        </p>
                         {formData.otherAttachments.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {formData.otherAttachments.map((file: File, index: number) => (
-                              <Badge key={index} variant="outline" className="text-xs">
-                                {file.name}
-                              </Badge>
-                            ))}
+                          <div className="bg-white p-3 rounded-lg border mt-2 w-full max-w-sm">
+                            <div className="space-y-2">
+                              {formData.otherAttachments.map((file: File, index: number) => (
+                                <div key={index} className="flex items-center gap-2 text-xs">
+                                  <FileText className="h-3 w-3 text-blue-600 flex-shrink-0" />
+                                  <span className="truncate flex-1">{file.name}</span>
+                                  <span className="text-muted-foreground">
+                                    {(file.size / (1024 * 1024)).toFixed(1)}MB
+                                  </span>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      const newFiles = formData.otherAttachments.filter((_, i) => i !== index);
+                                      handleInputChange('otherAttachments', newFiles);
+                                    }}
+                                    className="h-4 w-4 p-0"
+                                  >
+                                    <X className="h-2 w-2 text-red-500" />
+                                  </Button>
+                                </div>
+                              ))}
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleInputChange('otherAttachments', []);
+                                }}
+                                className="w-full text-xs h-6"
+                              >
+                                حذف جميع الملفات
+                              </Button>
+                            </div>
                           </div>
                         )}
                       </div>
                     </label>
                   </div>
+                  {fileUploadErrors.otherAttachments && (
+                    <p className="text-sm text-red-600 mt-2 flex items-center gap-1">
+                      <AlertCircle className="h-4 w-4" />
+                      {fileUploadErrors.otherAttachments}
+                    </p>
+                  )}
                 </div>
               </div>
               
