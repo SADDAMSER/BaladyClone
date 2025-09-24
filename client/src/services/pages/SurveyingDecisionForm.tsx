@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { MapPin, FileText, Calculator, Save, Send, AlertCircle, Upload, X, Building2, User, Clock, CheckCircle, Map as MapIcon } from 'lucide-react';
+import { MapPin, FileText, Calculator, Save, Send, AlertCircle, Upload, X, Building2, User, Clock, CheckCircle, Map as MapIcon, PlusCircle } from 'lucide-react';
 import InteractiveDrawingMap from '@/components/gis/InteractiveDrawingMap';
 import InteractiveMap from '@/components/gis/InteractiveMap';
 import { useToast } from '@/hooks/use-toast';
@@ -78,8 +78,11 @@ interface SurveyFormData {
   // ✅ Step 4: Ownership Data
   locationName: string; // اسم الموضع (اختياري)
   documentType: string;
+  documentArea: string; // المساحة بحسب الوثيقة ← NEW FIELD
+  documentStatus: string; // حالة الوثيقة ← NEW FIELD
   ownershipClassification: string;
   ownershipDocument: File | null; // Required
+  additionalDocuments: File[]; // ← NEW FIELD: وثائق إضافية متعددة
   otherAttachments: File[]; // Optional
   commercialRegistry: File | null; // Required for waqf
   
@@ -198,8 +201,11 @@ export default function SurveyingDecisionForm() {
     // Step 4: Ownership Data
     locationName: '',
     documentType: '',
+    documentArea: '', // ← NEW FIELD
+    documentStatus: '', // ← NEW FIELD
     ownershipClassification: 'free',
     ownershipDocument: null,
+    additionalDocuments: [], // ← NEW FIELD
     otherAttachments: [],
     commercialRegistry: null,
     
@@ -302,8 +308,11 @@ export default function SurveyingDecisionForm() {
         // Step 4: Ownership Data
         locationName: '',
         documentType: '',
+        documentArea: '', // ← NEW FIELD
+        documentStatus: '', // ← NEW FIELD
         ownershipClassification: 'free',
         ownershipDocument: null,
+        additionalDocuments: [], // ← NEW FIELD
         otherAttachments: [],
         commercialRegistry: null,
         
@@ -427,7 +436,7 @@ export default function SurveyingDecisionForm() {
 
   const handleFileUpload = (
     file: File | File[] | null, 
-    fieldName: string, 
+    fieldName: keyof SurveyFormData, 
     options: {
       maxSizeMB?: number;
       allowedTypes?: string[];
@@ -1304,6 +1313,42 @@ export default function SurveyingDecisionForm() {
                   </Select>
                 </div>
                 
+                {/* ← NEW FIELD: المساحة بحسب الوثيقة */}
+                <div>
+                  <Label htmlFor="documentArea">المساحة بحسب الوثيقة *</Label>
+                  <Input
+                    id="documentArea"
+                    name="documentArea"
+                    value={formData.documentArea}
+                    onChange={(e) => handleInputChange('documentArea', e.target.value)}
+                    placeholder="مثال: 500 متر مربع"
+                    data-testid="input-document-area"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    أدخل المساحة كما هي مذكورة في وثيقة الملكية
+                  </p>
+                </div>
+                
+                {/* ← NEW FIELD: حالة الوثيقة */}
+                <div>
+                  <Label htmlFor="documentStatus">حالة الوثيقة *</Label>
+                  <Select value={formData.documentStatus} onValueChange={(value) => handleInputChange('documentStatus', value)}>
+                    <SelectTrigger data-testid="select-document-status">
+                      <SelectValue placeholder="اختر حالة الوثيقة" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="good">جيدة</SelectItem>
+                      <SelectItem value="damaged">تالفة جزئياً</SelectItem>
+                      <SelectItem value="worn">مهترئة</SelectItem>
+                      <SelectItem value="faded">باهتة</SelectItem>
+                      <SelectItem value="torn">ممزقة</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    حدد الحالة العامة لوثيقة الملكية
+                  </p>
+                </div>
+                
                 {/* Enhanced Ownership Document Upload (Required) */}
                 <div>
                   <Label htmlFor="ownershipDocument">وثيقة الملكية (إلزامي) *</Label>
@@ -1535,6 +1580,96 @@ export default function SurveyingDecisionForm() {
                       {fileUploadErrors.otherAttachments}
                     </p>
                   )}
+                </div>
+                
+                {/* ← NEW FIELD: زر إضافة وثائق إضافية */}
+                <div>
+                  <Label htmlFor="additionalDocuments">وثائق إضافية (اختياري)</Label>
+                  <div className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
+                    formData.additionalDocuments.length > 0 
+                      ? 'border-purple-300 bg-purple-50' 
+                      : 'border-muted-foreground/25 hover:border-primary/50'
+                  }`}>
+                    <input
+                      type="file"
+                      id="additionalDocuments"
+                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                      multiple
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || []);
+                        handleFileUpload(files, 'additionalDocuments', {
+                          maxSizeMB: 10,
+                          allowedTypes: ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png'],
+                          multiple: true
+                        });
+                      }}
+                      className="hidden"
+                      data-testid="input-additional-documents"
+                    />
+                    <label htmlFor="additionalDocuments" className="cursor-pointer">
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="flex items-center gap-2">
+                          <PlusCircle className="h-6 w-6 text-purple-600" />
+                          <span className="text-lg font-semibold text-purple-800">إضافة وثيقة أخرى</span>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {formData.additionalDocuments.length > 0 
+                            ? `تم إضافة ${formData.additionalDocuments.length} وثيقة إضافية`
+                            : 'انقر لإضافة وثائق أخرى تدعم طلبك'
+                          }
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          مثل: خرائط قديمة، صور فوتوغرافية، تقارير مساحية سابقة
+                        </p>
+                        
+                        {formData.additionalDocuments.length > 0 && (
+                          <div className="bg-white p-3 rounded-lg border mt-2 w-full max-w-sm">
+                            <div className="space-y-2">
+                              {formData.additionalDocuments.map((file: File, index: number) => (
+                                <div key={index} className="flex items-center gap-2 text-xs">
+                                  <FileText className="h-3 w-3 text-purple-600 flex-shrink-0" />
+                                  <span className="truncate flex-1">{file.name}</span>
+                                  <span className="text-muted-foreground">
+                                    {(file.size / (1024 * 1024)).toFixed(1)}MB
+                                  </span>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      const newFiles = formData.additionalDocuments.filter((_, i) => i !== index);
+                                      handleInputChange('additionalDocuments', newFiles);
+                                    }}
+                                    className="h-4 w-4 p-0"
+                                  >
+                                    <X className="h-2 w-2 text-red-500" />
+                                  </Button>
+                                </div>
+                              ))}
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleInputChange('additionalDocuments', []);
+                                }}
+                                className="w-full text-xs h-6"
+                              >
+                                حذف جميع الوثائق الإضافية
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </label>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    هذه الوثائق اختيارية ولكنها قد تساعد في تسريع معالجة طلبك
+                  </p>
                 </div>
               </div>
               
