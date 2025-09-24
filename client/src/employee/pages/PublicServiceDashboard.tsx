@@ -110,6 +110,17 @@ export default function PublicServiceDashboard() {
   
   // Filter and search states
   const [searchTerm, setSearchTerm] = useState("");
+  
+  // ✅ PHASE 1: Enhanced Technical Review Tools  
+  const [detailedReviewData, setDetailedReviewData] = useState({
+    decisionReason: '',
+    technicalNotes: '',
+    requiredDocuments: [] as string[],
+    estimatedProcessingTime: '',
+    priorityLevel: 'normal' as 'low' | 'normal' | 'high' | 'urgent',
+    gisDataRequests: [] as string[],
+    followUpActions: [] as string[]
+  });
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [serviceTypeFilter, setServiceTypeFilter] = useState<string>("all");
   
@@ -779,8 +790,9 @@ export default function PublicServiceDashboard() {
         </Card>
 
         {/* Invoice Dialog */}
+        {/* ✅ ENHANCED PHASE 1: Improved Invoice Dialog */}
         <Dialog open={showInvoiceDialog} onOpenChange={setShowInvoiceDialog}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto print:shadow-none print:max-w-full print:max-h-full" dir="rtl">
+          <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto print:shadow-none print:max-w-full print:max-h-full" dir="rtl">
             <div className="print:p-0" id="invoice-content">
               {invoiceApplication && (
                 <>
@@ -797,6 +809,7 @@ export default function PublicServiceDashboard() {
                         onClick={handlePrintInvoice}
                         disabled={isTransferring || transferToTreasuryMutation.isPending}
                         className="bg-green-600 hover:bg-green-700"
+                        data-testid="button-print-invoice"
                       >
                         <Printer className="h-4 w-4 ml-2" />
                         {isTransferring ? 'جاري الترحيل...' : 'طباعة النموذج الموحد'}
@@ -821,7 +834,7 @@ export default function PublicServiceDashboard() {
                           applicantName: invoiceApplication.applicantName,
                           applicantId: invoiceApplication.applicantId,
                           phoneNumber: invoiceApplication.contactPhone || '',
-                          location: invoiceApplication.location || '',
+                          location: `${invoiceApplication.applicationData?.governorate || ''} - ${invoiceApplication.applicationData?.district || ''}`,
                           area: invoiceApplication.applicationData?.area || '700',
                           purpose: invoiceApplication.serviceType
                         },

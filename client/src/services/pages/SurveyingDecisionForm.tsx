@@ -1051,8 +1051,8 @@ export default function SurveyingDecisionForm() {
           {currentStep === 5 && (
             <div className="space-y-6">
               <div className="text-center mb-6">
-                <h3 className="text-2xl font-bold">مراجعة الطلب</h3>
-                <p className="text-muted-foreground">راجع جميع البيانات قبل التقديم النهائي</p>
+                <h3 className="text-2xl font-bold">تأكيد الطلب</h3>
+                <p className="text-muted-foreground">مراجعة شاملة ونهائية للبيانات المدخلة</p>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
