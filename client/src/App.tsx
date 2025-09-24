@@ -40,6 +40,8 @@ import AssistantManagerDashboard from "@/employee/pages/AssistantManagerDashboar
 import EngineerDashboard from "@/employee/pages/EngineerDashboard";
 import AssignmentFormPage from "@/employee/pages/AssignmentFormPage";
 import SurveyorDashboard from "@/employee/pages/SurveyorDashboard";
+import SectionHeadDashboard from "@/employee/pages/SectionHeadDashboard";
+import AssistantHeadDashboard from "@/employee/pages/AssistantHeadDashboard";
 import UnifiedFormPrint from "@/employee/pages/UnifiedFormPrint";
 import ApplicationStatus from "@/citizen/pages/ApplicationStatus";
 import ApplicationTracking from "@/citizen/pages/ApplicationTracking";
@@ -83,6 +85,8 @@ function AuthenticatedRouter() {
         <Route path="/employee/dashboard" component={EmployeeDashboard} />
         <Route path="/employee/cashier" component={CashierDashboard} />
         <Route path="/employee/public-service" component={PublicServiceDashboard} />
+        <Route path="/employee/section-head" component={SectionHeadDashboard} />
+        <Route path="/employee/assistant-head" component={AssistantHeadDashboard} />
         <Route path="/employee/treasury" component={TreasuryDashboard} />
         <Route path="/employee/manager" component={DepartmentManagerDashboard} />
         <Route path="/employee/invoice/:id" component={PaymentInvoice} />

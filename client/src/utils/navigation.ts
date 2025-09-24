@@ -32,7 +32,8 @@ import {
   Printer,
   Layers,
   AppWindow,
-  FilePlus
+  FilePlus,
+  Users2
 } from "lucide-react";
 
 export interface NavigationItem {
@@ -71,6 +72,8 @@ export const navigationConfig: NavigationItem[] = [
       { id: 'employee-dashboard', label: 'لوحة الموظف', icon: UserCheck, path: '/employee/dashboard' },
       { id: 'cashier-dashboard', label: 'لوحة أمين الصندوق', icon: Calculator, path: '/employee/cashier' },
       { id: 'public-service-dashboard', label: 'لوحة مراجع الخدمات العامة', icon: FileCheck, path: '/employee/public-service' },
+      { id: 'section-head-dashboard', label: 'لوحة رئيس قسم المساحة', icon: UserCog, path: '/employee/section-head' },
+      { id: 'assistant-head-dashboard', label: 'لوحة مساعد رئيس القسم', icon: UserCheck, path: '/employee/assistant-head' },
       { id: 'treasury-dashboard', label: 'لوحة الخزينة', icon: Wallet, path: '/employee/treasury' },
       { id: 'apps-history', label: 'سجل الطلبات', icon: Archive, path: '/applications/history' }
     ]
