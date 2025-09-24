@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { MapPin, FileText, Calculator, Save, Send, AlertCircle } from 'lucide-react';
+import { MapPin, FileText, Calculator, Save, Send, AlertCircle, Upload, X, Building2, User, Clock, CheckCircle } from 'lucide-react';
 import InteractiveDrawingMap from '@/components/gis/InteractiveDrawingMap';
 import InteractiveMap from '@/components/gis/InteractiveMap';
 import { useToast } from '@/hooks/use-toast';
@@ -27,45 +27,103 @@ interface SurveyFeature {
   };
 }
 
+// ✅ PHASE 1: Enhanced form data structure
 interface SurveyFormData {
-  // معلومات الطلب
+  // ✅ Step 1: Applicant Data
   applicantName: string;
   applicantId: string;
+  identityType: string;
   contactPhone: string;
   email: string;
+  identityImage: File | null;
+  applicantRole: string; // صفة مقدم الطلب
+  principalName: string; // اسم الموكل (عند الحاجة)
+  principalId: string; // رقم هوية الموكل
   
-  // معلومات الموقع
-  governorate: string; // governorate ID
-  governorateCode: string; // governorate code for display
+  // ✅ Step 2: Location Information
+  governorate: string;
+  governorateCode: string;
   district: string;
-  area: string;
+  area: string; // منطقة
   landNumber: string;
   plotNumber: string;
   coordinates: string;
+  hasGeoTiff: boolean;
   
-  // نوع القرار المساحي
+  // ✅ Step 3: Decision Type
   surveyType: string;
   purpose: string;
   description: string;
+  // Old building/projection specific fields
+  engineerName?: string;
+  engineerLicense?: string;
+  engineerFile?: File | null;
   
-  // البيانات الجغرافية
+  // ✅ Step 4: Ownership Data
+  locationName: string; // اسم الموضع (اختياري)
+  documentType: string;
+  ownershipClassification: string;
+  ownershipDocument: File | null; // Required
+  otherAttachments: File[]; // Optional
+  commercialRegistry: File | null; // Required for waqf
+  
+  // ✅ Step 5: Confirmation (calculated)
+  applicationMode: string;
+  applicationNumber: string;
+  
+  // الحقول الموجودة سابقاً
   drawnFeatures: SurveyFeature[];
   totalArea: number;
   totalLength: number;
-  
-  // المرفقات
-  attachments: File[];
 }
 
 // Fetch real governorates from API using react-query
 
+// ✅ PHASE 1: Updated survey types as per requirements (7 types)
 const surveyTypes = [
-  { value: 'subdivision', label: 'تجزئة أراضي' },
-  { value: 'boundary', label: 'تحديد حدود' },
-  { value: 'area_calculation', label: 'حساب مساحة' },
-  { value: 'topographic', label: 'رفع طبوغرافي' },
-  { value: 'cadastral', label: 'مساحة عقارية' },
-  { value: 'urban_planning', label: 'تخطيط عمراني' }
+  { value: 'new_building_license', label: 'إصدار رخصة بناء جديد' },
+  { value: 'land_subdivision', label: 'تقسيم أرض' },
+  { value: 'zoning_line', label: 'تحديد خط التنظيم' },
+  { value: 'consultation', label: 'استشاره' },
+  { value: 'old_building_license', label: 'إصدار رخصة بناء قديم' },
+  { value: 'old_projection_registration', label: 'تسجيل اسقاط قديم' },
+  { value: 'dispute_settlement', label: 'تسوية نزاع' }
+];
+
+// ✅ PHASE 1: Identity types
+const identityTypes = [
+  { value: 'national_id', label: 'بطاقة هوية وطنية' },
+  { value: 'residence_permit', label: 'إقامة' },
+  { value: 'passport', label: 'جواز سفر' }
+];
+
+// ✅ PHASE 1: Document types
+const documentTypes = [
+  { value: 'religious_deed', label: 'فصل شرعي', classification: 'free' },
+  { value: 'insight', label: 'بصيرة', classification: 'free' },
+  { value: 'sales_contract', label: 'عقد بيع', classification: 'free' },
+  { value: 'possession', label: 'حيازة', classification: 'free' }
+];
+
+// ✅ PHASE 1: Ownership classifications
+const ownershipClassifications = [
+  { value: 'free', label: 'حر' },
+  { value: 'waqf', label: 'وقف' }
+];
+
+// ✅ PHASE 1: Applicant roles
+const applicantRoles = [
+  { value: 'self', label: 'عن نفسه' },
+  { value: 'agent', label: 'وكيل' },
+  { value: 'delegate', label: 'مفوض' },
+  { value: 'government', label: 'جهة حكومية' },
+  { value: 'private_entity', label: 'جهة خاصة' }
+];
+
+// ✅ PHASE 1: Application modes
+const applicationModes = [
+  { value: 'office', label: 'مسار مكتبي (موظف خدمة الجمهور)' },
+  { value: 'portal', label: 'مسار بوابة المواطن (مستقبلي)' }
 ];
 
 export default function SurveyingDecisionForm() {
@@ -77,11 +135,20 @@ export default function SurveyingDecisionForm() {
     queryKey: ['/api/governorates'],
   });
   
+  // ✅ PHASE 1: Initialize form with new structure
   const [formData, setFormData] = useState<SurveyFormData>({
+    // Step 1: Applicant Data
     applicantName: '',
     applicantId: '',
+    identityType: '',
     contactPhone: '',
     email: '',
+    identityImage: null,
+    applicantRole: 'self',
+    principalName: '',
+    principalId: '',
+    
+    // Step 2: Location Information  
     governorate: '',
     governorateCode: '',
     district: '',
@@ -89,13 +156,32 @@ export default function SurveyingDecisionForm() {
     landNumber: '',
     plotNumber: '',
     coordinates: '',
+    hasGeoTiff: false,
+    
+    // Step 3: Decision Type
     surveyType: '',
     purpose: '',
     description: '',
+    engineerName: '',
+    engineerLicense: '',
+    engineerFile: null,
+    
+    // Step 4: Ownership Data
+    locationName: '',
+    documentType: '',
+    ownershipClassification: 'free',
+    ownershipDocument: null,
+    otherAttachments: [],
+    commercialRegistry: null,
+    
+    // Step 5: Confirmation
+    applicationMode: 'office',
+    applicationNumber: '',
+    
+    // Geographic data
     drawnFeatures: [],
     totalArea: 0,
-    totalLength: 0,
-    attachments: []
+    totalLength: 0
   });
   
   const [currentStep, setCurrentStep] = useState(1);
@@ -132,10 +218,18 @@ export default function SurveyingDecisionForm() {
       
       // Reset form after successful submission
       setFormData({
+        // Step 1: Applicant Data
         applicantName: '',
         applicantId: '',
+        identityType: '',
         contactPhone: '',
         email: '',
+        identityImage: null,
+        applicantRole: 'self',
+        principalName: '',
+        principalId: '',
+        
+        // Step 2: Location Information  
         governorate: '',
         governorateCode: '',
         district: '',
@@ -143,13 +237,32 @@ export default function SurveyingDecisionForm() {
         landNumber: '',
         plotNumber: '',
         coordinates: '',
+        hasGeoTiff: false,
+        
+        // Step 3: Decision Type
         surveyType: '',
         purpose: '',
         description: '',
+        engineerName: '',
+        engineerLicense: '',
+        engineerFile: null,
+        
+        // Step 4: Ownership Data
+        locationName: '',
+        documentType: '',
+        ownershipClassification: 'free',
+        ownershipDocument: null,
+        otherAttachments: [],
+        commercialRegistry: null,
+        
+        // Step 5: Confirmation
+        applicationMode: 'office',
+        applicationNumber: '',
+        
+        // Geographic data
         drawnFeatures: [],
         totalArea: 0,
-        totalLength: 0,
-        attachments: []
+        totalLength: 0
       });
       setCurrentStep(1);
     },
@@ -263,7 +376,7 @@ export default function SurveyingDecisionForm() {
         },
         serviceType: 'surveying_decision', // نحتفظ بهذا للمنطق الداخلي
       },
-      documents: formData.attachments.map(file => ({
+      documents: formData.otherAttachments.map((file: File) => ({
         name: file.name,
         size: file.size,
         type: file.type,
@@ -280,16 +393,39 @@ export default function SurveyingDecisionForm() {
     }
   };
   
+  // ✅ PHASE 1: Enhanced validation logic
   const validateStep = (step: number): boolean => {
     switch (step) {
-      case 1:
-        return !!(formData.applicantName && formData.applicantId && formData.contactPhone);
-      case 2:
+      case 1: // بيانات المتقدم
+        const basicValid = !!(formData.applicantName && formData.applicantId && formData.identityType && formData.contactPhone);
+        // Additional validation for agent/delegate roles
+        if (formData.applicantRole === 'agent' || formData.applicantRole === 'delegate') {
+          return basicValid && !!(formData.principalName && formData.principalId);
+        }
+        return basicValid;
+        
+      case 2: // معلومات الموقع
         return !!(formData.governorate && formData.district && formData.landNumber);
-      case 3:
-        return !!(formData.surveyType && formData.purpose);
-      case 4:
-        return formData.drawnFeatures.length > 0;
+        
+      case 3: // نوع القرار
+        const typeValid = !!(formData.surveyType && formData.purpose);
+        // Additional validation for old building/projection
+        if (formData.surveyType === 'old_building_license' || formData.surveyType === 'old_projection_registration') {
+          return typeValid && !!(formData.engineerName && formData.engineerLicense && formData.engineerFile);
+        }
+        return typeValid;
+        
+      case 4: // بيانات الملكية
+        const ownershipValid = !!(formData.documentType && formData.ownershipDocument);
+        // Commercial registry required for waqf
+        if (formData.ownershipClassification === 'waqf') {
+          return ownershipValid && !!formData.commercialRegistry;
+        }
+        return ownershipValid;
+        
+      case 5: // تأكيد الطلب
+        return true; // All previous validations passed
+        
       default:
         return true;
     }
@@ -328,8 +464,8 @@ export default function SurveyingDecisionForm() {
             { step: 1, title: 'بيانات المتقدم', icon: FileText },
             { step: 2, title: 'معلومات الموقع', icon: MapPin },
             { step: 3, title: 'نوع القرار', icon: Calculator },
-            { step: 4, title: 'الخريطة التفاعلية', icon: MapPin },
-            { step: 5, title: 'المراجعة والتأكيد', icon: Send }
+            { step: 4, title: 'بيانات الملكية', icon: FileText },
+            { step: 5, title: 'تأكيد الطلب', icon: Send }
           ].map(({ step, title, icon: Icon }) => (
             <div key={step} className="flex flex-col items-center">
               <div className={`
@@ -356,7 +492,7 @@ export default function SurveyingDecisionForm() {
       {/* Form Content */}
       <Card>
         <CardContent className="p-8">
-          {/* Step 1: بيانات المتقدم */}
+          {/* ✅ PHASE 1 STEP 1: Enhanced Applicant Data */}
           {currentStep === 1 && (
             <div className="space-y-6">
               <div className="text-center mb-6">
@@ -364,16 +500,55 @@ export default function SurveyingDecisionForm() {
                 <p className="text-muted-foreground">أدخل معلوماتك الشخصية ووسائل التواصل</p>
               </div>
               
+              {/* Application Mode Selection */}
+              <div className="mb-6 p-4 border rounded-lg bg-muted/30">
+                <Label className="text-base font-semibold mb-3 block">مسار الطلب</Label>
+                <Select value={formData.applicationMode} onValueChange={(value) => handleInputChange('applicationMode', value)}>
+                  <SelectTrigger data-testid="select-application-mode">
+                    <SelectValue placeholder="اختر مسار الطلب" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {applicationModes.map((mode) => (
+                      <SelectItem key={mode.value} value={mode.value}>{mode.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <Label htmlFor="applicantName">الاسم الكامل *</Label>
-                  <Input
-                    id="applicantName"
-                    value={formData.applicantName}
-                    onChange={(e) => handleInputChange('applicantName', e.target.value)}
-                    placeholder="أدخل اسمك الكامل"
-                    data-testid="input-applicant-name"
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      id="applicantName"
+                      value={formData.applicantName}
+                      onChange={(e) => handleInputChange('applicantName', e.target.value)}
+                      placeholder="أدخل اسمك الكامل"
+                      data-testid="input-applicant-name"
+                    />
+                    <Input
+                      value={formData.contactPhone}
+                      onChange={(e) => handleInputChange('contactPhone', e.target.value)}
+                      placeholder="رقم الهاتف"
+                      className="w-48"
+                      data-testid="input-contact-phone"
+                    />
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-1">حقول بحث ذكية - تعبئة تلقائية إن وُجد</p>
+                </div>
+                
+                <div>
+                  <Label htmlFor="identityType">نوع الهوية *</Label>
+                  <Select value={formData.identityType} onValueChange={(value) => handleInputChange('identityType', value)}>
+                    <SelectTrigger data-testid="select-identity-type">
+                      <SelectValue placeholder="اختر نوع الهوية" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {identityTypes.map((type) => (
+                        <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 
                 <div>
@@ -382,19 +557,8 @@ export default function SurveyingDecisionForm() {
                     id="applicantId"
                     value={formData.applicantId}
                     onChange={(e) => handleInputChange('applicantId', e.target.value)}
-                    placeholder="أدخل رقم الهوية أو الإقامة"
+                    placeholder="أدخل رقم الهوية"
                     data-testid="input-applicant-id"
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="contactPhone">رقم الهاتف *</Label>
-                  <Input
-                    id="contactPhone"
-                    value={formData.contactPhone}
-                    onChange={(e) => handleInputChange('contactPhone', e.target.value)}
-                    placeholder="967XXXXXXXXX"
-                    data-testid="input-contact-phone"
                   />
                 </div>
                 
@@ -410,6 +574,86 @@ export default function SurveyingDecisionForm() {
                   />
                 </div>
               </div>
+              
+              {/* Identity Image Upload */}
+              <div>
+                <Label htmlFor="identityImage">صورة الهوية</Label>
+                <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
+                  <input
+                    type="file"
+                    id="identityImage"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      handleInputChange('identityImage', file);
+                    }}
+                    className="hidden"
+                    data-testid="input-identity-image"
+                  />
+                  <label htmlFor="identityImage" className="cursor-pointer">
+                    <div className="flex flex-col items-center gap-2">
+                      <Upload className="h-8 w-8 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">انقر لتحميل صورة الهوية</p>
+                      {formData.identityImage && (
+                        <p className="text-sm text-primary">تم اختيار: {formData.identityImage.name}</p>
+                      )}
+                    </div>
+                  </label>
+                  {formData.identityImage && (
+                    <div className="mt-4 max-w-xs mx-auto">
+                      <img 
+                        src={URL.createObjectURL(formData.identityImage)} 
+                        alt="Identity Preview" 
+                        className="w-full h-32 object-cover rounded border" 
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Applicant Role */}
+              <div>
+                <Label htmlFor="applicantRole">صفة مقدم الطلب *</Label>
+                <Select value={formData.applicantRole} onValueChange={(value) => handleInputChange('applicantRole', value)}>
+                  <SelectTrigger data-testid="select-applicant-role">
+                    <SelectValue placeholder="اختر صفة مقدم الطلب" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {applicantRoles.map((role) => (
+                      <SelectItem key={role.value} value={role.value}>{role.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* Principal Details (when agent/delegate) */}
+              {(formData.applicantRole === 'agent' || formData.applicantRole === 'delegate') && (
+                <div className="p-4 border rounded-lg bg-muted/50">
+                  <h4 className="font-semibold mb-4">بيانات الموكل</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="principalName">اسم الموكل *</Label>
+                      <Input
+                        id="principalName"
+                        value={formData.principalName}
+                        onChange={(e) => handleInputChange('principalName', e.target.value)}
+                        placeholder="أدخل اسم الموكل"
+                        data-testid="input-principal-name"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="principalId">رقم هوية الموكل *</Label>
+                      <Input
+                        id="principalId"
+                        value={formData.principalId}
+                        onChange={(e) => handleInputChange('principalId', e.target.value)}
+                        placeholder="رقم هوية الموكل"
+                        data-testid="input-principal-id"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
           
@@ -600,12 +844,152 @@ export default function SurveyingDecisionForm() {
             </div>
           )}
           
-          {/* Step 4: الخريطة التفاعلية */}
+          {/* ✅ PHASE 1 STEP 4: Ownership Data */}
           {currentStep === 4 && (
             <div className="space-y-6">
               <div className="text-center mb-6">
-                <h3 className="text-2xl font-bold">تحديد الموقع على الخريطة</h3>
-                <p className="text-muted-foreground">استخدم أدوات الرسم لتحديد المنطقة المطلوب مسحها</p>
+                <h3 className="text-2xl font-bold">بيانات الملكية</h3>
+                <p className="text-muted-foreground">أدخل بيانات الملكية وارفق الوثائق المطلوبة</p>
+              </div>
+              
+              <div className="space-y-6">
+                {/* Location Name (Optional) */}
+                <div>
+                  <Label htmlFor="locationName">اسم الموضع (اختياري)</Label>
+                  <Input
+                    id="locationName"
+                    value={formData.locationName}
+                    onChange={(e) => handleInputChange('locationName', e.target.value)}
+                    placeholder="مثل: أرض الحيدان، مزرعة الزهراوي"
+                    data-testid="input-location-name"
+                  />
+                </div>
+                
+                {/* Document Type */}
+                <div>
+                  <Label htmlFor="documentType">نوع الوثيقة *</Label>
+                  <Select value={formData.documentType} onValueChange={(value) => handleInputChange('documentType', value)}>
+                    <SelectTrigger data-testid="select-document-type">
+                      <SelectValue placeholder="اختر نوع وثيقة الملكية" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {documentTypes.map((docType) => (
+                        <SelectItem key={docType.value} value={docType.value}>{docType.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* Ownership Classification */}
+                <div>
+                  <Label htmlFor="ownershipClassification">تصنيف *</Label>
+                  <Select value={formData.ownershipClassification} onValueChange={(value) => handleInputChange('ownershipClassification', value)}>
+                    <SelectTrigger data-testid="select-ownership-classification">
+                      <SelectValue placeholder="اختر تصنيف الملكية" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ownershipClassifications.map((classification) => (
+                        <SelectItem key={classification.value} value={classification.value}>{classification.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* Ownership Document Upload (Required) */}
+                <div>
+                  <Label htmlFor="ownershipDocument">وثيقة الملكية (إلزامي) *</Label>
+                  <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
+                    <input
+                      type="file"
+                      id="ownershipDocument"
+                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        handleInputChange('ownershipDocument', file);
+                      }}
+                      className="hidden"
+                      data-testid="input-ownership-document"
+                    />
+                    <label htmlFor="ownershipDocument" className="cursor-pointer">
+                      <div className="flex flex-col items-center gap-2">
+                        <FileText className="h-8 w-8 text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground">انقر لتحميل وثيقة الملكية</p>
+                        <p className="text-xs text-muted-foreground">PDF, DOC, DOCX, JPG, PNG (حتى 10MB)</p>
+                        {formData.ownershipDocument && (
+                          <Badge variant="default" className="mt-2">
+                            تم اختيار: {formData.ownershipDocument.name}
+                          </Badge>
+                        )}
+                      </div>
+                    </label>
+                  </div>
+                </div>
+                
+                {/* Commercial Registry (Required for Waqf) */}
+                {formData.ownershipClassification === 'waqf' && (
+                  <div>
+                    <Label htmlFor="commercialRegistry">سجل تجاري (إلزامي للوقف) *</Label>
+                    <div className="border-2 border-dashed border-orange-200 rounded-lg p-4 text-center bg-orange-50">
+                      <input
+                        type="file"
+                        id="commercialRegistry"
+                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] || null;
+                          handleInputChange('commercialRegistry', file);
+                        }}
+                        className="hidden"
+                        data-testid="input-commercial-registry"
+                      />
+                      <label htmlFor="commercialRegistry" className="cursor-pointer">
+                        <div className="flex flex-col items-center gap-2">
+                          <Building2 className="h-6 w-6 text-orange-600" />
+                          <p className="text-sm text-orange-800">تحميل السجل التجاري</p>
+                          {formData.commercialRegistry && (
+                            <Badge variant="secondary" className="bg-orange-100 text-orange-800">
+                              {formData.commercialRegistry.name}
+                            </Badge>
+                          )}
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Other Attachments (Optional) */}
+                <div>
+                  <Label htmlFor="otherAttachments">مرفقات أخرى (اختياري)</Label>
+                  <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4 text-center">
+                    <input
+                      type="file"
+                      id="otherAttachments"
+                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.zip"
+                      multiple
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || []);
+                        handleInputChange('otherAttachments', files);
+                      }}
+                      className="hidden"
+                      data-testid="input-other-attachments"
+                    />
+                    <label htmlFor="otherAttachments" className="cursor-pointer">
+                      <div className="flex flex-col items-center gap-2">
+                        <Upload className="h-6 w-6 text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground">انقر لتحميل ملفات إضافية</p>
+                        <p className="text-xs text-muted-foreground">يمكن اختيار ملفات متعددة</p>
+                        {formData.otherAttachments.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {formData.otherAttachments.map((file: File, index: number) => (
+                              <Badge key={index} variant="outline" className="text-xs">
+                                {file.name}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </label>
+                  </div>
+                </div>
               </div>
               
               {/* معلومات الرسومات الحالية */}
@@ -663,7 +1047,7 @@ export default function SurveyingDecisionForm() {
             </div>
           )}
           
-          {/* Step 5: المراجعة والتأكيد */}
+          {/* ✅ PHASE 1 STEP 5: Application Confirmation */}
           {currentStep === 5 && (
             <div className="space-y-6">
               <div className="text-center mb-6">
