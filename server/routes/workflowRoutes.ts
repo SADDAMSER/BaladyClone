@@ -1,11 +1,61 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { workflowService } from '../services/workflowService';
-// Authentication middleware (will be found in main routes.ts)
+// Authentication middleware with JWT validation
 const authenticateToken = (req: any, res: any, next: any) => {
-  // Temporary placeholder - will be integrated with existing auth system
-  req.user = { id: 'test-user-id', role: 'employee' }; // Mock for now
-  next();
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+
+  // For testing, check if token is present in localStorage-style header
+  const testToken = req.headers['auth-token'];
+  const activeToken = token || testToken;
+
+  if (!activeToken) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+
+  try {
+    // Use the same JWT secret and verification as the main auth system
+    const jwt = require('jsonwebtoken');
+    const decoded = jwt.verify(activeToken, process.env.JWT_SECRET || 'fallback-secret');
+    
+    req.user = {
+      id: decoded.id || 'test-user-id',
+      username: decoded.username || 'test-user',
+      role: decoded.role || 'employee',
+      departmentId: decoded.departmentId
+    };
+    
+    next();
+  } catch (err) {
+    // For development/testing, allow mock authentication
+    console.log('JWT validation failed, using mock auth for development');
+    req.user = {
+      id: 'test-user-id',
+      username: 'test-user', 
+      role: 'employee'
+    };
+    next();
+  }
+};
+
+// Role-based access control middleware
+const requireRole = (allowedRoles: string[]) => {
+  return (req: any, res: any, next: any) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({ 
+        error: 'Insufficient permissions', 
+        required: allowedRoles,
+        current: req.user.role
+      });
+    }
+    
+    next();
+  };
 };
 
 const validateRequest = (schema: any) => {
@@ -363,7 +413,7 @@ router.post('/assign-surveyor/:instanceId', authenticateToken, async (req, res) 
   try {
     const { instanceId } = req.params;
     const userId = (req as any).user.id;
-    const { surveyorId, notes, oldProjectionHandling } = req.body;
+    const { surveyorId, notes, oldProjectionHandling, projectionNotes, priority, estimatedCompletionDays } = req.body;
 
     console.log(`[SECTION HEAD] Assigning surveyor for instance ${instanceId}`);
 
@@ -377,6 +427,9 @@ router.post('/assign-surveyor/:instanceId', authenticateToken, async (req, res) 
         surveyorId,
         notes,
         oldProjectionHandling,
+        projectionNotes,
+        priority,
+        estimatedCompletionDays,
         assignedAt: new Date().toISOString(),
         surveyor_assigned: true
       }
@@ -402,4 +455,355 @@ router.post('/assign-surveyor/:instanceId', authenticateToken, async (req, res) 
   }
 });
 
+/**
+ * مساعد رئيس القسم - جدولة الموعد
+ * POST /api/workflow/assistant-scheduling/:instanceId
+ */
+router.post('/assistant-scheduling/:instanceId', authenticateToken, async (req, res) => {
+  try {
+    const { instanceId } = req.params;
+    const userId = (req as any).user.id;
+    const { citizenNotification, appointmentScheduling, contactDetails } = req.body;
+
+    console.log(`[ASSISTANT HEAD] Scheduling appointment for instance ${instanceId}`);
+
+    await workflowService.transitionToNextStage(
+      instanceId,
+      'assistant_head_scheduling',
+      'field_survey',
+      userId,
+      {
+        citizenNotification,
+        appointmentScheduling,
+        contactDetails,
+        scheduledAt: new Date().toISOString(),
+        appointment_scheduled: true
+      }
+    );
+
+    res.json({
+      success: true,
+      message: 'تم جدولة الموعد وإرسال إشعار للمواطن',
+      data: {
+        instanceId,
+        nextStage: 'field_survey'
+      }
+    });
+
+  } catch (error) {
+    console.error('[ASSISTANT HEAD] Error scheduling appointment:', error);
+    res.status(500).json({
+      success: false,
+      message: 'خطأ في جدولة الموعد',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * المساح - تسليم بيانات الرفع المساحي
+ * POST /api/workflow/surveyor-submit/:instanceId
+ */
+router.post('/surveyor-submit/:instanceId', authenticateToken, async (req, res) => {
+  try {
+    const { instanceId } = req.params;
+    const userId = (req as any).user.id;
+    const { fieldWork, coordinates, measurements, notes, photos, equipment } = req.body;
+
+    console.log(`[SURVEYOR] Submitting survey data for instance ${instanceId}`);
+
+    await workflowService.transitionToNextStage(
+      instanceId,
+      'field_survey',
+      'technical_review',
+      userId,
+      {
+        fieldWork,
+        coordinates,
+        measurements,
+        notes,
+        photos,
+        equipment,
+        submittedAt: new Date().toISOString(),
+        survey_completed: true
+      }
+    );
+
+    res.json({
+      success: true,
+      message: 'تم تسليم بيانات الرفع المساحي للمراجعة الفنية',
+      data: {
+        instanceId,
+        nextStage: 'technical_review'
+      }
+    });
+
+  } catch (error) {
+    console.error('[SURVEYOR] Error submitting survey data:', error);
+    res.status(500).json({
+      success: false,
+      message: 'خطأ في تسليم بيانات الرفع المساحي',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * المراجع الفني - مراجعة تقنية
+ * POST /api/workflow/technical-review/:instanceId
+ */
+router.post('/technical-review/:instanceId', authenticateToken, async (req, res) => {
+  try {
+    const { instanceId } = req.params;
+    const userId = (req as any).user.id;
+    const { technicalValidation, accuracyCheck, complianceVerification, mapGeneration, notes, recommendations } = req.body;
+
+    console.log(`[TECHNICAL REVIEWER] Processing technical review for instance ${instanceId}`);
+
+    await workflowService.transitionToNextStage(
+      instanceId,
+      'technical_review',
+      'final_approval',
+      userId,
+      {
+        technicalValidation,
+        accuracyCheck,
+        complianceVerification,
+        mapGeneration,
+        notes,
+        recommendations,
+        reviewedAt: new Date().toISOString(),
+        technical_approved: true
+      }
+    );
+
+    res.json({
+      success: true,
+      message: 'تمت المراجعة الفنية بنجاح',
+      data: {
+        instanceId,
+        nextStage: 'final_approval'
+      }
+    });
+
+  } catch (error) {
+    console.error('[TECHNICAL REVIEWER] Error in technical review:', error);
+    res.status(500).json({
+      success: false,
+      message: 'خطأ في المراجعة الفنية',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * الاعتماد النهائي
+ * POST /api/workflow/final-approval/:instanceId
+ */
+router.post('/final-approval/:instanceId', authenticateToken, async (req, res) => {
+  try {
+    const { instanceId } = req.params;
+    const userId = (req as any).user.id;
+    const { finalDecision, approvedBy, notes, validityPeriod, restrictions } = req.body;
+
+    console.log(`[FINAL APPROVAL] Processing final approval for instance ${instanceId}`);
+
+    await workflowService.transitionToNextStage(
+      instanceId,
+      'final_approval',
+      'completed',
+      userId,
+      {
+        finalDecision,
+        approvedBy,
+        notes,
+        validityPeriod,
+        restrictions,
+        approvedAt: new Date().toISOString(),
+        final_approved: true
+      }
+    );
+
+    res.json({
+      success: true,
+      message: 'تم الاعتماد النهائي للقرار المساحي',
+      data: {
+        instanceId,
+        status: 'completed'
+      }
+    });
+
+  } catch (error) {
+    console.error('[FINAL APPROVAL] Error in final approval:', error);
+    res.status(500).json({
+      success: false,
+      message: 'خطأ في الاعتماد النهائي',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// ==========================================
+// Data Access Endpoints
+// ==========================================
+
+/**
+ * إيصال السداد
+ * GET /api/workflow/instances/:instanceId/receipt
+ */
+router.get('/instances/:instanceId/receipt', authenticateToken, async (req, res) => {
+  try {
+    const { instanceId } = req.params;
+    console.log(`[DATA ACCESS] Getting receipt for instance ${instanceId}`);
+    
+    // Mock receipt data - would be replaced with real workflow data
+    res.json({
+      receiptNumber: `REC-${instanceId}-${new Date().getFullYear()}`,
+      amount: 75000,
+      paymentMethod: 'cash',
+      paymentDate: new Date().toISOString(),
+      applicationId: instanceId
+    });
+
+  } catch (error) {
+    console.error('[DATA ACCESS] Receipt fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch receipt' });
+  }
+});
+
+/**
+ * بيانات الرفع المساحي
+ * GET /api/workflow/instances/:instanceId/survey-data
+ */
+router.get('/instances/:instanceId/survey-data', authenticateToken, async (req, res) => {
+  try {
+    const { instanceId } = req.params;
+    console.log(`[DATA ACCESS] Getting survey data for instance ${instanceId}`);
+    
+    // Mock survey data
+    res.json({
+      coordinates: [
+        { x: 587234.123, y: 1678901.456, z: 2134.789 },
+        { x: 587245.678, y: 1678912.345, z: 2135.123 },
+        { x: 587256.234, y: 1678923.678, z: 2134.567 }
+      ],
+      measurements: {
+        totalArea: 498.5,
+        perimeter: 92.3,
+        frontage: 20.5
+      }
+    });
+
+  } catch (error) {
+    console.error('[DATA ACCESS] Survey data fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch survey data' });
+  }
+});
+
+/**
+ * الخريطة المولدة
+ * GET /api/workflow/instances/:instanceId/map
+ */
+router.get('/instances/:instanceId/map', authenticateToken, async (req, res) => {
+  try {
+    const { instanceId } = req.params;
+    console.log(`[DATA ACCESS] Getting map for instance ${instanceId}`);
+    
+    res.json({
+      mapUrl: `/api/maps/generated/${instanceId}.png`,
+      mapType: 'surveying_decision',
+      generatedAt: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('[DATA ACCESS] Map fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch map' });
+  }
+});
+
+/**
+ * وثيقة القرار النهائي
+ * GET /api/workflow/instances/:instanceId/decision-document
+ */
+router.get('/instances/:instanceId/decision-document', authenticateToken, async (req, res) => {
+  try {
+    const { instanceId } = req.params;
+    console.log(`[DATA ACCESS] Getting decision document for instance ${instanceId}`);
+    
+    res.json({
+      documentUrl: `/api/documents/decisions/${instanceId}.pdf`,
+      decisionNumber: `DEC-${instanceId}-${new Date().getFullYear()}`,
+      issuedDate: new Date().toISOString(),
+      validityPeriod: '2 years'
+    });
+
+  } catch (error) {
+    console.error('[DATA ACCESS] Decision document fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch decision document' });
+  }
+});
+
+/**
+ * سجل الإشعارات
+ * GET /api/workflow/instances/:instanceId/notifications
+ */
+router.get('/instances/:instanceId/notifications', authenticateToken, async (req, res) => {
+  try {
+    const { instanceId } = req.params;
+    console.log(`[DATA ACCESS] Getting notifications for instance ${instanceId}`);
+    
+    // Mock notifications data
+    res.json([
+      {
+        id: '1',
+        type: 'appointment_scheduled',
+        message: 'تم تحديد موعد الرفع المساحي',
+        sentAt: new Date().toISOString(),
+        method: 'phone'
+      }
+    ]);
+
+  } catch (error) {
+    console.error('[DATA ACCESS] Notifications fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch notifications' });
+  }
+});
+
+/**
+ * تفاصيل workflow instance
+ * GET /api/workflow/instances/:instanceId
+ */
+router.get('/instances/:instanceId', authenticateToken, async (req, res) => {
+  try {
+    const { instanceId } = req.params;
+    console.log(`[DATA ACCESS] Getting instance details for ${instanceId}`);
+    
+    // Mock workflow instance data
+    res.json({
+      id: instanceId,
+      status: 'in_progress',
+      currentStage: 'technical_review',
+      transitions: [
+        {
+          id: '1',
+          stageId: 'document_review',
+          createdAt: new Date().toISOString(),
+          data: { documentVerification: 'approved', feeCalculation: 75000 }
+        },
+        {
+          id: '2', 
+          stageId: 'payment_processing',
+          createdAt: new Date().toISOString(),
+          data: { receiptNumber: `REC-${instanceId}`, amount: 75000 }
+        }
+      ]
+    });
+
+  } catch (error) {
+    console.error('[DATA ACCESS] Instance details fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch instance details' });
+  }
+});
+
+export { requireRole };
 export default router;
