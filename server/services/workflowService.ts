@@ -192,12 +192,19 @@ export class WorkflowService {
         .returning();
 
       // تحديث الطلب
+      const applicationUpdate: any = {
+        currentStage: toStage,
+        updatedAt: new Date()
+      };
+
+      // Update application status based on workflow stage
+      if (toStage === 'public_service_review' && transitionData.documentVerification === 'verified') {
+        applicationUpdate.status = 'approved';
+      }
+
       await db
         .update(applications)
-        .set({
-          currentStage: toStage,
-          updatedAt: new Date()
-        })
+        .set(applicationUpdate)
         .where(eq(applications.id, instance.applicationId));
 
       // تسجيل في history
