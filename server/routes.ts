@@ -3260,7 +3260,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Auto-assignment endpoint (public - no authentication required for system auto-assignment)
-  app.post("/api/applications/:id/auto-assign", authenticateToken, requireRole(['manager', 'admin']), enforceLBACAccess('neighborhood'), async (req, res) => {
+  app.post("/api/applications/:id/auto-assign", authenticateToken, requireRole(['manager', 'admin']), enforceLBACAccess('district'), async (req, res) => {
     try {
       const { id } = req.params;
       const application = await storage.getApplication(id);
@@ -3946,7 +3946,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
   // Assign engineer to application
-  app.post('/api/applications/:id/assign', authenticateToken, enforceLBACAccess('neighborhood'), async (req: AuthenticatedRequest, res) => {
+  app.post('/api/applications/:id/assign', authenticateToken, enforceLBACAccess('district'), async (req: AuthenticatedRequest, res) => {
     try {
       const { assignedToId, notes, priority } = req.body;
       const applicationId = req.params.id;
