@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { MapPin, FileText, Calculator, Save, Send, AlertCircle, Upload, X, Building2, User, Clock, CheckCircle, Map as MapIcon } from 'lucide-react';
 import InteractiveDrawingMap from '@/components/gis/InteractiveDrawingMap';
 import InteractiveMap from '@/components/gis/InteractiveMap';
@@ -55,14 +56,24 @@ interface SurveyFormData {
   geoTiffFile?: File | null; // ملف GeoTIFF المرفوع
   geoTiffViewer: boolean; // عرض عارض GeoTIFF
   
-  // ✅ Step 3: Decision Type
+  // ✅ Step 3: Enhanced Decision Type with Additional Data
   surveyType: string;
   purpose: string;
   description: string;
-  // Old building/projection specific fields
+  // For License Types (نوع رخصة البناء)
   engineerName?: string;
   engineerLicense?: string;
+  engineerPhone?: string;
   engineerFile?: File | null;
+  buildingType?: string;
+  // For Old Drop (إسقاط قديم)
+  oldDropYear?: string;
+  oldDropNumber?: string;
+  oldDropFile?: File | null;
+  // For Dispute Settlement (تسوية نزاع)
+  disputeParties?: string;
+  disputeDescription?: string;
+  disputeDate?: string;
   
   // ✅ Step 4: Ownership Data
   locationName: string; // اسم الموضع (اختياري)
@@ -168,13 +179,21 @@ export default function SurveyingDecisionForm() {
     geoTiffFile: null,
     geoTiffViewer: false,
     
-    // Step 3: Decision Type
+    // Step 3: Enhanced Decision Type
     surveyType: '',
     purpose: '',
     description: '',
     engineerName: '',
     engineerLicense: '',
+    engineerPhone: '',
     engineerFile: null,
+    buildingType: '',
+    oldDropYear: '',
+    oldDropNumber: '',
+    oldDropFile: null,
+    disputeParties: '',
+    disputeDescription: '',
+    disputeDate: '',
     
     // Step 4: Ownership Data
     locationName: '',
@@ -369,6 +388,10 @@ export default function SurveyingDecisionForm() {
 
   // Add state for coordinate selection mode
   const [isSelectingCoordinates, setIsSelectingCoordinates] = useState(false);
+  
+  // ✅ PHASE 1: Step 3 Modal states
+  const [showSurveyTypeModal, setShowSurveyTypeModal] = useState(false);
+  const [selectedSurveyTypeDetails, setSelectedSurveyTypeDetails] = useState<any>(null);
 
   const handleLocationSelect = (coordinates: { lat: number; lng: number }) => {
     const coordinatesString = `${coordinates.lat.toFixed(6)}, ${coordinates.lng.toFixed(6)}`;
@@ -1068,53 +1091,96 @@ export default function SurveyingDecisionForm() {
             </div>
           )}
           
-          {/* Step 3: نوع القرار */}
+          {/* ✅ PHASE 1 STEP 3: Enhanced Decision Type with Modals */}
           {currentStep === 3 && (
             <div className="space-y-6">
               <div className="text-center mb-6">
                 <h3 className="text-2xl font-bold">نوع القرار المساحي</h3>
-                <p className="text-muted-foreground">اختر نوع القرار المساحي المطلوب والغرض منه</p>
+                <p className="text-muted-foreground">اختر نوع القرار المساحي المطلوب وأدخل التفاصيل المطلوبة</p>
               </div>
               
-              <div className="space-y-6">
-                <div>
-                  <Label htmlFor="surveyType">نوع القرار المساحي *</Label>
-                  <Select value={formData.surveyType} onValueChange={(value) => handleInputChange('surveyType', value)}>
-                    <SelectTrigger data-testid="select-survey-type">
-                      <SelectValue placeholder="اختر نوع القرار" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {surveyTypes.map((type) => (
-                        <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div>
-                  <Label htmlFor="purpose">الغرض من القرار *</Label>
-                  <Textarea
-                    id="purpose"
-                    value={formData.purpose}
-                    onChange={(e) => handleInputChange('purpose', e.target.value)}
-                    placeholder="اشرح الغرض من طلب القرار المساحي"
-                    rows={3}
-                    data-testid="textarea-purpose"
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="description">وصف إضافي</Label>
-                  <Textarea
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) => handleInputChange('description', e.target.value)}
-                    placeholder="أي معلومات إضافية تود إضافتها"
-                    rows={3}
-                    data-testid="textarea-description"
-                  />
-                </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {surveyTypes.map((type) => (
+                  <Card 
+                    key={type.value} 
+                    className={`cursor-pointer transition-all hover:shadow-md ${
+                      formData.surveyType === type.value ? 'ring-2 ring-primary bg-primary/5' : ''
+                    }`}
+                    onClick={() => {
+                      handleInputChange('surveyType', type.value);
+                      setSelectedSurveyTypeDetails(type);
+                      setShowSurveyTypeModal(true);
+                    }}
+                    data-testid={`card-survey-type-${type.value}`}
+                  >
+                    <CardContent className="p-4">
+                      <div className="text-center">
+                        <Building2 className="h-8 w-8 mx-auto mb-2 text-primary" />
+                        <h4 className="font-semibold text-sm">{type.label}</h4>
+                        {formData.surveyType === type.value && (
+                          <Badge variant="default" className="mt-2 text-xs">
+                            محدد
+                          </Badge>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
+              
+              {formData.surveyType && (
+                <Card className="mt-6">
+                  <CardHeader>
+                    <CardTitle className="text-lg">تفاصيل القرار المساحي</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <Label htmlFor="purpose">الغرض من القرار *</Label>
+                      <Textarea
+                        id="purpose"
+                        value={formData.purpose}
+                        onChange={(e) => handleInputChange('purpose', e.target.value)}
+                        placeholder="اشرح الغرض من طلب القرار المساحي"
+                        rows={3}
+                        data-testid="textarea-purpose"
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="description">وصف إضافي</Label>
+                      <Textarea
+                        id="description"
+                        value={formData.description}
+                        onChange={(e) => handleInputChange('description', e.target.value)}
+                        placeholder="أي معلومات إضافية تود إضافتها"
+                        rows={3}
+                        data-testid="textarea-description"
+                      />
+                    </div>
+
+                    {/* Display type-specific data if available */}
+                    {formData.engineerName && (
+                      <div className="bg-slate-50 p-4 rounded-lg">
+                        <h5 className="font-semibold mb-2">بيانات المهندس</h5>
+                        <p className="text-sm">الاسم: {formData.engineerName}</p>
+                        <p className="text-sm">رقم الرخصة: {formData.engineerLicense}</p>
+                      </div>
+                    )}
+
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => {
+                        setSelectedSurveyTypeDetails(surveyTypes.find(t => t.value === formData.surveyType));
+                        setShowSurveyTypeModal(true);
+                      }}
+                      className="w-full"
+                    >
+                      تعديل تفاصيل القرار
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
           
@@ -1443,6 +1509,190 @@ export default function SurveyingDecisionForm() {
           )}
         </div>
       </div>
+
+      {/* ✅ PHASE 1: Survey Type Details Modal */}
+      <Dialog open={showSurveyTypeModal} onOpenChange={setShowSurveyTypeModal}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl">
+              تفاصيل {selectedSurveyTypeDetails?.label || 'القرار المساحي'}
+            </DialogTitle>
+            <DialogDescription>
+              أدخل التفاصيل الإضافية المطلوبة لهذا النوع من القرار
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 mt-4">
+            {/* للرخص الهندسية */}
+            {(formData.surveyType === 'new_building_license' || formData.surveyType === 'old_building_license') && (
+              <div className="space-y-4">
+                <h4 className="font-semibold text-lg">بيانات المهندس المختص</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="engineerName">اسم المهندس *</Label>
+                    <Input
+                      id="engineerName"
+                      value={formData.engineerName || ''}
+                      onChange={(e) => handleInputChange('engineerName', e.target.value)}
+                      placeholder="أدخل اسم المهندس"
+                      data-testid="input-engineer-name"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="engineerLicense">رقم رخصة المهندس *</Label>
+                    <Input
+                      id="engineerLicense"
+                      value={formData.engineerLicense || ''}
+                      onChange={(e) => handleInputChange('engineerLicense', e.target.value)}
+                      placeholder="أدخل رقم رخصة المهندس"
+                      data-testid="input-engineer-license"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="engineerPhone">رقم الهاتف</Label>
+                    <Input
+                      id="engineerPhone"
+                      value={formData.engineerPhone || ''}
+                      onChange={(e) => handleInputChange('engineerPhone', e.target.value)}
+                      placeholder="أدخل رقم هاتف المهندس"
+                      data-testid="input-engineer-phone"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="buildingType">نوع البناء</Label>
+                    <Select value={formData.buildingType || ''} onValueChange={(value) => handleInputChange('buildingType', value)}>
+                      <SelectTrigger data-testid="select-building-type">
+                        <SelectValue placeholder="اختر نوع البناء" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="residential">سكني</SelectItem>
+                        <SelectItem value="commercial">تجاري</SelectItem>
+                        <SelectItem value="industrial">صناعي</SelectItem>
+                        <SelectItem value="mixed">مختلط</SelectItem>
+                        <SelectItem value="other">أخرى</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* للإسقاط القديم */}
+            {formData.surveyType === 'old_drop_registration' && (
+              <div className="space-y-4">
+                <h4 className="font-semibold text-lg">بيانات الإسقاط القديم</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="oldDropYear">سنة الإسقاط *</Label>
+                    <Input
+                      id="oldDropYear"
+                      value={formData.oldDropYear || ''}
+                      onChange={(e) => handleInputChange('oldDropYear', e.target.value)}
+                      placeholder="مثل: 1995"
+                      data-testid="input-old-drop-year"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="oldDropNumber">رقم الإسقاط *</Label>
+                    <Input
+                      id="oldDropNumber"
+                      value={formData.oldDropNumber || ''}
+                      onChange={(e) => handleInputChange('oldDropNumber', e.target.value)}
+                      placeholder="رقم الإسقاط القديم"
+                      data-testid="input-old-drop-number"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="oldDropFile">ملف الإسقاط القديم (PDF أو صورة)</Label>
+                  <Input
+                    id="oldDropFile"
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      handleInputChange('oldDropFile', file);
+                    }}
+                    data-testid="input-old-drop-file"
+                  />
+                  {formData.oldDropFile && (
+                    <p className="text-sm text-green-600 mt-2">
+                      ✅ تم اختيار: {formData.oldDropFile.name}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* لتسوية النزاع */}
+            {formData.surveyType === 'dispute_settlement' && (
+              <div className="space-y-4">
+                <h4 className="font-semibold text-lg">تفاصيل النزاع</h4>
+                <div>
+                  <Label htmlFor="disputeParties">أطراف النزاع *</Label>
+                  <Textarea
+                    id="disputeParties"
+                    value={formData.disputeParties || ''}
+                    onChange={(e) => handleInputChange('disputeParties', e.target.value)}
+                    placeholder="أدخل أسماء وتفاصيل أطراف النزاع"
+                    rows={2}
+                    data-testid="textarea-dispute-parties"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="disputeDescription">وصف النزاع *</Label>
+                  <Textarea
+                    id="disputeDescription"
+                    value={formData.disputeDescription || ''}
+                    onChange={(e) => handleInputChange('disputeDescription', e.target.value)}
+                    placeholder="اشرح طبيعة النزاع والمشكلة المطلوب حلها"
+                    rows={3}
+                    data-testid="textarea-dispute-description"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="disputeDate">تاريخ بداية النزاع</Label>
+                  <Input
+                    id="disputeDate"
+                    type="date"
+                    value={formData.disputeDate || ''}
+                    onChange={(e) => handleInputChange('disputeDate', e.target.value)}
+                    data-testid="input-dispute-date"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* للأنواع التي لا تحتاج تفاصيل إضافية */}
+            {!['new_building_license', 'old_building_license', 'old_drop_registration', 'dispute_settlement'].includes(formData.surveyType) && (
+              <div className="text-center py-8">
+                <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-600" />
+                <p className="text-lg font-semibold">تم اختيار نوع القرار</p>
+                <p className="text-muted-foreground">
+                  لا توجد تفاصيل إضافية مطلوبة لهذا النوع من القرار
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="mt-6">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => setShowSurveyTypeModal(false)}
+            >
+              إلغاء
+            </Button>
+            <Button 
+              type="button" 
+              onClick={() => setShowSurveyTypeModal(false)}
+              className="bg-primary text-white"
+            >
+              حفظ التفاصيل
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
