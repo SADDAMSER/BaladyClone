@@ -492,6 +492,8 @@ export const applications = pgTable("applications", {
   applicationNumber: text("application_number").notNull().unique(),
   serviceId: uuid("service_id").notNull(),
   applicantId: uuid("applicant_id").notNull(),
+  governorateId: uuid("governorate_id").references(() => governorates.id),
+  districtId: uuid("district_id").references(() => districts.id),
   status: text("status").default("draft"), // draft, submitted, under_review, approved, rejected, completed
   currentStage: text("current_stage"),
   applicationData: jsonb("application_data"),
