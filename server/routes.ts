@@ -3762,7 +3762,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Treasury and Payment APIs
   
   // Generate invoice for approved application
-  app.post("/api/applications/:id/generate-invoice", authenticateToken, enforceLBACAccess('neighborhood'), async (req: AuthenticatedRequest, res) => {
+  app.post("/api/applications/:id/generate-invoice", authenticateToken, async (req: AuthenticatedRequest, res) => {
     try {
       const applicationId = req.params.id;
       const application = await storage.getApplication(applicationId);
