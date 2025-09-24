@@ -332,15 +332,32 @@ export class WorkflowService {
     changedById: string,
     notes?: string
   ): Promise<void> {
+    // Map workflow stages to application statuses
+    const stageToStatus = {
+      'path_determination': 'submitted',
+      'public_service_review': 'under_review',
+      'cashier_payment': 'payment_pending',
+      'section_head_assignment': 'assigned',
+      'field_survey': 'in_progress',
+      'technical_review': 'technical_review',
+      'assistant_head_approval': 'final_review',
+      'final_approval': 'approved'
+    };
+
+    const previousStatus = previousStage ? stageToStatus[previousStage as keyof typeof stageToStatus] || 'submitted' : null;
+    const newStatus = stageToStatus[newStage as keyof typeof stageToStatus] || 'under_review';
+
     await db
       .insert(applicationStatusHistory)
       .values({
         id: randomUUID(),
         applicationId,
+        previousStatus,
+        newStatus,
         previousStage,
         newStage,
         changedById,
-        notes,
+        notes: notes || `Transitioned from ${previousStage || 'initial'} to ${newStage}`,
         changedAt: new Date()
       });
   }

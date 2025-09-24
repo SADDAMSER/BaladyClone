@@ -1,0 +1,177 @@
+injected.js:278  POST https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/api/workflow/public-service-review/23994f61-b384-4be2-80dd-202ec16fecd8 500 (Internal Server Error)
+window.fetch @ Network.js:219
+apply @ injected.js:278
+apiRequest @ queryClient.ts:21
+mutationFn @ PublicServiceDashboard.tsx:250
+await in mutationFn
+fn @ @tanstack_react-query.js?v=a66cf1f0:1189
+run @ @tanstack_react-query.js?v=a66cf1f0:494
+start @ @tanstack_react-query.js?v=a66cf1f0:536
+execute @ @tanstack_react-query.js?v=a66cf1f0:1225
+await in execute
+mutate @ @tanstack_react-query.js?v=a66cf1f0:2630
+(anonymous) @ @tanstack_react-query.js?v=a66cf1f0:3295
+handleReview @ PublicServiceDashboard.tsx:335
+onClick @ PublicServiceDashboard.tsx:759
+callCallback2 @ chunk-RPCDYKBN.js?v=a66cf1f0:3674
+invokeGuardedCallbackDev @ chunk-RPCDYKBN.js?v=a66cf1f0:3699
+invokeGuardedCallback @ chunk-RPCDYKBN.js?v=a66cf1f0:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-RPCDYKBN.js?v=a66cf1f0:3736
+executeDispatch @ chunk-RPCDYKBN.js?v=a66cf1f0:7014
+processDispatchQueueItemsInOrder @ chunk-RPCDYKBN.js?v=a66cf1f0:7034
+processDispatchQueue @ chunk-RPCDYKBN.js?v=a66cf1f0:7043
+dispatchEventsForPlugins @ chunk-RPCDYKBN.js?v=a66cf1f0:7051
+(anonymous) @ chunk-RPCDYKBN.js?v=a66cf1f0:7174
+batchedUpdates$1 @ chunk-RPCDYKBN.js?v=a66cf1f0:18913
+batchedUpdates @ chunk-RPCDYKBN.js?v=a66cf1f0:3579
+dispatchEventForPluginEventSystem @ chunk-RPCDYKBN.js?v=a66cf1f0:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-RPCDYKBN.js?v=a66cf1f0:5478
+dispatchEvent @ chunk-RPCDYKBN.js?v=a66cf1f0:5472
+dispatchDiscreteEvent @ chunk-RPCDYKBN.js?v=a66cf1f0:5449Understand this error
+Console.js:61 Review error: Error: 500: {"success":false,"message":"خطأ في معالجة مراجعة موظف خدمة الجمهور","error":"null value in column \"new_status\" of relation \"application_status_history\" violates not-null constraint"}
+    at throwIfResNotOk (queryClient.ts:6:11)
+    at async apiRequest (queryClient.ts:28:3)
+    at async Object.mutationFn (PublicServiceDashboard.tsx:250:26)
+Mt.forEach.n.<computed> @ Console.js:61
+onError @ PublicServiceDashboard.tsx:283
+execute @ @tanstack_react-query.js?v=a66cf1f0:1254
+await in execute
+mutate @ @tanstack_react-query.js?v=a66cf1f0:2630
+(anonymous) @ @tanstack_react-query.js?v=a66cf1f0:3295
+handleReview @ PublicServiceDashboard.tsx:335
+onClick @ PublicServiceDashboard.tsx:759
+callCallback2 @ chunk-RPCDYKBN.js?v=a66cf1f0:3674
+invokeGuardedCallbackDev @ chunk-RPCDYKBN.js?v=a66cf1f0:3699
+invokeGuardedCallback @ chunk-RPCDYKBN.js?v=a66cf1f0:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-RPCDYKBN.js?v=a66cf1f0:3736
+executeDispatch @ chunk-RPCDYKBN.js?v=a66cf1f0:7014
+processDispatchQueueItemsInOrder @ chunk-RPCDYKBN.js?v=a66cf1f0:7034
+processDispatchQueue @ chunk-RPCDYKBN.js?v=a66cf1f0:7043
+dispatchEventsForPlugins @ chunk-RPCDYKBN.js?v=a66cf1f0:7051
+(anonymous) @ chunk-RPCDYKBN.js?v=a66cf1f0:7174
+batchedUpdates$1 @ chunk-RPCDYKBN.js?v=a66cf1f0:18913
+batchedUpdates @ chunk-RPCDYKBN.js?v=a66cf1f0:3579
+dispatchEventForPluginEventSystem @ chunk-RPCDYKBN.js?v=a66cf1f0:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-RPCDYKBN.js?v=a66cf1f0:5478
+dispatchEvent @ chunk-RPCDYKBN.js?v=a66cf1f0:5472
+dispatchDiscreteEvent @ chunk-RPCDYKBN.js?v=a66cf1f0:5449Understand this error
+injected.js:278  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/api/sync/session 404 (Not Found)
+window.fetch @ Network.js:219
+apply @ injected.js:278
+(anonymous) @ queryClient.ts:69
+fetchFn @ @tanstack_react-query.js?v=a66cf1f0:840
+run @ @tanstack_react-query.js?v=a66cf1f0:494
+start @ @tanstack_react-query.js?v=a66cf1f0:536
+fetch @ @tanstack_react-query.js?v=a66cf1f0:926
+executeFetch_fn @ @tanstack_react-query.js?v=a66cf1f0:2211
+(anonymous) @ @tanstack_react-query.js?v=a66cf1f0:2245
+setInterval
+updateRefetchInterval_fn @ @tanstack_react-query.js?v=a66cf1f0:2243
+updateTimers_fn @ @tanstack_react-query.js?v=a66cf1f0:2250
+onQueryUpdate @ @tanstack_react-query.js?v=a66cf1f0:2206
+(anonymous) @ @tanstack_react-query.js?v=a66cf1f0:998
+(anonymous) @ @tanstack_react-query.js?v=a66cf1f0:997
+batch @ @tanstack_react-query.js?v=a66cf1f0:583
+dispatch_fn @ @tanstack_react-query.js?v=a66cf1f0:996
+onError @ @tanstack_react-query.js?v=a66cf1f0:861
+reject @ @tanstack_react-query.js?v=a66cf1f0:465
+(anonymous) @ @tanstack_react-query.js?v=a66cf1f0:508
+Promise.catch
+run @ @tanstack_react-query.js?v=a66cf1f0:498
+start @ @tanstack_react-query.js?v=a66cf1f0:536
+fetch @ @tanstack_react-query.js?v=a66cf1f0:926
+executeFetch_fn @ @tanstack_react-query.js?v=a66cf1f0:2211
+onSubscribe @ @tanstack_react-query.js?v=a66cf1f0:1898
+subscribe @ @tanstack_react-query.js?v=a66cf1f0:24
+(anonymous) @ @tanstack_react-query.js?v=a66cf1f0:3022
+subscribeToStore @ chunk-RPCDYKBN.js?v=a66cf1f0:11984
+commitHookEffectListMount @ chunk-RPCDYKBN.js?v=a66cf1f0:16915
+commitPassiveMountOnFiber @ chunk-RPCDYKBN.js?v=a66cf1f0:18156
+commitPassiveMountEffects_complete @ chunk-RPCDYKBN.js?v=a66cf1f0:18129
+commitPassiveMountEffects_begin @ chunk-RPCDYKBN.js?v=a66cf1f0:18119
+commitPassiveMountEffects @ chunk-RPCDYKBN.js?v=a66cf1f0:18109
+flushPassiveEffectsImpl @ chunk-RPCDYKBN.js?v=a66cf1f0:19490
+flushPassiveEffects @ chunk-RPCDYKBN.js?v=a66cf1f0:19447
+performSyncWorkOnRoot @ chunk-RPCDYKBN.js?v=a66cf1f0:18868
+flushSyncCallbacks @ chunk-RPCDYKBN.js?v=a66cf1f0:9119
+commitRootImpl @ chunk-RPCDYKBN.js?v=a66cf1f0:19432
+commitRoot @ chunk-RPCDYKBN.js?v=a66cf1f0:19277
+finishConcurrentRender @ chunk-RPCDYKBN.js?v=a66cf1f0:18805
+performConcurrentWorkOnRoot @ chunk-RPCDYKBN.js?v=a66cf1f0:18718
+workLoop @ chunk-RPCDYKBN.js?v=a66cf1f0:197
+flushWork @ chunk-RPCDYKBN.js?v=a66cf1f0:176
+performWorkUntilDeadline @ chunk-RPCDYKBN.js?v=a66cf1f0:384Understand this error
+injected.js:278  POST https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/api/workflow/public-service-review/23994f61-b384-4be2-80dd-202ec16fecd8 500 (Internal Server Error)
+window.fetch @ Network.js:219
+apply @ injected.js:278
+apiRequest @ queryClient.ts:21
+mutationFn @ PublicServiceDashboard.tsx:250
+await in mutationFn
+fn @ @tanstack_react-query.js?v=a66cf1f0:1189
+run @ @tanstack_react-query.js?v=a66cf1f0:494
+start @ @tanstack_react-query.js?v=a66cf1f0:536
+execute @ @tanstack_react-query.js?v=a66cf1f0:1225
+await in execute
+mutate @ @tanstack_react-query.js?v=a66cf1f0:2630
+(anonymous) @ @tanstack_react-query.js?v=a66cf1f0:3295
+handleReview @ PublicServiceDashboard.tsx:335
+onClick @ PublicServiceDashboard.tsx:759
+callCallback2 @ chunk-RPCDYKBN.js?v=a66cf1f0:3674
+invokeGuardedCallbackDev @ chunk-RPCDYKBN.js?v=a66cf1f0:3699
+invokeGuardedCallback @ chunk-RPCDYKBN.js?v=a66cf1f0:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-RPCDYKBN.js?v=a66cf1f0:3736
+executeDispatch @ chunk-RPCDYKBN.js?v=a66cf1f0:7014
+processDispatchQueueItemsInOrder @ chunk-RPCDYKBN.js?v=a66cf1f0:7034
+processDispatchQueue @ chunk-RPCDYKBN.js?v=a66cf1f0:7043
+dispatchEventsForPlugins @ chunk-RPCDYKBN.js?v=a66cf1f0:7051
+(anonymous) @ chunk-RPCDYKBN.js?v=a66cf1f0:7174
+batchedUpdates$1 @ chunk-RPCDYKBN.js?v=a66cf1f0:18913
+batchedUpdates @ chunk-RPCDYKBN.js?v=a66cf1f0:3579
+dispatchEventForPluginEventSystem @ chunk-RPCDYKBN.js?v=a66cf1f0:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-RPCDYKBN.js?v=a66cf1f0:5478
+dispatchEvent @ chunk-RPCDYKBN.js?v=a66cf1f0:5472
+dispatchDiscreteEvent @ chunk-RPCDYKBN.js?v=a66cf1f0:5449Understand this error
+Console.js:61 Review error: Error: 500: {"success":false,"message":"خطأ في معالجة مراجعة موظف خدمة الجمهور","error":"null value in column \"new_status\" of relation \"application_status_history\" violates not-null constraint"}
+    at throwIfResNotOk (queryClient.ts:6:11)
+    at async apiRequest (queryClient.ts:28:3)
+    at async Object.mutationFn (PublicServiceDashboard.tsx:250:26)
+Mt.forEach.n.<computed> @ Console.js:61
+onError @ PublicServiceDashboard.tsx:283
+execute @ @tanstack_react-query.js?v=a66cf1f0:1254
+await in execute
+mutate @ @tanstack_react-query.js?v=a66cf1f0:2630
+(anonymous) @ @tanstack_react-query.js?v=a66cf1f0:3295
+handleReview @ PublicServiceDashboard.tsx:335
+onClick @ PublicServiceDashboard.tsx:759
+callCallback2 @ chunk-RPCDYKBN.js?v=a66cf1f0:3674
+invokeGuardedCallbackDev @ chunk-RPCDYKBN.js?v=a66cf1f0:3699
+invokeGuardedCallback @ chunk-RPCDYKBN.js?v=a66cf1f0:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-RPCDYKBN.js?v=a66cf1f0:3736
+executeDispatch @ chunk-RPCDYKBN.js?v=a66cf1f0:7014
+processDispatchQueueItemsInOrder @ chunk-RPCDYKBN.js?v=a66cf1f0:7034
+processDispatchQueue @ chunk-RPCDYKBN.js?v=a66cf1f0:7043
+dispatchEventsForPlugins @ chunk-RPCDYKBN.js?v=a66cf1f0:7051
+(anonymous) @ chunk-RPCDYKBN.js?v=a66cf1f0:7174
+batchedUpdates$1 @ chunk-RPCDYKBN.js?v=a66cf1f0:18913
+batchedUpdates @ chunk-RPCDYKBN.js?v=a66cf1f0:3579
+dispatchEventForPluginEventSystem @ chunk-RPCDYKBN.js?v=a66cf1f0:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-RPCDYKBN.js?v=a66cf1f0:5478
+dispatchEvent @ chunk-RPCDYKBN.js?v=a66cf1f0:5472
+dispatchDiscreteEvent @ chunk-RPCDYKBN.js?v=a66cf1f0:5449Understand this errorExplanationCodeReview error: Error: 500: {"success":false,"message":"خطأ في معالجة مراجعة موظف خدمة الجمهور","error":"null value in column \"new_status\" of relation \"application_status_history\" violates not-null constraint"}    at throwIfResNotOk (queryClient.ts:6:11)    at async apiRequest (queryClient.ts:28:3)    at async Object.mutationFn (PublicServiceDashboard.tsx:250:26)Use code snippets with cautionUnderstanding the problemThe error message indicates a database constraint violation. Specifically, the null value in column "new_status" of relation "application_status_history" violates not-null constraint part tells us that the database is trying to insert a record into the application_status_history table where the new_status column has a null value, but this column is configured to not allow null values.The "500" error code suggests this is happening server-side as a result of an API request initiated from the client-side code. The client-side code is receiving this error from the server.How to verifyTo confirm this, you would need to inspect the server-side code that handles the API request related to "processing a public service employee review" (خطأ في معالجة مراجعة موظف خدمة الجمهور). Check the data being sent to the database when a new record is being inserted into the application_status_history table. Ensure that the new_status field is always provided and is not null.You could also directly query the database schema for the application_status_history table to verify that the new_status column has a "NOT NULL" constraint.Suggested fixThe fix involves ensuring that a non-null value is always provided for the new_status column when inserting a record into the application_status_history table. This needs to be done in the server-side code that processes the review.Locate the code responsible for handling the review process and updating the application status history. Before executing the database insert operation for the application_status_history table, ensure that the value assigned to the new_status field is not null. If the value is derived from user input or another variable, add validation to ensure it's present.For example, in pseudocode, the problematic logic might look like this:css// ... server-side code processing reviewlet newStatus = determineNewStatus(reviewData); // This might return nullinsertIntoApplicationStatusHistory({  // ... other fields  new_status: newStatus // This will cause the error if newStatus is null});// ...Use code snippets with cautionThe corrected code should ensure newStatus is not null before insertion:css// ... server-side code processing reviewlet newStatus = determineNewStatus(reviewData);if (newStatus === null) {  // Handle the case where new status is null - perhaps set a default,  // throw a specific error, or get a valid status.  newStatus = 'some_default_status'; // Example: Set a default status}insertIntoApplicationStatusHistory({  // ... other fields  new_status: newStatus});// ...Use code snippets with cautionSummaryThe "null value in column 'new_status' of relation 'application_status_history' violates not-null constraint" error is a database error caused by attempting to insert a record with a null value in a column that does not allow null. The solution is to ensure a non-null value is always provided for the new_status column in the server-side code before inserting into the application_status_history table.Sources and related contenthttps://community.atlassian.com/forums/Confluence-questions/ERROR-null-value-in-column-quot-user-id-quot-violates-not-null/qaq-p/1375611https://support.atlassian.com/confluence/kb/xml-import-failing-error-null-value-in-column-username-violates-not-null-constraint/Data used to understand this messageConsole messageStacktraceRelated codeUse search insteadAI tools may generate inaccurate info that doesn't represent Google's views. Data sent to Google may be seen by human reviewers to improve this feature. Open settings or learn more
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj41v4o.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj4wv4r4xA.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj41v4o.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj4wv4r4xA.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscRiyS.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscQyyS4J0.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj4wv4r4xA.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj41v4o.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscRiyS.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscQyyS4J0.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj41v4o.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj4wv4r4xA.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscQyyS4J0.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscRiyS.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscQyyS4J0.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscRiyS.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+injected.js:278  GET https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/api/sync/session 404 (Not Found)
