@@ -177,6 +177,54 @@ router.post(
 );
 
 /**
+ * مراجعة موظف خدمة الجمهور - المرحلة الأولى من سير العمل
+ * POST /api/workflow/public-service-review/:instanceId
+ */
+router.post('/public-service-review/:instanceId', authenticateToken, async (req, res) => {
+  try {
+    const { instanceId } = req.params;
+    const { documentVerification, feeCalculation, notes } = req.body;
+    const userId = (req as any).user.id;
+
+    console.log(`[WORKFLOW] Public service review for instance ${instanceId}`);
+
+    // تحديث workflow instance إلى المرحلة التالية
+    const updatedInstance = await workflowService.transitionToNextStage(
+      instanceId,
+      'path_determination',
+      'public_service_review',
+      userId,
+      {
+        documentVerification,
+        feeCalculation,
+        reviewerNotes: notes,
+        reviewedAt: new Date().toISOString(),
+        reviewedBy: userId
+      }
+    );
+
+    res.json({
+      success: true,
+      message: 'تم إكمال مراجعة موظف خدمة الجمهور',
+      data: {
+        instanceId: updatedInstance.id,
+        currentStage: updatedInstance.currentStage,
+        nextStage: 'cashier_payment',
+        status: updatedInstance.status
+      }
+    });
+
+  } catch (error) {
+    console.error('[WORKFLOW] Error in public service review:', error);
+    res.status(500).json({
+      success: false,
+      message: 'خطأ في معالجة مراجعة موظف خدمة الجمهور',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
  * الانتقال إلى المرحلة التالية
  * POST /api/workflow/transition/:instanceId
  */

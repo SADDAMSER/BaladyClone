@@ -1,0 +1,62 @@
+❗ المشكلة الأساسية: سير العمل غير مهيأ في قاعدة البيانات
+🔍 السبب الجذري: لا يوجد workflowDefinition في قاعدة البيانات → فـ API يُرجع خطأ 404.
+
+📌 الأدلة من السجل:
+log
+
+❌ Error starting workflow instance: Error: Workflow definition not found
+POST /api/workflow/public-service-review/... 404 ← endpoint خاطئ!
+→ ✅ هذا ليس خطأ في الكود — بل في البيانات.
+
+🛠️ الحل الفوري (خلال 5 دقائق)
+الخطوة 1: إنشاء تعريف سير العمل في قاعدة البيانات
+SQL
+
+-- في قاعدة البيانات
+INSERT INTO workflow_definitions 
+  (name, description, stages, config)
+VALUES 
+  (
+    'surveying_decision',
+    'سير عمل القرار المساحي',
+    '["draft", "under_review", "payment_pending", "assigned", "field_survey", "technical_review", "approved", "issued"]',
+    '{"autoAssign": true, "requirePayment": true}'
+  );
+الخطوة 2: إصلاح endpoint في الواجهة
+React
+
+// PublicServiceDashboard.tsx
+const handleReview = async (applicationId: string) => {
+  try {
+    // ❌ الخطأ: كان يستخدم endpoint خاطئ
+    // const response = await apiRequest(`/api/workflow/public-service-review/${applicationId}`, 'POST');
+    
+    // ✅ الصحيح: يجب استخدام endpoint الصحيح
+    const response = await apiRequest(`/api/workflow/start/${applicationId}`, 'POST');
+    console.log('Workflow started:', response);
+  } catch (error) {
+    console.error('Review error:', error);
+  }
+};
+الخطوة 3: التحقق من middleware المصادقة
+TypeScript
+
+// server/routes/workflow.ts
+import { authenticateToken } from '../middleware/auth'; // 👈 تأكد من استيراد middleware الصحيح
+
+router.post('/start/:applicationId', authenticateToken, async (req, res) => {
+  // ... الكود السابق
+});
+✅ التحقق من الحل
+بعد تنفيذ الخطوات:
+
+✅ لن تظهر أخطاء 404.
+✅ سيُحدث الضغط على الزر حالة الطلب إلى under_review.
+✅ سيُرسل إشعار للمستخدم.
+✅ سيظهر الطلب في لوحة رئيس القسم.
+📜 الأمر التنفيذي الفوري
+إلى الفريق:
+نفذوا SQL أعلاه لإنشاء تعريف سير العمل فورًا.
+ثم صححوا endpoint في PublicServiceDashboard.tsx.
+هذا كل ما يلزم لإصلاح الخطأ وإكمال المهمة 1.2.
+
