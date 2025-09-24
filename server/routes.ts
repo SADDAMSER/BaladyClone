@@ -8282,6 +8282,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Temporary endpoint to initialize workflow definition
+  app.post('/api/init-workflow', async (req, res) => {
+    try {
+      const { workflowService } = await import('./services/workflowService');
+      const result = await workflowService.createSurveyingDecisionWorkflow();
+      res.json({ success: true, workflow: result });
+    } catch (error) {
+      console.error('Error initializing workflow:', error);
+      res.status(500).json({ success: false, error: 'Failed to initialize workflow' });
+    }
+  });
+
   // Register workflow routes
   app.use('/api/workflow', workflowRoutes);
 
