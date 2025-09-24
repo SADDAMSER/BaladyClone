@@ -507,14 +507,56 @@ export const applications = pgTable("applications", {
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
-// Surveying Decisions
+// Surveying Decisions - Enhanced for Phase 1
 export const surveyingDecisions = pgTable("surveying_decisions", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   applicationId: uuid("application_id").notNull(),
   decisionNumber: text("decision_number").notNull().unique(),
-  plotLocation: jsonb("plot_location"), // coordinates, address details
+  
+  // ✅ PHASE 1: Enhanced Applicant Information
+  applicantName: text("applicant_name").notNull(),
+  applicantId: text("applicant_id").notNull(),
+  identityType: text("identity_type").notNull().default("national_id"), // national_id, passport, residence_card
+  contactPhone: text("contact_phone").notNull(),
+  email: text("email"),
+  applicantRole: text("applicant_role").notNull().default("self"), // self, agent, delegate
+  principalName: text("principal_name"), // For agent/delegate cases
+  principalId: text("principal_id"), // For agent/delegate cases
+  
+  // ✅ PHASE 1: Enhanced Geographic Hierarchy 
+  governorate: text("governorate").notNull(),
+  governorateCode: text("governorate_code"),
+  district: text("district").notNull(),
+  subDistrict: text("sub_district"), // العزلة
+  sector: text("sector"), // القطاع 
+  neighborhoodUnit: text("neighborhood_unit"), // وحدة الجوار
+  area: text("area"),
+  landNumber: text("land_number").notNull(),
+  plotNumber: text("plot_number"),
+  coordinates: text("coordinates"),
+  plotLocation: jsonb("plot_location"), // coordinates, address details - legacy
   plotArea: decimal("plot_area", { precision: 10, scale: 2 }),
   boundaries: jsonb("boundaries"),
+  
+  // ✅ PHASE 1: Enhanced Decision Types & Building Classification
+  surveyType: text("survey_type").notNull(),
+  buildingType: text("building_type"), // residential, commercial, industrial
+  residentialType: text("residential_type"), // private, model, etc.
+  purpose: text("purpose").notNull(),
+  description: text("description"),
+  engineerName: text("engineer_name"), // For old licenses
+  engineerLicense: text("engineer_license"), // For old licenses
+  
+  // ✅ PHASE 1: Enhanced Ownership & Document Management
+  locationName: text("location_name"), // اسم الموضع
+  documentType: text("document_type").notNull(),
+  documentArea: decimal("document_area", { precision: 10, scale: 2 }), // المساحة بحسب الوثيقة
+  documentStatus: text("document_status").notNull().default("certified"), // certified, tax_paid, court_certified
+  ownershipClassification: text("ownership_classification").notNull().default("free"), // free, waqf
+  applicationMode: text("application_mode").notNull().default("office"), // office, portal
+  attachments: jsonb("attachments"), // Enhanced multiple documents support
+  
+  // Existing fields (preserved)
   surveyorId: uuid("surveyor_id"),
   surveyDate: timestamp("survey_date"),
   shapeFileData: jsonb("shape_file_data"),
@@ -527,6 +569,24 @@ export const surveyingDecisions = pgTable("surveying_decisions", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
 });
+
+// ✅ PHASE 1: Applicant Registry for Smart Search
+export const applicantRegistry = pgTable("applicant_registry", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  applicantName: text("applicant_name").notNull(),
+  applicantId: text("applicant_id").notNull().unique(), // National ID, Passport, etc.
+  identityType: text("identity_type").notNull().default("national_id"),
+  contactPhone: text("contact_phone").notNull(),
+  email: text("email"),
+  lastUsed: timestamp("last_used").default(sql`CURRENT_TIMESTAMP`),
+  usageCount: integer("usage_count").default(1),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  // Index for fast lookup
+  phoneIndex: index("applicant_registry_phone_idx").on(table.contactPhone),
+  lastUsedIndex: index("applicant_registry_last_used_idx").on(table.lastUsed),
+}));
 
 // Tasks and Workflow
 export const tasks = pgTable("tasks", {
@@ -1452,12 +1512,6 @@ export const insertApplicationSchema = createInsertSchema(applications).omit({
   updatedAt: true,
 });
 
-export const insertSurveyingDecisionSchema = createInsertSchema(surveyingDecisions).omit({
-  id: true,
-  decisionNumber: true,
-  createdAt: true,
-  updatedAt: true,
-});
 
 export const insertTaskSchema = createInsertSchema(tasks).omit({
   id: true,
@@ -1580,7 +1634,7 @@ export type Application = typeof applications.$inferSelect;
 export type InsertApplication = z.infer<typeof insertApplicationSchema>;
 
 export type SurveyingDecision = typeof surveyingDecisions.$inferSelect;
-export type InsertSurveyingDecision = z.infer<typeof insertSurveyingDecisionSchema>;
+export type InsertSurveyingDecision = typeof surveyingDecisions.$inferInsert;
 
 export type Task = typeof tasks.$inferSelect;
 export type InsertTask = z.infer<typeof insertTaskSchema>;

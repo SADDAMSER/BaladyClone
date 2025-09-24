@@ -40,15 +40,20 @@ interface SurveyFormData {
   principalName: string; // اسم الموكل (عند الحاجة)
   principalId: string; // رقم هوية الموكل
   
-  // ✅ Step 2: Location Information
+  // ✅ Step 2: Enhanced Location Information
   governorate: string;
   governorateCode: string;
   district: string;
+  subDistrict: string; // العزلة
+  sector: string; // القطاع
+  neighborhoodUnit: string; // وحدة الجوار
   area: string; // منطقة
   landNumber: string;
   plotNumber: string;
   coordinates: string;
   hasGeoTiff: boolean;
+  geoTiffFile?: File | null; // ملف GeoTIFF المرفوع
+  geoTiffViewer: boolean; // عرض عارض GeoTIFF
   
   // ✅ Step 3: Decision Type
   surveyType: string;
@@ -148,15 +153,20 @@ export default function SurveyingDecisionForm() {
     principalName: '',
     principalId: '',
     
-    // Step 2: Location Information  
+    // Step 2: Enhanced Location Information  
     governorate: '',
     governorateCode: '',
     district: '',
+    subDistrict: '',
+    sector: '',
+    neighborhoodUnit: '',
     area: '',
     landNumber: '',
     plotNumber: '',
     coordinates: '',
     hasGeoTiff: false,
+    geoTiffFile: null,
+    geoTiffViewer: false,
     
     // Step 3: Decision Type
     surveyType: '',
@@ -187,10 +197,28 @@ export default function SurveyingDecisionForm() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Fetch districts based on selected governorate
+  // ✅ PHASE 1: Enhanced cascading geographic queries
   const { data: districts = [], isLoading: isLoadingDistricts, error: districtsError } = useQuery<District[]>({
     queryKey: ['/api/districts', { governorateId: formData.governorate }],
     enabled: !!formData.governorate,
+  });
+
+  // Fetch sub-districts (العزلة) based on selected district
+  const { data: subDistricts = [], isLoading: isLoadingSubDistricts, error: subDistrictsError } = useQuery({
+    queryKey: ['/api/sub-districts', { districtId: formData.district }],
+    enabled: !!formData.district,
+  });
+
+  // Fetch sectors (القطاع) based on selected sub-district
+  const { data: sectors = [], isLoading: isLoadingSectors, error: sectorsError } = useQuery({
+    queryKey: ['/api/sectors', { subDistrictId: formData.subDistrict }],
+    enabled: !!formData.subDistrict,
+  });
+
+  // Fetch neighborhood units (وحدة الجوار) based on selected sector
+  const { data: neighborhoodUnits = [], isLoading: isLoadingNeighborhoodUnits, error: neighborhoodUnitsError } = useQuery({
+    queryKey: ['/api/neighborhood-units', { sectorId: formData.sector }],
+    enabled: !!formData.sector,
   });
 
   // Create application mutation
@@ -229,15 +257,20 @@ export default function SurveyingDecisionForm() {
         principalName: '',
         principalId: '',
         
-        // Step 2: Location Information  
+        // Step 2: Enhanced Location Information  
         governorate: '',
         governorateCode: '',
         district: '',
+        subDistrict: '',
+        sector: '',
+        neighborhoodUnit: '',
         area: '',
         landNumber: '',
         plotNumber: '',
         coordinates: '',
         hasGeoTiff: false,
+        geoTiffFile: null,
+        geoTiffViewer: false,
         
         // Step 3: Decision Type
         surveyType: '',
@@ -282,16 +315,60 @@ export default function SurveyingDecisionForm() {
     }));
   };
 
+  // ✅ PHASE 1: Enhanced cascading change handlers
   const handleGovernorateChange = (value: string) => {
-    // Find the selected governorate to get both ID and code
     const selectedGov = governorates.find(gov => gov.id === value);
     setFormData(prev => ({
       ...prev,
-      governorate: value, // Save governorate ID
-      governorateCode: selectedGov?.code || '', // Save governorate code
-      district: '' // Reset district when governorate changes
+      governorate: value,
+      governorateCode: selectedGov?.code || '',
+      district: '', // Clear all dependent fields
+      subDistrict: '',
+      sector: '',
+      neighborhoodUnit: '',
     }));
   };
+
+  const handleDistrictChange = (value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      district: value,
+      subDistrict: '', // Clear all dependent fields
+      sector: '',
+      neighborhoodUnit: '',
+    }));
+  };
+
+  const handleSubDistrictChange = (value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      subDistrict: value,
+      sector: '', // Clear dependent fields
+      neighborhoodUnit: '',
+    }));
+  };
+
+  const handleSectorChange = (value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      sector: value,
+      neighborhoodUnit: '', // Clear dependent field
+    }));
+  };
+
+  // Set coordinates from map
+  const handleSetCoordinatesFromMap = () => {
+    // Enable coordinate selection mode
+    setIsSelectingCoordinates(true);
+    toast({
+      title: "وضع تحديد الإحداثيات مُفعل",
+      description: "انقر على الخريطة لتحديد الإحداثيات",
+      variant: "default",
+    });
+  };
+
+  // Add state for coordinate selection mode
+  const [isSelectingCoordinates, setIsSelectingCoordinates] = useState(false);
 
   const handleLocationSelect = (coordinates: { lat: number; lng: number }) => {
     const coordinatesString = `${coordinates.lat.toFixed(6)}, ${coordinates.lng.toFixed(6)}`;
@@ -299,6 +376,9 @@ export default function SurveyingDecisionForm() {
       ...prev,
       coordinates: coordinatesString
     }));
+    
+    // Disable coordinate selection mode after selection
+    setIsSelectingCoordinates(false);
     
     toast({
       title: "تم تحديد الموقع",
@@ -665,7 +745,8 @@ export default function SurveyingDecisionForm() {
                 <p className="text-muted-foreground">حدد موقع الأرض أو العقار المطلوب مسحه</p>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* ✅ PHASE 1: Enhanced Cascading Geographic Selectors */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                   <Label htmlFor="governorate">المحافظة *</Label>
                   <Select value={formData.governorate} onValueChange={handleGovernorateChange}>
@@ -690,7 +771,7 @@ export default function SurveyingDecisionForm() {
                 
                 <div>
                   <Label htmlFor="district">المديرية *</Label>
-                  <Select value={formData.district} onValueChange={(value) => handleInputChange('district', value)} disabled={!formData.governorate}>
+                  <Select value={formData.district} onValueChange={handleDistrictChange} disabled={!formData.governorate}>
                     <SelectTrigger data-testid="select-district">
                       <SelectValue placeholder={!formData.governorate ? "اختر المحافظة أولاً" : "اختر المديرية"} />
                     </SelectTrigger>
@@ -705,6 +786,78 @@ export default function SurveyingDecisionForm() {
                         districts.map((district) => (
                           <SelectItem key={district.id} value={district.id} data-testid={`option-district-${district.id}`}>
                             {district.nameAr}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="subDistrict">العزلة</Label>
+                  <Select value={formData.subDistrict} onValueChange={handleSubDistrictChange} disabled={!formData.district}>
+                    <SelectTrigger data-testid="select-sub-district">
+                      <SelectValue placeholder={!formData.district ? "اختر المديرية أولاً" : "اختر العزلة"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {isLoadingSubDistricts ? (
+                        <SelectItem value="loading" disabled>جاري التحميل...</SelectItem>
+                      ) : subDistrictsError ? (
+                        <SelectItem value="error" disabled>خطأ في تحميل العزل</SelectItem>
+                      ) : subDistricts.length === 0 && formData.district ? (
+                        <SelectItem value="no-sub-districts" disabled>لا توجد عزل متاحة</SelectItem>
+                      ) : (
+                        subDistricts.map((subDistrict) => (
+                          <SelectItem key={subDistrict.id} value={subDistrict.id} data-testid={`option-sub-district-${subDistrict.id}`}>
+                            {subDistrict.nameAr}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="sector">القطاع</Label>
+                  <Select value={formData.sector} onValueChange={handleSectorChange} disabled={!formData.subDistrict}>
+                    <SelectTrigger data-testid="select-sector">
+                      <SelectValue placeholder={!formData.subDistrict ? "اختر العزلة أولاً" : "اختر القطاع"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {isLoadingSectors ? (
+                        <SelectItem value="loading" disabled>جاري التحميل...</SelectItem>
+                      ) : sectorsError ? (
+                        <SelectItem value="error" disabled>خطأ في تحميل القطاعات</SelectItem>
+                      ) : sectors.length === 0 && formData.subDistrict ? (
+                        <SelectItem value="no-sectors" disabled>لا توجد قطاعات متاحة</SelectItem>
+                      ) : (
+                        sectors.map((sector) => (
+                          <SelectItem key={sector.id} value={sector.id} data-testid={`option-sector-${sector.id}`}>
+                            {sector.nameAr}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="neighborhoodUnit">وحدة الجوار</Label>
+                  <Select value={formData.neighborhoodUnit} onValueChange={(value) => handleInputChange('neighborhoodUnit', value)} disabled={!formData.sector}>
+                    <SelectTrigger data-testid="select-neighborhood-unit">
+                      <SelectValue placeholder={!formData.sector ? "اختر القطاع أولاً" : "اختر وحدة الجوار"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {isLoadingNeighborhoodUnits ? (
+                        <SelectItem value="loading" disabled>جاري التحميل...</SelectItem>
+                      ) : neighborhoodUnitsError ? (
+                        <SelectItem value="error" disabled>خطأ في تحميل وحدات الجوار</SelectItem>
+                      ) : neighborhoodUnits.length === 0 && formData.sector ? (
+                        <SelectItem value="no-neighborhood-units" disabled>لا توجد وحدات جوار متاحة</SelectItem>
+                      ) : (
+                        neighborhoodUnits.map((unit) => (
+                          <SelectItem key={unit.id} value={unit.id} data-testid={`option-neighborhood-unit-${unit.id}`}>
+                            {unit.nameAr}
                           </SelectItem>
                         ))
                       )}
@@ -745,51 +898,108 @@ export default function SurveyingDecisionForm() {
                   />
                 </div>
                 
-                <div>
+                <div className="relative">
                   <Label htmlFor="coordinates">الإحداثيات</Label>
-                  <Input
-                    id="coordinates"
-                    value={formData.coordinates}
-                    onChange={(e) => handleInputChange('coordinates', e.target.value)}
-                    placeholder="إحداثيات GPS إن وجدت"
-                    data-testid="input-coordinates"
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      id="coordinates"
+                      value={formData.coordinates}
+                      onChange={(e) => handleInputChange('coordinates', e.target.value)}
+                      placeholder="إحداثيات GPS إن وجدت"
+                      data-testid="input-coordinates"
+                      className="flex-1"
+                    />
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm"
+                      onClick={handleSetCoordinatesFromMap}
+                      data-testid="button-set-coordinates"
+                      className="px-3"
+                    >
+                      <MapPin className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    انقر على الزر لتحديد الإحداثيات من الخريطة
+                  </p>
                 </div>
+              </div>
+
+              {/* ✅ PHASE 1: GeoTIFF Viewer Section */}
+              <div className="mt-6 p-4 border rounded-lg bg-slate-50">
+                <Label className="text-base font-semibold mb-3 block flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  عرض ملف GeoTIFF
+                </Label>
+                {formData.hasGeoTiff ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-green-600">
+                      <CheckCircle className="h-4 w-4" />
+                      <span className="text-sm">يتوفر ملف GeoTIFF لهذا الموقع</span>
+                    </div>
+                    {formData.geoTiffViewer ? (
+                      <div className="border rounded bg-white p-4 h-64 flex items-center justify-center">
+                        <div className="text-center text-muted-foreground">
+                          <FileText className="h-12 w-12 mx-auto mb-2" />
+                          <p>عارض ملف GeoTIFF</p>
+                          <p className="text-xs">سيتم إضافة العارض في التحديث القادم</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        onClick={() => handleInputChange('geoTiffViewer', true)}
+                        data-testid="button-view-geotiff"
+                      >
+                        عرض الملف
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-amber-600">
+                    <AlertCircle className="h-4 w-4" />
+                    <span className="text-sm">لا يتوفر ملف GeoTIFF لهذا الموقع حالياً</span>
+                  </div>
+                )}
               </div>
               
               {/* خريطة تفاعلية لتحديد الموقع */}
               <div className="mt-6">
                 <Label className="text-base font-semibold mb-3 block">تحديد الموقع على الخريطة</Label>
                 <div className="border rounded-lg overflow-hidden">
-                  <InteractiveDrawingMap
+                  <InteractiveMap
                     center={[15.3694, 44.1910]} // إحداثيات صنعاء، اليمن
                     zoom={7}
                     height="500px"
-                    isEnabled={false} // تعطيل أدوات الرسم في هذه الخطوة
-                    selectedGovernorateId={formData.governorate}
-                    selectedDistrictId={formData.district}
-                    onBoundaryClick={(type, id, name) => {
-                      if (type === 'governorate') {
-                        handleGovernorateChange(id);
-                        toast({
-                          title: "تم اختيار المحافظة",
-                          description: `تم اختيار محافظة ${name}`,
-                          variant: "default",
-                        });
-                      } else if (type === 'district') {
-                        setFormData(prev => ({ ...prev, district: id }));
-                        toast({
-                          title: "تم اختيار المديرية", 
-                          description: `تم اختيار مديرية ${name}`,
-                          variant: "default",
-                        });
-                      }
-                    }}
+                    onLocationSelect={isSelectingCoordinates ? handleLocationSelect : undefined}
                   />
                 </div>
                 <p className="text-sm text-muted-foreground mt-2">
-                  اختر المحافظة والمديرية من القوائم أعلاه أو انقر على الحدود الجغرافية في الخريطة.
+                  {isSelectingCoordinates 
+                    ? "انقر على الخريطة لتحديد الإحداثيات الدقيقة للموقع" 
+                    : "اختر المحافظة والمديرية من القوائم أعلاه أو انقر على الحدود الجغرافية في الخريطة"}
                 </p>
+                {isSelectingCoordinates && (
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      setIsSelectingCoordinates(false);
+                      toast({
+                        title: "تم إلغاء تحديد الإحداثيات",
+                        description: "يمكنك تفعيل وضع التحديد مرة أخرى عند الحاجة",
+                        variant: "default",
+                      });
+                    }}
+                    className="mt-2"
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    إلغاء تحديد الإحداثيات
+                  </Button>
+                )}
               </div>
             </div>
           )}

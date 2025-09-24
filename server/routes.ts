@@ -13,7 +13,7 @@ import {
   insertUserSchema, insertDepartmentSchema, insertPositionSchema,
   insertLawRegulationSchema, insertLawSectionSchema, insertLawArticleSchema,
   insertRequirementCategorySchema, insertRequirementSchema, insertServiceSchema,
-  insertApplicationSchema, insertSurveyingDecisionSchema, insertTaskSchema,
+  insertApplicationSchema, insertTaskSchema,
   insertSystemSettingSchema, insertGovernorateSchema, insertDistrictSchema,
   insertSubDistrictSchema, insertNeighborhoodSchema, insertHaratSchema,
   insertSectorSchema, insertNeighborhoodUnitSchema, insertBlockSchema,
