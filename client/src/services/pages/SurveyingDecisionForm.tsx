@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { MapPin, FileText, Calculator, Save, Send, AlertCircle, Upload, X, Building2, User, Clock, CheckCircle } from 'lucide-react';
+import { MapPin, FileText, Calculator, Save, Send, AlertCircle, Upload, X, Building2, User, Clock, CheckCircle, Map as MapIcon } from 'lucide-react';
 import InteractiveDrawingMap from '@/components/gis/InteractiveDrawingMap';
 import InteractiveMap from '@/components/gis/InteractiveMap';
 import { useToast } from '@/hooks/use-toast';
@@ -204,19 +204,19 @@ export default function SurveyingDecisionForm() {
   });
 
   // Fetch sub-districts (العزلة) based on selected district
-  const { data: subDistricts = [], isLoading: isLoadingSubDistricts, error: subDistrictsError } = useQuery({
+  const { data: subDistricts = [], isLoading: isLoadingSubDistricts, error: subDistrictsError } = useQuery<any[]>({
     queryKey: ['/api/sub-districts', { districtId: formData.district }],
     enabled: !!formData.district,
   });
 
   // Fetch sectors (القطاع) based on selected sub-district
-  const { data: sectors = [], isLoading: isLoadingSectors, error: sectorsError } = useQuery({
+  const { data: sectors = [], isLoading: isLoadingSectors, error: sectorsError } = useQuery<any[]>({
     queryKey: ['/api/sectors', { subDistrictId: formData.subDistrict }],
     enabled: !!formData.subDistrict,
   });
 
   // Fetch neighborhood units (وحدة الجوار) based on selected sector
-  const { data: neighborhoodUnits = [], isLoading: isLoadingNeighborhoodUnits, error: neighborhoodUnitsError } = useQuery({
+  const { data: neighborhoodUnits = [], isLoading: isLoadingNeighborhoodUnits, error: neighborhoodUnitsError } = useQuery<any[]>({
     queryKey: ['/api/neighborhood-units', { sectorId: formData.sector }],
     enabled: !!formData.sector,
   });
@@ -955,7 +955,7 @@ export default function SurveyingDecisionForm() {
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
-                        <Map className="h-5 w-5" />
+                        <MapIcon className="h-5 w-5" />
                         الخريطة التفاعلية
                       </CardTitle>
                     </CardHeader>
