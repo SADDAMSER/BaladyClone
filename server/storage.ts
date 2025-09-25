@@ -78,7 +78,7 @@ import {
   type GeoJobEvent, type InsertGeoJobEvent
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, like, ilike, and, or, desc, asc, sql, count, inArray } from "drizzle-orm";
+import { eq, like, ilike, and, or, desc, asc, sql, count, inArray, isNotNull } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { PaginationParams, PaginatedResponse, executePaginatedQuery } from "./pagination";
 
@@ -2651,28 +2651,29 @@ export class DatabaseStorage implements IStorage {
       if (filters.userGeographicScope) {
         const { governorateIds, districtIds, subDistrictIds, neighborhoodIds } = filters.userGeographicScope;
         
-        // Build geographic conditions - applications should be within user's authorized scope
+        // Build geographic conditions - filter applications by their geographic location
         const geographicConditions = [];
         
+        // Filter by application's governorate_id if user has governorate access
         if (governorateIds && governorateIds.length > 0) {
-          // SIMPLIFIED APPROACH: For now, let all users in the same governorate see all applications
-          // This gives us working LBAC while we build more sophisticated geographic linking
-          
-          // First, find all users in the same governorates as the current user
-          const usersInSameGovernorates = db
-            .select({ userId: userGeographicAssignments.userId })
-            .from(userGeographicAssignments)
-            .where(and(
-              inArray(userGeographicAssignments.governorateId, governorateIds),
-              eq(userGeographicAssignments.isActive, true)
-            ));
-          
-          // Then filter applications by these users
-          geographicConditions.push(inArray(applications.applicantId, usersInSameGovernorates));
+          geographicConditions.push(inArray(applications.governorateId, governorateIds));
         }
         
+        // Filter by application's district_id if user has district access
+        if (districtIds && districtIds.length > 0) {
+          geographicConditions.push(inArray(applications.districtId, districtIds));
+        }
+        
+        // Note: subDistrictId and neighborhoodId columns don't exist in applications table
+        // Only governorateId and districtId are available for filtering
+        
+        // SECURITY: Only show applications that match at least one geographic scope
+        // AND have non-null geographic data
         if (geographicConditions.length > 0) {
-          conditions.push(or(...geographicConditions));
+          conditions.push(and(
+            or(...geographicConditions),
+            isNotNull(applications.governorateId) // Ensure application has geographic data
+          ));
         }
       }
       
