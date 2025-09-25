@@ -235,13 +235,13 @@ export default function SectionHeadDashboard() {
 
   // Assign surveyor mutation
   const assignSurveyorMutation = useMutation({
-    mutationFn: async (data: { applicationId: string; instanceId?: string; assignmentData: SurveyorAssignment }) => {
+    mutationFn: async (data: { applicationId: string; assignmentData: SurveyorAssignment }) => {
       const originalToken = localStorage.getItem("auth-token");
       localStorage.setItem("auth-token", authToken);
       
       try {
         // Use workflow-based surveyor assignment
-        const response = await apiRequest('POST', `/api/workflow/assign-surveyor/${data.instanceId}`, {
+        const response = await apiRequest('POST', `/api/workflow/assign-surveyor/${data.applicationId}`, {
           surveyorId: data.assignmentData.surveyorId,
           notes: data.assignmentData.assignmentNotes,
           oldProjectionHandling: data.assignmentData.oldProjectionHandling,
@@ -309,10 +309,9 @@ export default function SectionHeadDashboard() {
       return;
     }
 
-    // Mock instance ID - will be replaced with real workflow instance lookup
+    // Use actual application ID for workflow lookup
     assignSurveyorMutation.mutate({
       applicationId: selectedApplication.id,
-      instanceId: `workflow-${selectedApplication.id}`,
       assignmentData
     });
   };

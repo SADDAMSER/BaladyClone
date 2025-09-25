@@ -470,18 +470,29 @@ router.post('/cashier-payment/:instanceId', authenticateToken, requireRole(['cas
 
 /**
  * رئيس قسم المساحة - تكليف المساح
- * POST /api/workflow/assign-surveyor/:instanceId
+ * POST /api/workflow/assign-surveyor/:applicationId
  */
-router.post('/assign-surveyor/:instanceId', authenticateToken, requireRole(['section_head']), async (req, res) => {
+router.post('/assign-surveyor/:applicationId', authenticateToken, requireRole(['section_head']), async (req, res) => {
   try {
-    const { instanceId } = req.params;
+    const { applicationId } = req.params;
     const userId = (req as any).user.id;
     const { surveyorId, notes, oldProjectionHandling, projectionNotes, priority, estimatedCompletionDays } = req.body;
 
-    console.log(`[SECTION HEAD] Assigning surveyor for instance ${instanceId}`);
+    console.log(`[SECTION HEAD] Assigning surveyor for application ${applicationId}`);
+
+    // البحث عن workflow instance للطلب
+    const workflowInstance = await workflowService.getWorkflowInstanceByApplication(applicationId);
+    if (!workflowInstance) {
+      return res.status(404).json({
+        success: false,
+        message: 'لم يتم العثور على workflow instance للطلب'
+      });
+    }
+
+    console.log(`[SECTION HEAD] Found workflow instance ${workflowInstance.id} for application ${applicationId}`);
 
     await workflowService.transitionToNextStage(
-      instanceId,
+      workflowInstance.id,
       'section_head_assignment', 
       'assistant_head_scheduling',
       userId,
@@ -502,7 +513,8 @@ router.post('/assign-surveyor/:instanceId', authenticateToken, requireRole(['sec
       success: true,
       message: 'تم تكليف المساح بنجاح',
       data: {
-        instanceId,
+        instanceId: workflowInstance.id,
+        applicationId,
         surveyorId,
         nextStage: 'assistant_head_scheduling'
       }

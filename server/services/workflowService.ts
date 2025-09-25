@@ -316,7 +316,7 @@ export class WorkflowService {
   /**
    * الحصول على workflow instance بواسطة الطلب
    */
-  private async getWorkflowInstanceByApplication(applicationId: string): Promise<any> {
+  async getWorkflowInstanceByApplication(applicationId: string): Promise<any> {
     const [instance] = await db
       .select()
       .from(workflowInstances)

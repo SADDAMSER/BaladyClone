@@ -1,0 +1,75 @@
+> NODE_ENV=development tsx server/index.ts
+
+[dotenv@17.2.2] injecting env (1) from .env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+5:55:36 PM [express] serving on port 5000
+Browserslist: browsers data (caniuse-lite) is 11 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+5:56:29 PM [express] GET /api/sync/session 404 in 2ms :: {"message":"API endpoint not found"}
+[🔍 AUTH DEBUG] GET /api/sync/tables - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/sync/tables: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+5:56:29 PM [express] GET /api/sync/tables 304 in 10ms :: {"tables":[{"tableName":"plots","allowedOpe…
+[🔍 AUTH DEBUG] GET /api/applications - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/applications: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+[GEOGRAPHIC DEBUG] Processing user: 21d6f2e9-2490-435c-8190-76ad83889c2f (dept_manager_01)
+[GEOGRAPHIC DEBUG] Found 1 geographic assignments for user 21d6f2e9-2490-435c-8190-76ad83889c2f
+[GEOGRAPHIC DEBUG] Built geographic context: {
+  governorateId: '6cb4d669-b015-485c-995c-62f0b465705f',
+  districtId: 'a365ac78-2b0a-4347-8fa1-bfb5671500d4',
+  subDistrictId: null,
+  neighborhoodId: null
+}
+[LBAC DEBUG] User geographic scope: {
+  userId: '21d6f2e9-2490-435c-8190-76ad83889c2f',
+  governorateIds: [ '6cb4d669-b015-485c-995c-62f0b465705f' ],
+  districtIds: [ 'a365ac78-2b0a-4347-8fa1-bfb5671500d4' ],
+  subDistrictIds: [],
+  neighborhoodIds: []
+}
+[LBAC DEBUG] Filtered applications count: 5
+5:56:30 PM [express] GET /api/applications 304 in 566ms :: [{"id":"eb0a46bd-dee9-40b8-92bc-67d56628f…
+5:56:59 PM [express] GET /api/sync/session 404 in 1ms :: {"message":"API endpoint not found"}
+[🔍 WORKFLOW AUTH DEBUG] POST /assign-surveyor/workflow-eb0a46bd-dee9-40b8-92bc-67d56628f84a - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ WORKFLOW AUTH SUCCESS] JWT verified for POST /assign-surveyor/workflow-eb0a46bd-dee9-40b8-92bc-67d56628f84a: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+5:57:25 PM [express] POST /api/workflow/assign-surveyor/workflow-eb0a46bd-dee9-40b8-92bc-67d56628f84…
+5:57:30 PM [express] GET /api/sync/session 404 in 1ms :: {"message":"API endpoint not found"}
+[🔍 WORKFLOW AUTH DEBUG] POST /assign-surveyor/workflow-eb0a46bd-dee9-40b8-92bc-67d56628f84a - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ WORKFLOW AUTH SUCCESS] JWT verified for POST /assign-surveyor/workflow-eb0a46bd-dee9-40b8-92bc-67d56628f84a: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+5:57:41 PM [express] POST /api/workflow/assign-surveyor/workflow-eb0a46bd-dee9-40b8-92bc-67d56628f84…
+[🔍 WORKFLOW AUTH DEBUG] POST /assign-surveyor/workflow-eb0a46bd-dee9-40b8-92bc-67d56628f84a - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ WORKFLOW AUTH SUCCESS] JWT verified for POST /assign-surveyor/workflow-eb0a46bd-dee9-40b8-92bc-67d56628f84a: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+5:57:50 PM [express] POST /api/workflow/assign-surveyor/workflow-eb0a46bd-dee9-40b8-92bc-67d56628f84…
+5:58:00 PM [express] GET /api/sync/session 404 in 1ms :: {"message":"API endpoint not found"}
+[🔍 WORKFLOW AUTH DEBUG] POST /assign-surveyor/workflow-eb0a46bd-dee9-40b8-92bc-67d56628f84a - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ WORKFLOW AUTH SUCCESS] JWT verified for POST /assign-surveyor/workflow-eb0a46bd-dee9-40b8-92bc-67d56628f84a: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+5:58:09 PM [express] POST /api/workflow/assign-surveyor/workflow-eb0a46bd-dee9-40b8-92bc-67d56628f84…

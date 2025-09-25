@@ -8306,6 +8306,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Add missing sync session endpoint
+  app.get('/api/sync/session', authenticateToken, async (req, res) => {
+    res.json({ 
+      status: 'ok', 
+      sessionId: crypto.randomUUID(),
+      timestamp: new Date().toISOString()
+    });
+  });
+
   // Register workflow routes
   app.use('/api/workflow', workflowRoutes);
 

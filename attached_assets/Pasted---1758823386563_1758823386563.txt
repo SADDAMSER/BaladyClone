@@ -1,0 +1,102 @@
+الطلبات المدفوعة أصبحت تظهر ✅، لكن عند الضغط على "تأكيد التكليف" لرئيس القسم يحدث خطأ:
+
+خطأ في تكليف المساح: حاول مرة أخرى
+
+وفي الـ logs نرى:
+
+text
+
+POST /api/workflow/assign-surveyor/… 
+ثم يرجع Error
+📍 التشخيص
+API endpoint mismatch
+
+الواجهة تستدعي:
+POST /api/workflow/assign-surveyor/:applicationId
+في الـ server/routes.ts غالبًا معرف:
+TypeScript
+
+app.post('/api/workflow/assign-surveyor', ...) 
+// أو
+app.post('/assign-surveyor/:id', ...)
+النتيجة: السيرفر يستقبل request في /assign-surveyor/... بينما الواجهة تستخدم /api/workflow/assign-surveyor/....
+يظهر بوضوح من logs:
+[WORKFLOW AUTH DEBUG] POST /assign-surveyor/workflow-… يتكرر عدة مرات → وجود تكرار/غلط في بناء الـ path.
+Sync API missing
+
+تلاحظ أيضًا في الـ logs:
+text
+
+GET /api/sync/session 404 :: {"message":"API endpoint not found"}
+يعني أن تطبيق الواجهة أو الموبايل يحاول ينادي /api/sync/session لكن هذا الـ endpoint غير معرف في السيرفر.
+DB logic
+
+حتى لو كان الـ API صحيح، لا بد أن إدخال التكليف يحاول يكتب في جدول application_assignments أو tasks.
+إذا كان يستخدم plot_id (غير موجود) ❌ أو userId/surveyorId mismatch → يفشل silently.
+🛠️ الحلول المقترحة
+الخطوة 1️⃣: ثبّت الـ Route Path
+افتح server/routes.ts وابحث عن:
+
+TypeScript
+
+app.post('/assign-surveyor/:id', assignSurveyorHandler)
+أو صيغة مشابهة.
+يجب أن يتطابق مع ما تستعمله الواجهة. اختر معيار واحد:
+
+✅ الأفضل:
+
+TypeScript
+
+// سيرفر
+app.post('/api/workflow/assign-surveyor/:applicationId', assignSurveyorHandler);
+وفي واجهة SectionHeadDashboard.tsx أو AssignSurveyorModal.tsx تأكد أن الاستدعاء:
+
+TypeScript
+
+await apiRequest('POST', `/api/workflow/assign-surveyor/${application.id}`, body)
+الخطوة 2️⃣: إصلاح الدالة assignSurveyorHandler
+يجب أن:
+
+تستقبل applicationId و surveyorId و priority إلخ.
+تنشئ سجل في جدول application_assignments:
+TypeScript
+
+await db.insert(applicationAssignments).values({
+  applicationId,
+  userId: surveyorId,
+  assignedBy: currentUser.id,
+  assignedAt: new Date(),
+  priority,
+});
+تحدّث حالة الطلب في applications من assigned → fieldwork_pending أو ما يناسب FSM.
+الخطوة 3️⃣: معالجة userId/surveyorId
+في الدوال داخل server/storage.ts تأكد أن الحقل الموحد هو surveyorId.
+لا تخلط بـ userId إلا إذا قصدك المستخدم الحالي المكلف (assignedBy).
+
+الخطوة 4️⃣: إضافة Sync Endpoint
+لإصلاح 404 في:
+
+text
+
+GET /api/sync/session
+لو عندك في Flutter أو React كود يتصل بهذا، لازم تعمل Placeholder route:
+
+TypeScript
+
+app.get('/api/sync/session', (req, res) => {
+  return res.json({ status: 'ok', sessionId: uuidv4() });
+});
+لاحقًا ممكن توسّعه ليعكس آخر مزامنة حقيقية.
+
+🎯 خطوات عملية سريعة اليوم
+في السيرفر: عدّل route ليطابق /api/workflow/assign-surveyor/:applicationId.
+في الـ handler: صحّح الإدخالات (applicationId, surveyorId).
+أضف log داخل assignSurveyorHandler:
+TypeScript
+
+console.log("[ASSIGN DEBUG]", { applicationId, surveyorId, body });
+لترى إن الواجهة ترسل بيانات صحيحة.
+جرّب من جديد: كمسؤول قسم → اختَر مسّاح → "تأكيد التكليف" → يجب أن يتحول الطلب للحالة التالية.
+✅ بعد هذه الخطوات سيكون الخطأ "فشل في تكليف المساح" قد اختفى.
+المتبقي لاحقًا هو تحسين السيرفر ليدعم /api/sync/session بشكل صحيح بدل 404.
+
