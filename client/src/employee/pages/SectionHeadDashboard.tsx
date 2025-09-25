@@ -135,13 +135,13 @@ export default function SectionHeadDashboard() {
 
   // Fetch applications waiting for surveyor assignment
   const { data: pendingApplications, isLoading } = useQuery<ApplicationDetails[]>({
-    queryKey: ['/api/applications', { currentStage: 'section_head_assignment' }],
+    queryKey: ['/api/applications', { currentStage: 'assigned' }],
     queryFn: async () => {
       try {
         const originalToken = localStorage.getItem("auth-token");
         localStorage.setItem("auth-token", authToken);
         
-        const response = await apiRequest('GET', '/api/applications?currentStage=section_head_assignment');
+        const response = await apiRequest('GET', '/api/applications?currentStage=assigned');
         const result = await response.json();
         
         if (originalToken) {
@@ -155,7 +155,7 @@ export default function SectionHeadDashboard() {
           applicationNumber: app.applicationNumber || 'غير محدد',
           serviceType: app.applicationData?.serviceType === 'surveying_decision' ? 'قرار مساحي' : 'غير محدد',
           status: app.status || 'submitted',
-          currentStage: app.currentStage || 'section_head_assignment',
+          currentStage: app.currentStage || 'assigned',
           submittedAt: app.createdAt,
           applicantName: app.applicationData?.applicantName || 'غير محدد',
           applicantId: app.applicantId || 'غير محدد',

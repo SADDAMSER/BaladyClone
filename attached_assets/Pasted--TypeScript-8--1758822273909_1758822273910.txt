@@ -1,0 +1,61 @@
+تمام 👌 وصلت الآن إلى نقطة حساسة: السيرفر يعمل، معظم أخطاء الـ TypeScript تنزلت بشكل درامي (من 8 آلاف 😱 → عشرات)، وبدأت توحِّد بين userId/surveyorId.
+لكن الوظيفة الحرجة (ظهور الطلبات المدفوعة لرئيس القسم) ما زالت لا تعمل. هذا يدل إن المشكلة لم تعد syntax/type-only، بل منطقية (logic / query / LBAC). خليني أساعدك كخبير معماري على تفكيك المشكلة 👇:
+
+🕵️ تشخيص السبب: "طلبات مدفوعة لا تظهر لرئيس القسم"
+1️⃣ تحقق من الـ Data Layer (Queries)
+الطلبات موجودة في DB (✅ 5 rows بحالة assigned).
+لكن عند استدعاء API، النتيجة فارغة ❌.
+إذن:
+→ Query فيها شرط فلترة زائد أو خاطئ.
+→ أو LBAC (geographic filter) يمنع ظهورها.
+👀 راجع الدالة المسؤولة عن جلب الطلبات في server/storage.ts: غالبًا شيء مثل:
+
+TypeScript
+
+async getApplicationsForSectionHead(metadata: { governorateId?: string; ... }) {
+   return await db.select()...
+     .where(eq(applications.status, 'assigned'))
+     .innerJoin(...)
+     .where(eq(districts.governorateId, metadata.governorateId));
+}
+⚠️ تذكّر: جدول sectors لا يوجد فيه governorateId مباشرة → بدّك تمر بالـ sub_districts → districts → governorates.
+
+👉 الحل: أعِد بناء شرط where هكذا:
+
+TypeScript
+
+db.select({ ...fields })
+ .from(applications)
+ .innerJoin(plots, eq(applications.plotId, plots.id))
+ .innerJoin(sectors, eq(plots.sectorId, sectors.id))
+ .innerJoin(subDistricts, eq(sectors.subDistrictId, subDistricts.id))
+ .innerJoin(districts, eq(subDistricts.districtId, districts.id))
+ .innerJoin(governorates, eq(districts.governorateId, governorates.id))
+ .where(eq(applications.status, 'assigned'))
+ .where(eq(districts.governorateId, metadata.governorateId));
+✨ هذا يضمن أن الربط الجغرافي صحيح، بدل محاولة استخدام sectors.governorateId.
+
+2️⃣ LBAC Filters
+تحقق من المستخدم المستعمل لتسجيل الدخول:
+هل هو مربوط بـ user_geographic_assignments ؟
+لو نعم، هل assignment مرتبطة بمحافظته/مديريته؟
+لو مش متطابق، فحتى لو الطلب موجود، الواجهة ستعيد صفراً.
+✅ لتجربة: جرّب التعطيل المؤقت لـ LBAC filter، واعرض فقط الطلبات status='assigned'.
+
+إذا ظهرت → إذن LBAC misconfiguration.
+إذا ما ظهرت → query logic مكسور.
+3️⃣ الـ UI Layer
+شاشة /employee/section-head تستعمل API endpoint: غالبًا شيء مثل /api/applications/assigned.
+سجّل الـ network request في المتصفح (DevTools) وشوف هل الرد JSON فاضي، أو السيرفر أصلاً يعطي 500 Error.
+200 مع [] → فلترة زائدة.
+500 → لا زال خطأ TypeScript/Query.
+⚡ خطة المعالجة (سريعة)
+✅ أول خطوة: في server/storage.ts بدِّل كل محاولة sectors.governorateId بـ join كامل عبر sub_districts → districts.
+✅ في دوال mobile survey sessions: استبدل كلياً metadata.userId بـ metadata.surveyorId (ثبّت convention موحّد).
+✅ في شاشة رئيس القسم: جرّب مرّة بدون شرط governorateId لترى إن الطلبات تظهر.
+TypeScript
+
+.where(eq(applications.status, 'assigned'))
+// علّق فلترة governorateId مؤقتاً للتشخيص
+لو ظهرت → LBAC misconfig.
+لو اختفت → مشكلة join.
