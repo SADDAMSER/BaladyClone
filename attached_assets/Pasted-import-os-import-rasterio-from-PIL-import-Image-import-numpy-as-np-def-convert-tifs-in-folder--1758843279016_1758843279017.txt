@@ -1,0 +1,107 @@
+import os
+import rasterio
+from PIL import Image
+import numpy as np
+
+def convert_tifs_in_folder_to_png_with_georef(input_folder, output_folder):
+    """
+    Converts all TIFF files found in the input_folder to PNG format,
+    generating corresponding .pgw and .prj files for georeferencing.
+
+    Args:
+        input_folder (str): The path to the folder containing TIFF files.
+        output_folder (str): The path where PNG, PGW, and PRJ files will be saved.
+    """
+
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+        print(f"Created output folder: {output_folder}")
+
+    # Loop through all files in the specified input folder
+    for filename in os.listdir(input_folder):
+        # Check if the file is a TIFF file (case-insensitive)
+        if filename.lower().endswith(".tif"):
+            tif_path = os.path.join(input_folder, filename)
+            base_name = os.path.splitext(filename)[0] # Get filename without extension
+            png_path = os.path.join(output_folder, f"{base_name}.png")
+            pgw_path = os.path.join(output_folder, f"{base_name}.pgw")
+            prj_path = os.path.join(output_folder, f"{base_name}.prj")
+
+            print(f"\nProcessing '{filename}'...")
+            try:
+                with rasterio.open(tif_path) as src:
+                    # Read the image data based on the number of bands
+                    if src.count == 1:
+                        # Grayscale image (single band)
+                        img_array = src.read(1)
+                        # Normalize to 0-255 if the data type isn't already uint8
+                        if img_array.dtype != np.uint8:
+                            img_array = (img_array - img_array.min()) * (255 / (img_array.max() - img_array.min()))
+                            img_array = img_array.astype(np.uint8)
+                        img_pil = Image.fromarray(img_array, 'L') # 'L' for grayscale
+                    elif src.count >= 3:
+                        # Color image (assuming RGB or RGBA, taking first 3 bands for RGB)
+                        img_array = src.read([1, 2, 3])
+                        # Transpose array from (bands, height, width) to (height, width, bands)
+                        img_array = np.transpose(img_array, (1, 2, 0))
+                        # Normalize to 0-255 if needed
+                        if img_array.dtype != np.uint8:
+                            img_array = (img_array - img_array.min()) * (255 / (img_array.max() - img_array.min()))
+                            img_array = img_array.astype(np.uint8)
+                        img_pil = Image.fromarray(img_array, 'RGB')
+                    else:
+                        print(f"  Skipping '{filename}': Unsupported number of bands ({src.count}).")
+                        continue # Skip to the next file
+
+                    # Save the image as PNG
+                    img_pil.save(png_path)
+                    print(f"  Converted to '{os.path.basename(png_path)}'")
+
+                    # Generate the .pgw (world file)
+                    # This file holds the georeferencing transformation
+                    transform = src.transform
+                    A = transform.a # Pixel size in x-direction
+                    D = transform.b # Rotation about y-axis (y-skew)
+                    B = transform.d # Rotation about x-axis (x-skew)
+                    E = transform.e # Pixel size in y-direction (typically negative)
+                    C = transform.xoff + A * 0.5 + D * 0.5 # X-coordinate of center of top-left pixel
+                    F = transform.yoff + B * 0.5 + E * 0.5 # Y-coordinate of center of top-left pixel
+
+                    with open(pgw_path, 'w') as f:
+                        f.write(f"{A}\n")
+                        f.write(f"{D}\n")
+                        f.write(f"{B}\n")
+                        f.write(f"{E}\n")
+                        f.write(f"{C}\n")
+                        f.write(f"{F}\n")
+                    print(f"  Generated '{os.path.basename(pgw_path)}'")
+
+                    # Generate the .prj (projection file)
+                    # This file stores the Coordinate Reference System (CRS) information
+                    if src.crs:
+                        prj_content = src.crs.to_wkt() # Get CRS in Well-Known Text format
+                        with open(prj_path, 'w') as f:
+                            f.write(prj_content)
+                        print(f"  Generated '{os.path.basename(prj_path)}'")
+                    else:
+                        print(f"  Warning: No CRS found for '{filename}'. Skipping .prj file generation.")
+
+            except rasterio.errors.RasterioIOError as rio_err:
+                print(f"  Error opening or reading '{filename}': {rio_err}")
+                print("  Please ensure the file exists and is a valid TIFF.")
+            except Exception as e:
+                print(f"  An unexpected error occurred while processing '{filename}': {e}")
+
+# --- Configuration ---
+# Set the path to your input folder containing the TIFF files
+input_folder_path = r"C:\xampp\htdocs\newmpwdb_sys\public\uploads\units_restor"
+
+# Set the path for the output folder where PNGs, PGWs, and PRJs will be saved
+# It's highly recommended to use a separate output folder to keep things organized.
+output_folder_path = r"C:\xampp\htdocs\newmpwdb_sys\public\uploads\units_restor_png"
+
+# --- Run the conversion process ---
+print("Starting batch conversion of TIFF files to PNG...")
+convert_tifs_in_folder_to_png_with_georef(input_folder_path, output_folder_path)
+print("\nBatch conversion process complete!")
+print(f"All converted files are located in: {output_folder_path}")

@@ -1,0 +1,174 @@
+import os
+import zipfile
+import requests
+import json
+import base64
+import shutil
+import rasterio
+import math
+import uuid  # For generating unique filenames
+from flask import request, jsonify, make_response, url_for
+from flask_restful import Resource, Api
+from PIL import Image, ImageDraw
+from . import user_blueprint  # Import Blueprint
+
+api = Api(user_blueprint)  # Attach to the existing API
+
+UPLOAD_DIR = "uploads"
+OUTPUT_DIR = os.path.join(UPLOAD_DIR, "planscreen")  # Directory for storing images
+os.makedirs(OUTPUT_DIR, exist_ok=True)  # Ensure upload directories exist
+
+class GetPlanScreen(Resource):
+    def post(self):
+        """API endpoint to process image and return base64 or file URL"""
+        data = request.get_json()
+        if not data or "zip_url" not in data or "geometry" not in data or "output_format" not in data:
+            return make_response(jsonify({
+                "status": False,
+                "message": "Invalid request. Required fields: zip_url, geometry, output_format",
+                "url": None
+            }), 400)
+
+        zip_url = data["zip_url"]
+        geometry = data["geometry"]
+        output_format = data["output_format"].lower()  # Ensure lowercase
+
+        # ✅ Validate output format
+        if output_format not in ["image_base64", "png", "jpg"]:
+            return make_response(jsonify({
+                "status": False,
+                "message": "Invalid output_format. Allowed values: 'image_base64', 'png', 'jpg'",
+                "url": None
+            }), 400)
+
+        # ✅ Validate geometry type
+        if "type" not in geometry or geometry["type"] != "Polygon":
+            return make_response(jsonify({
+                "status": False,
+                "message": "Invalid geometry type. Only 'Polygon' is supported.",
+                "url": None
+            }), 400)
+
+        extraction_path = os.path.join(UPLOAD_DIR, "extracted")
+        if os.path.exists(extraction_path):
+            shutil.rmtree(extraction_path)
+        os.makedirs(extraction_path, exist_ok=True)
+
+        try:
+            image_path = self.download_and_extract_zip(zip_url, extraction_path)
+            if isinstance(image_path, tuple):  # Ensure JSON-serializable return
+                return make_response(jsonify(image_path[0]), image_path[1])
+
+            output_path = self.plot_shapes_with_geo_crop(geometry, image_path, output_format)
+
+            if output_format == "image_base64":
+                with open(output_path, "rb") as img_file:
+                    base64_image = base64.b64encode(img_file.read()).decode("utf-8")
+                return make_response(jsonify({
+                    "status": True,
+                    "message": "Image processed successfully",
+                    "url": base64_image
+                }), 200)
+            else:
+                file_url = url_for("static", filename=f"planscreen/{os.path.basename(output_path)}", _external=True)
+                return make_response(jsonify({
+                    "status": True,
+                    "message": "Image saved successfully",
+                    "url": file_url
+                }), 200)
+
+        except Exception as e:
+            return make_response(jsonify({
+                "status": False,
+                "message": str(e),
+                "url": None
+            }), 500)
+
+    def download_and_extract_zip(self, zip_url, extract_to):
+        """Download and extract the ZIP file"""
+        zip_path = os.path.join(UPLOAD_DIR, "temp.zip")
+
+        response = requests.get(zip_url, stream=True)
+        if response.status_code != 200:
+            return {"status": False, "message": "Failed to download ZIP file", "url": None}, 400
+
+        with open(zip_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=1024):
+                f.write(chunk)
+
+        with zipfile.ZipFile(zip_path, "r") as zip_ref:
+            zip_ref.extractall(extract_to)
+
+        os.remove(zip_path)
+
+        for file in os.listdir(extract_to):
+            if file.lower().endswith((".tif", ".tiff", ".png", ".jpg", ".jpeg")):
+                return os.path.join(extract_to, file)
+
+        return {"status": False, "message": "No raster image found in ZIP file", "url": None}, 400
+
+    def calculate_expanded_bounds(self, points, expansion=50):
+        """Calculate expanded bounds"""
+        min_x = min(p[0] for p in points) - expansion
+        min_y = min(p[1] for p in points) - expansion
+        max_x = max(p[0] for p in points) + expansion
+        max_y = max(p[1] for p in points) + expansion
+        return min_x, min_y, max_x, max_y
+
+    def calculate_area(self, points):
+        """Calculate polygon area using Shoelace formula"""
+        n = len(points)
+        area = 0.0
+        for i in range(n):
+            x1, y1 = points[i]
+            x2, y2 = points[(i + 1) % n]
+            area += x1 * y2 - y1 * x2
+        return abs(area) / 2
+
+    def plot_shapes_with_geo_crop(self, geometry, image_path, output_format):
+        """Plot and crop shapes with geo-reference correction"""
+
+        # ✅ Extract only (X, Y), ignoring Z
+        cleaned_coordinates = [(p[0], p[1]) for p in geometry["coordinates"]]
+
+        expanded_min_x, expanded_min_y, expanded_max_x, expanded_max_y = self.calculate_expanded_bounds(cleaned_coordinates)
+
+        with rasterio.open(image_path) as dataset:
+            geo_bounds = dataset.bounds
+            img = Image.open(image_path)
+
+            left = (expanded_min_x - geo_bounds.left) / (geo_bounds.right - geo_bounds.left) * img.width
+            upper = (geo_bounds.top - expanded_max_y) / (geo_bounds.top - geo_bounds.bottom) * img.height
+            right = (expanded_max_x - geo_bounds.left) / (geo_bounds.right - geo_bounds.left) * img.width
+            lower = (geo_bounds.top - expanded_min_y) / (geo_bounds.top - geo_bounds.bottom) * img.height
+
+            cropped_img = img.crop((left, upper, right, lower))
+            final_img = cropped_img.resize((800, 800), Image.LANCZOS)
+            final_draw = ImageDraw.Draw(final_img)
+
+            # ✅ Use cleaned (X, Y) coordinates
+            scaled_points = [
+                ((p[0] - expanded_min_x) / (expanded_max_x - expanded_min_x) * 800,
+                 (expanded_max_y - p[1]) / (expanded_max_y - expanded_min_y) * 800)
+                for p in cleaned_coordinates
+            ]
+            final_draw.line(scaled_points, fill="blue", width=2)
+
+            if geometry["type"] == "Polygon":
+                area = self.calculate_area(cleaned_coordinates)
+                centroid_x = sum(p[0] for p in scaled_points) / len(scaled_points)
+                centroid_y = sum(p[1] for p in scaled_points) / len(scaled_points)
+                final_draw.text((centroid_x, centroid_y), f"{area:.2f} m²", fill="green")
+
+            # Generate unique filename
+            file_ext = "jpg" if output_format == "jpg" else "png"
+            unique_filename = f"{uuid.uuid4()}.{file_ext}"
+            output_path = os.path.join(OUTPUT_DIR, unique_filename)
+
+            # Save the file
+            final_img.save(output_path, format=file_ext.upper(), dpi=(200, 200))
+
+            return output_path
+
+# ✅ Register the new route correctly
+api.add_resource(GetPlanScreen, "/getplan-screen")

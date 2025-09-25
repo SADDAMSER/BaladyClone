@@ -1,0 +1,719 @@
+---
+
+## أدوات وتقنيات الرسم التفاعلي في الواجهة (Blade/JS)
+
+### 1. مكتبات وأدوات جافاسكريبت المستخدمة
+- **Leaflet.js**: مكتبة رسم خرائط تفاعلية تدعم إضافة طبقات وصور وتحرير الأشكال.
+    - مثال: `const map = L.map("map", { crs: L.CRS.Simple });`
+- **Leaflet.Draw** و **leaflet.pm**: إضافات للتحرير والرسم اليدوي (خطوط، مضلعات، نقاط، حذف/إضافة نقاط).
+    - مثال: `map.pm.addControls({ drawPolygon: true, ... })`
+- **L.imageOverlay**: لعرض صورة الرستر الجغرافية كخلفية للخريطة.
+    - مثال: `L.imageOverlay(rasterImage, bounds).addTo(map);`
+- **L.FeatureGroup**: لتجميع العناصر المرسومة وإدارتها.
+- **L.Control.Draw**: لإظهار أدوات الرسم (رسم/تعديل/حذف).
+
+### 2. أمثلة من الكود الفعلي (steet_drwaing.blade.php)
+- تحميل صورة الرستر وحدودها:
+```js
+const rasterImage = @json($unit_raster_path);
+const boundsData = @json($jsoinfo['bounds'] ?? null);
+L.imageOverlay(rasterImage, bounds).addTo(map);
+map.fitBounds(bounds);
+```
+- تفعيل أدوات الرسم والتحرير:
+```js
+map.pm.addControls({ drawPolygon: true, drawPolyline: true, ... });
+map.addControl(new L.Control.Draw({ ... }));
+```
+- رسم خطوط أو مضلعات وتعديلها:
+```js
+map.on(L.Draw.Event.CREATED, (e) => {
+        const layer = e.layer;
+        drawnItems.addLayer(layer);
+        // ... منطق إضافي
+});
+```
+- حساب الأطوال، رسم خطوط متوازية (offset)، وإظهار بيانات تفاعلية:
+```js
+function offsetLine(coords, offsetDistance, direction = 'left') { ... }
+function computeLineLengthXY(coordsXY) { ... }
+```
+- تصدير البيانات (GeoJSON/CSV) أو تحميلها:
+```js
+function exportGeoJSON() { ... }
+function exportCSV() { ... }
+```
+
+### 3. كيف يتم استخدام هذه الأدوات؟
+- المستخدم يرسم أو يعدل الشوارع/القطع/الحدود مباشرة على الخريطة التفاعلية.
+- يمكن تحميل أو تصدير البيانات (GeoJSON/CSV) أو حفظها في قاعدة البيانات.
+- يتم حساب الأطوال، الاتجاهات، وإظهارها مباشرة على الخريطة أو في جداول.
+
+---
+---
+
+## أدوات وتقنيات الرسم والتحليل الجغرافي في مرحلة المعالجة
+
+### 1. مكتبات وأدوات بايثون المستخدمة
+- **Shapely**: لإنشاء وتبسيط وتحليل الأشكال الهندسية (Polygons, Points, إلخ).
+    - مثال: `from shapely.geometry import Polygon, Point`
+- **Pillow (PIL)**: لرسم الأشكال النهائية وإضافة النصوص على الصور.
+    - مثال: `from PIL import Image, ImageDraw, ImageFont`
+- **ImageDraw**: لرسم الخطوط، الأضلاع، الأسهم، وكتابة الأطوال والاتجاهات على الصورة.
+    - مثال: `draw = ImageDraw.Draw(img)`
+- **geopandas (gpd)**: لقراءة ملفات الشيب فايل وتحويلها إلى GeoJSON أو DataFrame.
+    - مثال: `import geopandas as gpd`
+- **matplotlib/plotly/folium**: (اختياري) لرسم وتحليل البيانات الجغرافية بشكل تفاعلي أو إحصائي.
+
+### 2. أمثلة من الكود الفعلي
+- في generate_shape_drawing.py:
+    - بناء المضلع: `Polygon(cleaned_coords)`
+    - تبسيط الشكل: `simplified_utm_poly = original_utm_poly.simplify(tolerance_m, preserve_topology=True)`
+    - رسم الشكل النهائي: `draw.polygon(pixel_points_rounded, outline="green", width=3)`
+    - كتابة الأطوال: `draw.text((mid_px, mid_py), f"{side_arc_len_m:.2f} m", fill="red", font=font)`
+
+- في shp_to_geojson.py:
+    - قراءة الشيب فايل: `gdf = gpd.read_file(shp_full_path)`
+    - تحويل إلى GeoJSON: `geojson_str = gdf.to_json()`
+
+### 3. كيف يتم استخدام هذه الأدوات؟
+- يتم أولاً قراءة وتحليل البيانات الجغرافية (شيب فايل أو GeoJSON) باستخدام geopandas وshapely.
+- يتم تبسيط الشكل واحتساب الأضلاع والاتجاهات.
+- يتم رسم الشكل النهائي وإضافة النصوص (الأطوال/الاتجاهات) باستخدام Pillow وImageDraw.
+- يمكن تصدير النتائج كصورة PNG أو GeoJSON أو حتى رسم تفاعلي عبر folium/plotly.
+
+---
+---
+
+## تفاصيل القرار المساحي (كما في order_shape_info_review.blade.php)
+
+### 1. رأس الصفحة (Header)
+- شريط علوي بلونين (أسود وأحمر) باستخدام Flexbox أو Grid.
+- الأعمدة:
+    - يسار: شعار النظام (صورة).
+    - وسط: QR Code للطلب + عنوان "القرار المساحي".
+    - يمين: جدول بيانات الطلب (رقم الطلب، تاريخ الطلب، المحافظة).
+```blade
+<div class="flex bg-black text-white">
+    <div><img src="{{ asset('logo.png') }}"></div>
+    <div class="mx-auto">
+        <img src="{{ $qr_code }}">
+        <h2>القرار المساحي</h2>
+    </div>
+    <div>
+        <table> ... </table>
+    </div>
+</div>
+```
+
+### 2. بيانات صاحب الطلب
+- شبكة بيانات (Grid): اسم، رقم هوية، نوع الهوية، الجهة المالكة.
+```blade
+<div class="grid grid-cols-4 gap-2">
+    <div>الاسم: {{ $order->applicant_name }}</div>
+    <div>رقم الهوية: {{ $order->id_number }}</div>
+    <div>نوع الهوية: {{ $order->id_type }}</div>
+    <div>الجهة المالكة: {{ $order->owner_entity }}</div>
+</div>
+```
+
+### 3. الغرض من التقرير وبيانات المخطط
+- صف بيانات: الغرض من التقرير، رقم المخطط.
+```blade
+<div class="flex">
+    <div>الغرض: {{ $order->purpose }}</div>
+    <div>رقم المخطط: {{ $order->plan_number }}</div>
+</div>
+```
+
+### 4. بيانات الأراضي (جدول القطع)
+- جدول يعرض لكل قطعة: رقم، اسم، مساحة مخطط، مساحة فعلية، استخدام، حالة، ملاحظات.
+```blade
+<table>
+    <tr><th>رقم القطعة</th><th>اسم القطعة</th><th>المساحة (مخطط)</th><th>المساحة (فعلية)</th><th>الاستخدام</th><th>الحالة</th><th>ملاحظات</th></tr>
+    @foreach($order->plots as $plot)
+        <tr>
+            <td>{{ $plot->number }}</td>
+            <td>{{ $plot->name }}</td>
+            <td>{{ $plot->plan_area }}</td>
+            <td>{{ $plot->actual_area }}</td>
+            <td>{{ $plot->usage }}</td>
+            <td>{{ $plot->status }}</td>
+            <td>{{ $plot->notes }}</td>
+        </tr>
+    @endforeach
+</table>
+```
+
+### 5. بيانات الموقع الجغرافي (الحدود والأطوال)
+- جدول الجهات الأربع: نوع الحد، أبعاد الصك، أبعاد فعلية، أقصى ارتداد، الجولة.
+```blade
+<table>
+    <tr><th>الجهة</th><th>نوع الحد</th><th>أبعاد الصك</th><th>أبعاد فعلية</th><th>أقصى ارتداد</th><th>الجولة</th></tr>
+    @foreach($order->borders as $border)
+        <tr>
+            <td>{{ $border->side }}</td>
+            <td>{{ $border->type }}</td>
+            <td>{{ $border->deed_length }}</td>
+            <td>{{ $border->actual_length }}</td>
+            <td>{{ $border->max_offset }}</td>
+            <td>{{ $border->round }}</td>
+        </tr>
+    @endforeach
+</table>
+<div>المساحة الإجمالية: {{ $order->total_area }}</div>
+```
+
+### 6. بيانات إضافية عن الموقع
+- جدول: نوع الموقع، منسوب الشارع، المكتب الهندسي، الحدود، مرحلة النطاق، نظام البناء.
+```blade
+<table>
+    <tr><th>نوع الموقع</th><th>منسوب الشارع</th><th>المكتب الهندسي</th><th>الحدود</th><th>النطاق العمراني</th><th>نظام البناء</th></tr>
+    <tr>
+        <td>{{ $order->site_type }}</td>
+        <td>{{ $order->street_level }}</td>
+        <td>{{ $order->office_name }}</td>
+        <td>{{ $order->borders_text }}</td>
+        <td>{{ $order->urban_stage }}</td>
+        <td>{{ $order->building_code }}</td>
+    </tr>
+</table>
+```
+
+### 7. صور توضيحية
+- ثلاث صور: مع المخطط العام، المصور الجوي (Base64)، الخريطة.
+```blade
+<div class="flex">
+    <img src="{{ $order->plan_image }}">
+    <img src="data:image/png;base64,{{ $order->aerial_base64 }}">
+    <img src="{{ $order->map_image }}">
+</div>
+```
+
+### 8. جدول الإحداثيات (الشماليات والشرقيات)
+- جدول: نقطة، شمالية، شرقية.
+```blade
+<table>
+    <tr><th>النقطة</th><th>الشمالية</th><th>الشرقية</th></tr>
+    @foreach($order->coordinates as $pt)
+        <tr>
+            <td>{{ $pt->index }}</td>
+            <td>{{ $pt->northing }}</td>
+            <td>{{ $pt->easting }}</td>
+        </tr>
+    @endforeach
+</table>
+```
+
+### 9. بيانات مالية وإدارية
+- صناديق: تاريخ القرار، رقم الفاتورة، الرسوم المستحقة.
+```blade
+<div class="flex">
+    <div>تاريخ القرار: {{ $order->decision_date }}</div>
+    <div>رقم الفاتورة: {{ $order->invoice_number }}</div>
+    <div>الرسوم: {{ $order->fees }}</div>
+</div>
+```
+
+### 10. التعهدات
+- صندوق نصي للتعهدات أو الشروط.
+```blade
+<div class="border p-2">{{ $order->commitments }}</div>
+```
+
+### 11. التواقيع
+- ثلاث خانات: المستفيد، الصندوق، المختص.
+```blade
+<div class="flex">
+    <div>توقيع المستفيد</div>
+    <div>توقيع الصندوق</div>
+    <div>توقيع المختص</div>
+</div>
+```
+
+### 12. زر الطباعة
+- زر لطباعة القرار.
+```blade
+<button onclick="window.print()">طباعة القرار</button>
+```
+
+### 13. ملاحظات تقنية
+- استخدام Tailwind CSS وCSS مخصص.
+- بعض البيانات ديناميكية من متغيرات Blade، وبعضها ثابت للعرض أو التجربة.
+- الصور: بعضها من روابط مباشرة، وبعضها Base64.
+
+---
+---
+
+## حساب وتجميع الاتجاهات (الأضلاع) وعرضها في التقرير النهائي
+
+### 1. من أين تأتي الاتجاهات؟
+- الاتجاهات (الأضلاع) تُستخرج من حدود المضلع الناتج عن الشيب فايل أو أي رسم هندسي.
+- كل ضلع هو المسافة بين زاويتين متتاليتين (vertices) في المضلع.
+
+### 2. خطوات المعالجة البرمجية
+#### أ. استخراج الزوايا (corners)
+```python
+from shapely.geometry import Polygon, Point
+poly = Polygon([...])  # قائمة الإحداثيات
+corners = list(poly.exterior.coords)[:-1]  # بدون تكرار أول نقطة
+```
+
+#### ب. حساب الأطوال والاتجاهات
+```python
+import math
+edges = []
+for i in range(len(corners)):
+        x1, y1 = corners[i]
+        x2, y2 = corners[(i+1)%len(corners)]
+        dx = x2 - x1
+        dy = y2 - y1
+        length = ((dx)**2 + (dy)**2)**0.5
+        angle_rad = math.atan2(dy, dx)
+        angle_deg = math.degrees(angle_rad)
+        # تحويل الزاوية إلى نص
+        if -45 <= angle_deg < 45:
+                direction = 'شرق'
+        elif 45 <= angle_deg < 135:
+                direction = 'شمال'
+        elif angle_deg >= 135 or angle_deg < -135:
+                direction = 'غرب'
+        else:
+                direction = 'جنوب'
+        edges.append({
+                'index': i+1,
+                'length': length,
+                'direction': direction,
+                'start': (x1, y1),
+                'end': (x2, y2)
+        })
+```
+
+#### ج. تجميع النتائج
+- قائمة edges تحتوي على جميع بيانات الأضلاع (الطول، الاتجاه، البداية، النهاية).
+- يمكن حفظها في قاعدة بيانات أو إرجاعها ضمن JSON من الـ API.
+
+#### د. عرض الاتجاهات في التقرير النهائي
+في الواجهة:
+```blade
+<table>
+    <tr><th>الضلع</th><th>الاتجاه</th><th>الطول (متر)</th></tr>
+    @foreach($edges as $edge)
+        <tr>
+            <td>{{ $edge['index'] }}</td>
+            <td>{{ $edge['direction'] }}</td>
+            <td>{{ number_format($edge['length'], 2) }}</td>
+        </tr>
+    @endforeach
+</table>
+```
+ويمكن رسم الأسهم أو كتابة الاتجاهات على صورة الشكل النهائي باستخدام مكتبة مثل Pillow في بايثون.
+
+### 3. في الطباعة النهائية
+- يتم تضمين جدول الاتجاهات والأطوال مع رسم الشكل النهائي.
+- يمكن أيضًا رسم الأسهم أو كتابة الاتجاهات على الصورة مباشرة بجانب كل ضلع.
+
+---
+---
+
+## معالجة ملفات الشيب فايل (Shapefile) في القرار المساحي
+
+### 1. رفع ملفات الشيب فايل
+عادةً يتكون الشيب فايل من عدة ملفات (shp, shx, dbf, prj ...)، ويتم رفعها كمجموعة:
+```blade
+<form action="{{ route('orders.upload_shapefile', $order->id) }}" method="POST" enctype="multipart/form-data">
+        @csrf
+        <input type="file" name="shapefile[]" multiple required accept=".shp,.shx,.dbf,.prj,.cpg,.sbn,.sbx">
+        <button type="submit">رفع الشيب فايل</button>
+</form>
+```
+
+### 2. باك اند: استقبال ومعالجة الشيب فايل
+يتم استقبال الملفات وتجميعها في مجلد واحد باسم الطلب، ثم معالجتها عبر مكتبة GIS (مثل pyshp أو geopandas أو ogr):
+```php
+public function uploadShapefile(Request $request, $orderId) {
+        $order = Order::findOrFail($orderId);
+        $folder = storage_path('app/uploads/shapefiles/order_' . $order->id);
+        if (!file_exists($folder)) mkdir($folder, 0777, true);
+        foreach ($request->file('shapefile') as $file) {
+                $file->move($folder, $file->getClientOriginalName());
+        }
+        // سجل في قاعدة البيانات
+        $order->documents()->create([
+                'file_path' => 'uploads/shapefiles/order_' . $order->id,
+                'type' => 'shapefile',
+        ]);
+        // معالجة وتحليل الشيب فايل عبر سكريبت بايثون
+        $cmd = "python3 " . base_path('paython_geoapi/shp_to_geojson.py') . " \"$folder\"";
+        exec($cmd);
+        return back()->with('success', 'تم رفع الشيب فايل بنجاح');
+}
+```
+
+### 3. سكريبت بايثون: تحويل وتحليل الشيب فايل
+مثال سكريبت لتحويل الشيب فايل إلى GeoJSON وتحليل الاتجاهات والأبعاد:
+```python
+import sys, os, geopandas as gpd
+from shapely.geometry import mapping
+
+folder = sys.argv[1]
+shp_path = [f for f in os.listdir(folder) if f.endswith('.shp')][0]
+gdf = gpd.read_file(os.path.join(folder, shp_path))
+gdf.to_file(os.path.join(folder, 'output.geojson'), driver='GeoJSON')
+
+# حساب الاتجاهات والأبعاد
+for idx, row in gdf.iterrows():
+        geom = row.geometry
+        bounds = geom.bounds  # (minx, miny, maxx, maxy)
+        print(f"Feature {idx}: Bounds={bounds}")
+        if geom.geom_type == 'Polygon':
+                coords = list(geom.exterior.coords)
+                # حساب اتجاه كل ضلع
+                for i in range(len(coords)-1):
+                        dx = coords[i+1][0] - coords[i][0]
+                        dy = coords[i+1][1] - coords[i][1]
+                        direction = ''
+                        if abs(dx) > abs(dy):
+                                direction = 'شرق/غرب' if dx > 0 else 'غرب/شرق'
+                        else:
+                                direction = 'شمال/جنوب' if dy > 0 else 'جنوب/شمال'
+                        length = ((dx)**2 + (dy)**2)**0.5
+                        print(f"  ضلع {i+1}: اتجاه={direction}، طول={length:.2f}")
+```
+
+### 4. تخزين النتائج
+- يتم حفظ ملف GeoJSON الناتج في نفس مجلد الطلب.
+- يمكن حفظ نتائج التحليل (الاتجاهات/الأبعاد) في جدول جديد (مثلاً: order_edges أو order_geometry_analysis).
+
+### 5. العرض في الواجهة
+#### عرض الشكل الجغرافي على الخريطة:
+```blade
+<div id="map" style="height:400px;"></div>
+<script>
+fetch('{{ asset('storage/uploads/shapefiles/order_' . $order->id . '/output.geojson') }}')
+    .then(res => res.json())
+    .then(data => {
+        L.geoJSON(data).addTo(L.map('map').setView([lat, lng], 16));
+    });
+</script>
+```
+#### عرض جدول الاتجاهات والأبعاد:
+```blade
+<table>
+    <tr><th>الضلع</th><th>الاتجاه</th><th>الطول (متر)</th></tr>
+    @foreach($order->edges as $edge)
+        <tr>
+            <td>{{ $edge->number }}</td>
+            <td>{{ $edge->direction }}</td>
+            <td>{{ $edge->length }}</td>
+        </tr>
+    @endforeach
+</table>
+```
+
+### 6. الطباعة النهائية للقرار
+- عند طباعة القرار، يتم تضمين:
+    - صورة الخريطة (يمكن أخذ لقطة شاشة أو تضمين خريطة تفاعلية).
+    - جدول الاتجاهات والأبعاد.
+    - بيانات GeoJSON أو رسم حدود الأرض بيانياً.
+
+---
+# SURVEY.md
+
+## توثيق دورة حياة القرار المساحي (Survey Decision Lifecycle)
+
+هذا المستند يشرح بالتفصيل دورة حياة القرار المساحي في النظام، مع تضمين الأكواد البرمجية الرئيسية لكل مرحلة.
+
+---
+
+def convert_tifs_in_folder_to_png_with_georef(input_folder, output_folder):
+
+## المرحلة 1: تقديم الطلب
+
+### 1.1 الواجهة (Frontend)
+نموذج تفاعلي يتيح للمستخدم إدخال بيانات الطلب ورفع الملفات:
+```blade
+<form action="{{ route('orders.store') }}" method="POST" enctype="multipart/form-data">
+    @csrf
+    <input type="text" name="applicant_name" placeholder="اسم مقدم الطلب" required>
+    <input type="text" name="land_number" placeholder="رقم الأرض" required>
+    <input type="file" name="raster_image" accept=".tif,.tiff,.png" required>
+    <input type="file" name="ownership_doc" accept=".pdf,.jpg,.png" required>
+    <button type="submit">إرسال الطلب</button>
+</form>
+```
+ملاحظات:
+- يمكن استخدام Livewire أو Vue.js لإضافة تفاعل حي (معاينة الصورة قبل الرفع، التحقق من الصيغ).
+
+### 1.2 الباك اند (Backend)
+استقبال الطلب والتحقق من البيانات ورفع الملفات:
+```php
+public function store(Request $request)
+{
+    $request->validate([
+        'applicant_name' => 'required|string',
+        'land_number' => 'required|string',
+        'raster_image' => 'required|file|mimes:tif,tiff,png',
+        'ownership_doc' => 'required|file|mimes:pdf,jpg,png',
+    ]);
+
+    $order = Order::create([
+        'applicant_name' => $request->applicant_name,
+        'land_number' => $request->land_number,
+        'status' => 'جديد',
+    ]);
+
+    // رفع صورة الرستر
+    if ($request->hasFile('raster_image')) {
+        $file = $request->file('raster_image');
+        $path = $file->store('uploads/ordersdocuments');
+
+        // تحويل TIFF إلى PNG عبر سكريبت بايثون
+        if (in_array($file->getClientOriginalExtension(), ['tif', 'tiff'])) {
+            $outputDir = storage_path('app/uploads/ordersdocuments_png');
+            $cmd = "python3 " . base_path('paython_geoapi/rastertopng.py') . " \"" . storage_path('app/'.$path) . "\" \"$outputDir\"";
+            exec($cmd);
+            // يمكن هنا قراءة اسم ملف PNG الناتج وحفظه
+        }
+
+        $order->documents()->create([
+            'file_path' => $path,
+            'type' => 'raster',
+        ]);
+    }
+
+    // رفع مستند الملكية
+    if ($request->hasFile('ownership_doc')) {
+        $docPath = $request->file('ownership_doc')->store('uploads/ordersdocuments');
+        $order->documents()->create([
+            'file_path' => $docPath,
+            'type' => 'ownership',
+        ]);
+    }
+
+    return redirect()->route('orders.show', $order->id);
+}
+```
+
+### 1.3 سكريبتات التحويل (Python)
+مثال من `paython_geoapi/rastertopng.py`:
+```python
+import os
+import rasterio
+from PIL import Image
+import numpy as np
+
+def convert_tifs_in_folder_to_png_with_georef(input_folder, output_folder):
+    # ...existing code...
+```
+يقوم بتحويل جميع ملفات TIFF في مجلد إلى PNG مع ملفات PGW/PRJ.
+
+### 1.4 قاعدة البيانات
+- جدول الطلبات (orders):
+  - id, applicant_name, land_number, status, created_at, ...
+- جدول المستندات (ordersdocuments):
+  - id, order_id, file_path, type, created_at, ...
+
+
+---
+
+
+## المرحلة 2: مراجعة الطلب
+
+### 2.1 الواجهة (Frontend)
+قائمة الطلبات الجديدة:
+```blade
+<table>
+@foreach($orders as $order)
+    <tr>
+        <td>{{ $order->id }}</td>
+        <td>{{ $order->applicant_name }}</td>
+        <td>{{ $order->created_at }}</td>
+        <td><a href="{{ route('orders.show', $order->id) }}">مراجعة</a></td>
+    </tr>
+@endforeach
+</table>
+```
+صفحة مراجعة الطلب:
+```blade
+<h2>بيانات الطلب</h2>
+<p>اسم: {{ $order->applicant_name }}</p>
+<p>رقم الأرض: {{ $order->land_number }}</p>
+<h3>الصور الجغرافية:</h3>
+@foreach($order->documents as $doc)
+    @if($doc->type == 'raster')
+        <img src="{{ uploaded_asset($doc->file_path) }}" width="400">
+        <a href="{{ uploaded_asset($doc->file_path) }}" download>تحميل الصورة</a>
+    @endif
+@endforeach
+```
+
+### 2.2 الباك اند (Backend)
+جلب الطلبات وتفاصيل الطلب:
+```php
+public function index() {
+        $orders = Order::where('status', 'جديد')->get();
+        return view('orders.index', compact('orders'));
+}
+public function show($id) {
+        $order = Order::with('documents')->findOrFail($id);
+        return view('orders.show', compact('order'));
+}
+```
+اتخاذ إجراء على الطلب:
+```php
+public function review(Request $request, $id) {
+        $order = Order::findOrFail($id);
+        if ($request->action == 'accept') {
+                $order->status = 'قيد المعالجة الفنية';
+        } elseif ($request->action == 'reject') {
+                $order->status = 'مرفوض';
+                $order->notes = $request->notes;
+        } elseif ($request->action == 'request_edit') {
+                $order->status = 'بانتظار التعديل';
+                $order->notes = $request->notes;
+        }
+        $order->save();
+        return redirect()->route('orders.index');
+}
+```
+
+### 2.3 قاعدة البيانات
+- تحديث حالة الطلب (`status`) وكتابة الملاحظات (`notes`).
+
+
+---
+
+
+## المرحلة 3: المعالجة الفنية
+
+### 3.1 الواجهة (Frontend)
+صفحة فنية تعرض كل البيانات والصور الجغرافية:
+```blade
+<h2>مراجعة فنية للطلب</h2>
+<p>اسم: {{ $order->applicant_name }}</p>
+<p>رقم الأرض: {{ $order->land_number }}</p>
+<h3>الصور الجغرافية:</h3>
+@foreach($order->documents as $doc)
+  @if($doc->type == 'raster')
+    <img src="{{ uploaded_asset($doc->file_path) }}" width="500">
+    <a href="{{ uploaded_asset($doc->file_path) }}" download>تحميل PNG</a>
+    <a href="{{ uploaded_asset(str_replace('.png', '.pgw', $doc->file_path)) }}" download>تحميل PGW</a>
+    <a href="{{ uploaded_asset(str_replace('.png', '.prj', $doc->file_path)) }}" download>تحميل PRJ</a>
+  @endif
+@endforeach
+<form action="{{ route('orders.technical_review', $order->id) }}" method="POST">
+    @csrf
+    <textarea name="technical_notes" placeholder="ملاحظات فنية"></textarea>
+    <button name="action" value="approve">اعتماد فني</button>
+    <button name="action" value="reject">رفض فني</button>
+    <button name="action" value="request_info">طلب بيانات إضافية</button>
+</form>
+```
+
+### 3.2 الباك اند (Backend)
+حفظ الملاحظات الفنية وتغيير الحالة:
+```php
+public function technicalReview(Request $request, $id) {
+    $order = Order::findOrFail($id);
+    $order->technical_notes = $request->technical_notes;
+    if ($request->action == 'approve') {
+        $order->status = 'جاهز للإصدار';
+    } elseif ($request->action == 'reject') {
+        $order->status = 'مرفوض فنياً';
+    } elseif ($request->action == 'request_info') {
+        $order->status = 'بانتظار بيانات إضافية';
+    }
+    $order->save();
+    return redirect()->route('orders.technical');
+}
+```
+
+### 3.3 قاعدة البيانات
+- تحديث حالة الطلب (`status`) وحقل الملاحظات الفنية (`technical_notes`).
+
+
+---
+
+
+## المرحلة 4: إصدار القرار
+
+### 4.1 الواجهة (Frontend)
+صفحة اعتماد القرار النهائي:
+```blade
+<h2>اعتماد القرار المساحي</h2>
+<p>اسم: {{ $order->applicant_name }}</p>
+<p>رقم الأرض: {{ $order->land_number }}</p>
+<p>ملاحظات فنية: {{ $order->technical_notes }}</p>
+<h3>الصور الجغرافية:</h3>
+@foreach($order->documents as $doc)
+    @if($doc->type == 'raster')
+        <img src="{{ uploaded_asset($doc->file_path) }}" width="400">
+    @endif
+@endforeach
+<form action="{{ route('orders.issue', $order->id) }}" method="POST">
+        @csrf
+        <button type="submit">إصدار القرار</button>
+</form>
+```
+
+### 4.2 الباك اند (Backend)
+توليد رقم القرار وتحديث الحالة وحفظ PDF:
+```php
+public function issue(Request $request, $id) {
+        $order = Order::findOrFail($id);
+        $order->decision_number = generateDecisionNumber();
+        $order->status = 'تم الإصدار';
+        $order->issued_at = now();
+        $order->issued_by = auth()->user()->name;
+
+        // توليد PDF
+        $pdf = PDF::loadView('orders.decision_pdf', compact('order'));
+        $pdfPath = 'uploads/decisions/' . $order->decision_number . '.pdf';
+        Storage::put($pdfPath, $pdf->output());
+        $order->pdf_path = $pdfPath;
+        $order->save();
+
+        // إشعار المستخدم
+        Notification::send($order->user, new DecisionIssuedNotification($order));
+        return redirect()->route('orders.show', $order->id);
+}
+```
+
+### 4.3 قاعدة البيانات
+- تحديث حالة الطلب (`status`)، رقم القرار (`decision_number`)، مسار PDF (`pdf_path`)، تاريخ الإصدار (`issued_at`).
+
+
+---
+
+## قاعدة البيانات (نماذج مختصرة)
+
+### جدول الطلبات (orders)
+- id
+- applicant_name
+- land_info
+- status
+- decision_number
+- issued_at
+- issued_by
+- technical_notes
+- pdf_path
+- ...
+
+### جدول المستندات (ordersdocuments/uploads)
+- id
+- order_id
+- file_path
+- type
+- ...
+
+---
+
+## ملاحظات
+- جميع الأكواد قابلة للتخصيص حسب هيكلية مشروعك.
+- سكريبت التحويل الجغرافي (Python) يجب أن يكون متاحاً على السيرفر.
+- يفضل استخدام علاقات Eloquent بين الطلبات والمستندات.
+
+---
+
+**تم إعداد هذا المستند لتوثيق دورة حياة القرار المساحي برمجياً ووظيفياً مع الأكواد الأساسية لكل مرحلة.**

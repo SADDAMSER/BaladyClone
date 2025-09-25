@@ -1,0 +1,660 @@
+@extends('layouts.drawinglayout', ['title' => translate('printorder_no') . '_' . $order->order_no])
+@php
+    $dirname = $unitinfo->unitname_en;
+    $unit_raster_path = asset('uploads/units_restor/' . $dirname . '/map.png');
+    $json_file_path = public_path('uploads/units_restor/' . $dirname . '/bounds.json');
+    $unit_raster_path = asset('uploads/units_restor/' . $dirname . '/map.png');
+DD($unit_raster_path);
+    if (file_exists($json_file_path)) {
+        $jsoinfo = json_decode(file_get_contents($json_file_path), true);
+    } else {
+        $jsoinfo = null;
+    }
+    // dd($jsoinfo, $un/it_raster_path);
+@endphp
+
+@section('content')
+    <!-- Top Bar -->
+
+    @include('app.customer_orders.steps.parts.topbar')
+    @include('app.customer_orders.steps.parts.order_info')
+    @include('app.customer_orders.steps.parts.dimission_info')
+    @include('app.customer_orders.steps.parts.street_model')
+    @include('app.customer_orders.steps.parts.parcel_model')
+
+
+
+    <!-- ✅ Modal HTML -->
+    <div id="successModal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50 hidden">
+        <div class="bg-white rounded-lg p-6 shadow-md max-w-md w-full text-center">
+            <h2 id="successMessageText" class="text-lg font-semibold text-green-700 mb-4">تم حفظ البيانات بنجاح</h2>
+            <button onclick="closeSuccessModal()" class="mt-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+                موافق
+            </button>
+        </div>
+    </div>
+    <!-- Map Container -->
+    <div id="map"></div>
+@endsection
+
+
+
+
+@section('scripts')
+    <script>
+        function showSuccessModal(message) {
+            const modal = document.getElementById("successModal");
+            const messageElement = document.getElementById("successMessageText");
+            messageElement.textContent = message || "تم بنجاح";
+            modal.classList.remove("hidden");
+            modal.classList.add("flex");
+        }
+
+        function closeSuccessModal() {
+            const modal = document.getElementById("successModal");
+            modal.classList.remove("flex");
+            modal.classList.add("hidden");
+        }
+
+
+
+
+        document.getElementById("uploadForm").addEventListener("submit", function(e) {
+            e.preventDefault();
+            const file = document.getElementById("csvInput").files[0];
+            if (!file) return alert("Please select a CSV file");
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            fetch("{{ route('survey.upload.csv') }}", {
+                    method: "POST",
+                    headers: {
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    body: formData
+                })
+                .then(res => res.json())
+                .then(data => {
+                    drawGeoFeatures(data.features);
+                    document.getElementById("successMessage").classList.remove("hidden");
+                    document.getElementById("errorMessages").classList.add("hidden");
+                    closeModal();
+                    document.getElementById("uploadForm").reset(); // reset form
+                })
+                .catch(err => {
+                    document.getElementById("errorMessages").classList.remove("hidden");
+                    document.getElementById("errorMessages").innerText = "Upload failed. Check console.";
+                    console.error(err);
+                });
+        });
+
+        document.getElementById("uploadBtn").addEventListener("click", () => {
+            const modal = document.getElementById("uploadModal");
+            modal.classList.remove("hidden");
+            modal.classList.add("flex");
+        });
+
+        function closeStreetModal() {
+            const modal = document.getElementById("streetinfoModel");
+            modal.classList.remove("flex");
+            modal.classList.add("hidden");
+        }
+
+        function closeparcelModel() {
+            const modal = document.getElementById("parcelModel");
+            modal.classList.remove("flex");
+            modal.classList.add("hidden");
+        }
+
+        function closeModal() {
+            const modal = document.getElementById("uploadModal");
+            document.getElementById('dimensionsModal').classList.add('hidden');
+            modal.classList.remove("flex");
+            modal.classList.add("hidden");
+        }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            const streetBtn = document.getElementById('openStreetInfoBtn');
+            const modal = document.getElementById('streetinfoModel');
+
+            if (streetBtn && modal) {
+                streetBtn.addEventListener('click', () => {
+                    modal.classList.remove('hidden');
+                    modal.classList.add('flex');
+                });
+            }
+        });
+
+        function exportGeoJSON() {
+            const geojson = drawnItems.toGeoJSON();
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(geojson));
+            const dlAnchor = document.createElement('a');
+            dlAnchor.setAttribute("href", dataStr);
+            dlAnchor.setAttribute("download", "map_data.geojson");
+            document.body.appendChild(dlAnchor);
+            dlAnchor.click();
+            dlAnchor.remove();
+        }
+
+        function exportCSV() {
+            const geojson = drawnItems.toGeoJSON();
+            let csv = "type,lat,lng,code\n";
+
+            geojson.features.forEach(feature => {
+                const type = feature.geometry.type;
+                const code = feature.properties?.code || '';
+                let coords = [];
+
+                if (type === "LineString" || type === "Polygon") {
+                    coords = type === "Polygon" ?
+                        feature.geometry.coordinates[0] :
+                        feature.geometry.coordinates;
+
+                    coords.forEach(([lng, lat], index) => {
+                        let posType = 'a';
+                        if (index === 0) {
+                            posType = 'ab'; // First point
+                        } else if (index === coords.length - 1) {
+                            posType = 'ac'; // Last point
+                        }
+                        csv += `${type},${lat},${lng},${posType},${posType}\n`;
+                    });
+                }
+            });
+
+            const blob = new Blob([csv], {
+                type: 'text/csv;charset=utf-8;'
+            });
+            const url = URL.createObjectURL(blob);
+            const dlAnchor = document.createElement("a");
+            dlAnchor.setAttribute("href", url);
+            dlAnchor.setAttribute("download", "map_data.csv");
+            document.body.appendChild(dlAnchor);
+            dlAnchor.click();
+            dlAnchor.remove();
+        }
+    </script>
+
+    <script>
+        const colorMap = {
+            'w': 'red',
+            'bl': 'blue',
+            'a': 'green'
+        };
+
+        const rasterImage = @json($unit_raster_path); // هذا يحول الرابط لصيغة JS
+        const boundsData = @json($jsoinfo['bounds'] ?? null); // هذا يحول bounds إلى JavaScript Array
+
+        const map = L.map("map", {
+            crs: L.CRS.Simple,
+            minZoom: -5
+        });
+        map.editTools = new L.Editable(map); // ✅
+
+        const snapLayers = new L.FeatureGroup().addTo(map);
+        const drawnItems = new L.FeatureGroup().addTo(map);
+
+        if (boundsData && Array.isArray(boundsData)) {
+            const bounds = boundsData;
+            L.imageOverlay(rasterImage, bounds).addTo(map);
+            map.fitBounds(bounds);
+        } else {
+            console.warn("❌ لا توجد bounds صالحة.");
+        }
+
+        map.on('editable:drawing:start', function(e) {
+            const layer = e.layer;
+            if (layer instanceof L.Polyline || layer instanceof L.Polygon) {
+                const snapper = new L.Handler.PolylineSnap(map, layer);
+                snapLayers.eachLayer(function(guide) {
+                    snapper.addGuideLayer(guide);
+                });
+                snapper.enable();
+            }
+        });
+
+        drawnItems.on('layeradd', function(e) {
+            snapLayers.addLayer(e.layer);
+        });
+
+        // ✅ تفعيل جميع أدوات leaflet.pm
+        map.pm.addControls({
+            position: 'topleft',
+            drawMarker: true,
+            drawCircleMarker: true,
+            drawPolyline: true,
+            drawRectangle: true,
+            drawPolygon: true,
+            drawCircle: true,
+            editMode: true,
+            dragMode: true,
+            cutPolygon: true,
+            removalMode: true,
+            rotateMode: true
+        });
+
+        // ✅ تفعيل كل أدوات Leaflet.Draw أيضًا
+        map.addControl(new L.Control.Draw({
+            position: 'topright',
+            edit: {
+                featureGroup: drawnItems,
+                edit: true,
+                remove: true
+            },
+            draw: {
+                polygon: {
+                    allowIntersection: false,
+                    showArea: true,
+                    shapeOptions: {
+                        color: 'purple'
+                    }
+                },
+                polyline: {
+                    shapeOptions: {
+                        color: 'black',
+                        weight: 3
+                    }
+                },
+                rectangle: {
+                    shapeOptions: {
+                        color: 'green'
+                    }
+                },
+                circle: {
+                    shapeOptions: {
+                        color: 'red'
+                    }
+                },
+                marker: true,
+                circlemarker: true
+            }
+        }));
+
+        map.on('pm:vertexclick', e => {
+            const latlng = e.latlng;
+            const layer = e.layer;
+            const index = e.indexPath[0]; // index of the clicked point in the coordinates array
+
+            // أظهر قائمة خيارات بسيطة (مثال باستخدام confirm):
+            const choice = prompt("🛠 اختر: \n1: حذف النقطة\n2: إدراج نقطة بعدها", "1");
+
+            if (choice === "1") {
+                // ✅ حذف النقطة الحالية
+                const coords = layer.getLatLngs();
+                if (coords.length <= 2) {
+                    alert("❌ لا يمكن حذف النقطة، أقل عدد هو نقطتين.");
+                    return;
+                }
+
+                coords.splice(index, 1); // حذف النقطة المحددة
+                layer.setLatLngs(coords); // إعادة تعيين الإحداثيات
+                layer.redraw();
+            } else if (choice === "2") {
+                // ✅ إدراج نقطة جديدة بين الحالية والتالية أو النهاية
+                const coords = layer.getLatLngs();
+                const current = coords[index];
+                const next = coords[index + 1] || coords[index - 1];
+
+                if (!next) return;
+
+                const mid = [
+                    (current.lat + next.lat) / 2,
+                    (current.lng + next.lng) / 2
+                ];
+                coords.splice(index + 1, 0, L.latLng(mid[0], mid[1])); // أضف النقطة الجديدة
+                layer.setLatLngs(coords);
+                layer.redraw();
+            }
+        });
+        map.on('editable:drawing:start', function(e) {
+            const layer = e.layer;
+            if (layer instanceof L.Polyline || layer instanceof L.Polygon) {
+                // مر على كل العناصر في drawnItems وأضفها كـ "snap guides"
+                drawnItems.eachLayer(function(guideLayer) {
+                    if (guideLayer.editing) {
+                        const snapper = new L.Handler.MarkerSnap(map, layer);
+                        snapper.addGuideLayer(guideLayer);
+                    }
+                });
+            }
+        });
+
+
+        map.on(L.Draw.Event.CREATED, (e) => {
+            const layer = e.layer;
+
+            // ✅ تمكين التعديل
+            if (layer.pm) {
+                layer.pm.enable({
+                    allowSelfIntersection: false,
+                });
+            }
+
+            drawnItems.addLayer(layer);
+
+            // ✅ إذا كان بوليجون، فعّل الحدث مباشرة
+            if (layer instanceof L.Polygon) {
+                layer.on('dblclick', function(ev) {
+                    L.DomEvent.stopPropagation(ev);
+                    const modal = document.getElementById("parcelModel");
+                    if (modal) {
+                        modal.classList.remove("hidden");
+                        modal.classList.add("flex");
+                    }
+                    console.log("✅ Polygon dblclicked:", layer.getLatLngs());
+                });
+            }
+
+            // ✅ Polyline logic
+            if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
+                const coords = layer.getLatLngs();
+                const rawCoords = coords.map(latlng => [latlng.lng, latlng.lat]);
+
+                const widthInput = document.getElementById('defaultStreetWidth');
+                const width = parseFloat(widthInput?.value || 0);
+
+                const centerOffset = offsetLine(rawCoords, width / 2, 'left');
+                const centerLatLngs = centerOffset.map(p => [p[1], p[0]]);
+                L.polyline(centerLatLngs, {
+                    color: 'red',
+                    weight: 5
+                }).addTo(drawnItems);
+
+                const leftOffset = offsetLine(rawCoords, width, 'left');
+                const leftLatLngs = leftOffset.map(p => [p[1], p[0]]);
+                L.polyline(leftLatLngs, {
+                    color: 'blue',
+                    weight: 3,
+                    dashArray: '4 4'
+                }).addTo(drawnItems);
+
+                document.getElementById('drawnLineInput').value = JSON.stringify(rawCoords);
+                document.getElementById('offsetLineInput').value = JSON.stringify(centerOffset);
+                document.getElementById('leftLineInput').value = JSON.stringify(leftOffset);
+
+                const modal = document.getElementById("streetinfoModel");
+                if (modal) {
+                    modal.classList.remove("hidden");
+                    modal.classList.add("flex");
+                }
+            }
+        }); // ✅ نهاية map.on(L.Draw.Event.CREATED)
+
+        // ✅ إضافة الحدث لأي طبقة بوليجون يتم تحميلها لاحقًا من الـ DB
+        drawnItems.on('layeradd', function(e) {
+            const layer = e.layer;
+            if (layer instanceof L.Polygon) {
+                layer.on('dblclick', function(ev) {
+                    L.DomEvent.stopPropagation(ev);
+                    const modal = document.getElementById("parcelModel");
+                    if (modal) {
+                        modal.classList.remove("hidden");
+                        modal.classList.add("flex");
+                    }
+                    console.log("✅ Polygon dblclicked:", layer.getLatLngs());
+                });
+            }
+        });
+
+        map.on(L.Draw.Event.EDITED, function(e) {
+            const layers = e.layers;
+            const widthInput = document.getElementById('defaultStreetWidth');
+            const width = parseFloat(widthInput?.value || 0);
+
+            layers.eachLayer(function(layer) {
+                if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
+                    const coords = layer.getLatLngs();
+                    const rawCoords = coords.map(latlng => [latlng.lng, latlng.lat]);
+
+                    // 🧼 احذف الخطوط المرافقة القديمة
+                    drawnItems.eachLayer(l => {
+                        if (l !== layer && l.options && (l.options.color === 'red' || l.options
+                                .color === 'blue')) {
+                            drawnItems.removeLayer(l);
+                        }
+                    });
+
+                    // ✅ توليد الخط الأحمر (center offset)
+                    const centerOffset = offsetLine(rawCoords, width / 2, 'left');
+                    const centerLatLngs = centerOffset.map(p => [p[1], p[0]]);
+                    L.polyline(centerLatLngs, {
+                        color: 'red',
+                        weight: 5,
+                        dashArray: '0'
+                    }).addTo(drawnItems);
+
+                    // ✅ توليد الخط الأزرق (left offset)
+                    const leftOffset = offsetLine(rawCoords, width, 'left');
+                    const leftLatLngs = leftOffset.map(p => [p[1], p[0]]);
+                    L.polyline(leftLatLngs, {
+                        color: 'blue',
+                        weight: 3,
+                        dashArray: '4 4'
+                    }).addTo(drawnItems);
+
+                    // ✅ تحديث الحقول المخفية
+                    document.getElementById('drawnLineInput').value = JSON.stringify(rawCoords);
+                    document.getElementById('offsetLineInput').value = JSON.stringify(centerOffset);
+                    document.getElementById('leftLineInput').value = JSON.stringify(leftOffset);
+                }
+            });
+        });
+        // ✅ الاستماع للنقر المزدوج على أي عنصر بوليجون
+    </script>
+
+    <script>
+        const initialGeoJson = {!! $geojson !!};
+
+        setTimeout(() => {
+            if (initialGeoJson && initialGeoJson.features) {
+                console.log("Drawing saved features from DB...");
+                drawGeoFeatures(initialGeoJson.features);
+            } else {
+                console.warn("initialGeoJson is not a valid FeatureCollection:", initialGeoJson);
+            }
+        }, 3000);
+
+        function computeLineLengthXY(coordsXY) {
+            let length = 0;
+            for (let i = 0; i < coordsXY.length - 1; i++) {
+                const [x1, y1] = coordsXY[i];
+                const [x2, y2] = coordsXY[i + 1];
+                length += Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+            }
+            return length;
+        }
+
+        function getMidpoint(coordsXY) {
+            let sumX = 0,
+                sumY = 0;
+            coordsXY.forEach(([x, y]) => {
+                sumX += x;
+                sumY += y;
+            });
+            const n = coordsXY.length;
+            return [sumX / n, sumY / n];
+        }
+
+        function drawGeoFeatures(features) {
+            if (!Array.isArray(features)) {
+                console.error("❌ Expected an array of features, but got:", features);
+                return;
+            }
+
+            features.forEach(feature => {
+                const code = feature.properties.code || '';
+                const color = colorMap[code] || 'green';
+
+                if (feature.geometry.type === "LineString") {
+                    const coordsXY = feature.geometry.coordinates;
+                    const length = computeLineLengthXY(coordsXY).toFixed(2);
+                    const coordsLatLng = coordsXY.map(p => [p[1], p[0]]);
+
+                    const line = L.polyline(coordsLatLng, {
+                        color,
+                        weight: 3
+                    }).addTo(drawnItems);
+
+                    // ✅ تمكين التعديل باستخدام leaflet.pm
+                    if (line.pm) {
+                        line.pm.enable({
+                            allowSelfIntersection: false
+                        });
+                    }
+
+                    const [midX, midY] = getMidpoint(coordsXY);
+                    const label = L.marker([midY, midX], {
+                        icon: L.divIcon({
+                            className: 'line-label',
+                            html: `${code}<br>-: ${length}`
+                        })
+                    }).addTo(drawnItems);
+
+                    line.bindPopup(`${code}-: ${length}`);
+                } else if (feature.geometry.type === "Polygon") {
+                    const coordsXY = feature.geometry.coordinates[0];
+                    const coordsLatLng = coordsXY.map(p => [p[1], p[0]]);
+                    const polygon = L.polygon(coordsLatLng, {
+                        color,
+                        fillOpacity: 0.3
+                    }).addTo(drawnItems);
+
+                    // ✅ حدث النقر المزدوج
+                    polygon.on('dblclick', function(e) {
+                        L.DomEvent.stopPropagation(e); // لمنع الزوم الافتراضي
+
+                        // ✅ فتح المودال
+                        const modal = document.getElementById("parcelModel");
+                        if (modal) {
+                            modal.classList.remove("hidden");
+                            modal.classList.add("flex");
+                        }
+
+                        // ✅ استخراج معلومات الشكل وطباعتها في الكونسول
+                        const center = polygon.getBounds().getCenter();
+                        console.log("✅ Polygon clicked:");
+                        console.log("🧭 Center:", center);
+                        console.log("📌 Coordinates (LatLng):", coordsLatLng);
+                        console.log("🔖 Code:", code);
+                        console.log("📐 Type:", feature.geometry.type);
+                    });
+                }
+
+            });
+        }
+
+
+        function offsetLine(coords, offsetDistance, direction = 'left') {
+            const offsetCoords = [];
+            const multiplier = direction === 'left' ? 1 : -1;
+
+            for (let i = 0; i < coords.length - 1; i++) {
+                const [x1, y1] = coords[i];
+                const [x2, y2] = coords[i + 1];
+
+                const dx = x2 - x1;
+                const dy = y2 - y1;
+
+                const length = Math.sqrt(dx ** 2 + dy ** 2);
+                if (length === 0) continue;
+
+                const nx = -dy / length;
+                const ny = dx / length;
+
+                const offsetStart = [
+                    x1 + multiplier * offsetDistance * nx,
+                    y1 + multiplier * offsetDistance * ny
+                ];
+                const offsetEnd = [
+                    x2 + multiplier * offsetDistance * nx,
+                    y2 + multiplier * offsetDistance * ny
+                ];
+
+                if (i === 0) offsetCoords.push(offsetStart);
+                offsetCoords.push(offsetEnd);
+            }
+
+            return offsetCoords;
+        }
+
+
+
+
+        function saveStreetinfo(event) {
+            event.preventDefault(); // Prevent default form submission
+
+            let form = document.getElementById('saveStreetinfoForm');
+            if (!form) {
+                console.error("Form not found in the DOM!");
+                return;
+            }
+
+            let formData = new FormData(form);
+            let postUrl = document.getElementById('postRoute')?.value;
+
+            if (!postUrl) {
+                console.error("Post URL not found!");
+                return;
+            }
+
+            // Clear previous errors
+            document.querySelectorAll(".error-message").forEach(el => el.remove());
+
+            fetch(postUrl, {
+                    method: "POST",
+                    headers: {
+                        "X-CSRF-TOKEN": "{{ csrf_token() }}"
+                    },
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        closeStreetModal();
+
+                        showSuccessModal(data.message);
+                        let successContainer = document.getElementById("successMessage");
+                        successContainer.classList.remove("hidden");
+
+
+
+                        // Refresh page after success
+                        setTimeout(function() {
+                            location.reload();
+                        }, 6000);
+                    } else if (data.errors) {
+
+                        if (typeof data.errors === 'string') {
+                            showNotification(data.errors, data.errors, 'error', 100);
+                            return;
+                        }
+                        // Show validation errors below the respective input fields
+                        Object.keys(data.errors).forEach(field => {
+                            let inputField = document.querySelector(`[name="${field}"]`);
+                            if (inputField) {
+                                let errorElement = document.createElement("p");
+                                errorElement.textContent = data.errors[field][0]; // Show first error
+                                errorElement.classList.add("error-message", "text-red-500", "text-sm", "mt-1");
+                                inputField.insertAdjacentElement("afterend", errorElement);
+                            }
+                        });
+                    }
+                })
+                .catch(error => console.error('Error submitting form:', error));
+        }
+
+
+        function showNotification(title, message, type = 'info', duration = 3000) {
+            const notif = document.createElement('div');
+            notif.className =
+                `fixed top-4 right-4 px-4 py-2 rounded shadow-md text-white bg-${type === 'success' ? 'green' : type === 'error' ? 'red' : 'blue'}-500`;
+            notif.textContent = `${title}: ${message}`;
+            document.body.appendChild(notif);
+
+            setTimeout(() => {
+                notif.remove();
+            }, duration || 5000);
+        }
+    </script>
+@endsection

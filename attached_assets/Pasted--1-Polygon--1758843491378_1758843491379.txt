@@ -1,0 +1,253 @@
+"""
+شرح تفصيلي لكيفية حساب وتجميع الاتجاهات (الأضلاع) وعرضها:
+
+1. تبسيط المضلع (Polygon) ودمج الأضلاع الصغيرة باستخدام Shapely.
+2. استخراج زوايا المضلع المبسط (simp_corners_utm).
+3. لكل ضلع (من زاوية i إلى i+1):
+   - إسقاط كل زاوية على حدود المضلع النهائي (بعد التدوير).
+   - حساب طول القوس (arc length) بين الزاويتين على الحدود الحقيقية.
+   - حساب نقطة المنتصف على القوس لوضع التسمية.
+   - حساب الاتجاه (نصياً) من الفرق بين إحداثيات الزاويتين:
+     dx = x2 - x1, dy = y2 - y1
+     angle = atan2(dy, dx)
+     angle_deg = degrees(angle)
+     ثم تحويل الزاوية إلى نص (شمال/جنوب/شرق/غرب).
+4. تجميع بيانات كل ضلع في قائمة edges:
+   edges = [{ 'index': i+1, 'length': ..., 'direction': ..., 'start': (...), 'end': (...) }, ...]
+5. إرجاع قائمة الأضلاع ضمن JSON من الـ API لعرضها في التقرير أو الواجهة.
+6. في التقرير النهائي: عرض جدول الاتجاهات والأطوال، ويمكن رسم الأسهم أو كتابة الاتجاهات على الصورة.
+
+مثال حساب الاتجاه:
+import math
+dx = x2 - x1
+dy = y2 - y1
+angle_rad = math.atan2(dy, dx)
+angle_deg = math.degrees(angle_rad)
+if -45 <= angle_deg < 45:
+    direction = 'شرق'
+elif 45 <= angle_deg < 135:
+    direction = 'شمال'
+elif angle_deg >= 135 or angle_deg < -135:
+    direction = 'غرب'
+else:
+    direction = 'جنوب'
+"""
+import os
+import uuid
+import pyproj
+import math
+from flask import request, jsonify, url_for, make_response
+from flask_restful import Resource, Api
+from PIL import Image, ImageDraw, ImageFont
+
+from shapely.geometry import Polygon, Point
+from shapely.ops import transform
+
+from . import user_blueprint
+
+api = Api(user_blueprint)
+
+UPLOAD_DIR = os.path.abspath(os.path.join(os.getcwd(), "uploads", "shapes"))
+if not os.path.exists(UPLOAD_DIR):
+    os.makedirs(UPLOAD_DIR)
+
+class GenerateShapeDrawing(Resource):
+    def post(self):
+        """
+        1) Reads UTM polygon data.
+        2) Simplifies polygon to merge tiny edges.
+        3) Rounds corners in UTM space (buffer out + buffer in).
+        4) Measures arc length for each simplified edge.
+        5) Draws final shape in pixel space with one label per edge.
+        """
+        # ---------------------------------------------------------------------
+        # 1. Parse Input Geometry
+        # ---------------------------------------------------------------------
+        data = request.get_json()
+        if not data or "geometry" not in data:
+            return make_response(jsonify({
+                "status": False,
+                "message": "Invalid request. Required field: geometry",
+                "url": None
+            }), 400)
+
+        geometry = data["geometry"]
+        if "type" not in geometry or geometry["type"] != "Polygon":
+            return make_response(jsonify({
+                "status": False,
+                "message": "Invalid geometry type. Only 'Polygon' is supported.",
+                "url": None
+            }), 400)
+
+        all_coords = geometry.get("coordinates", [])
+        if not all_coords or not isinstance(all_coords, list):
+            return make_response(jsonify({
+                "status": False,
+                "message": "Invalid geometry coordinates. Expected a list of coordinates.",
+                "url": None
+            }), 400)
+
+        # ---------------------------------------------------------------------
+        # 2. Build the Original Polygon in UTM Space
+        # ---------------------------------------------------------------------
+        # Adjust these if needed:
+        utm_zone = 38
+        is_southern_hemisphere = False
+
+        proj_utm = pyproj.Proj(proj="utm", zone=utm_zone, ellps="WGS84", south=is_southern_hemisphere)
+
+        cleaned_coords = []
+        for coord in all_coords:
+            if isinstance(coord, (list, tuple)) and len(coord) >= 2:
+                x_utm, y_utm = coord[:2]
+                cleaned_coords.append((x_utm, y_utm))
+            else:
+                print(f"⚠ Invalid coordinate format: {coord}")
+
+        if not cleaned_coords:
+            return make_response(jsonify({
+                "status": False,
+                "message": "No valid (X, Y) UTM coordinates found.",
+                "url": None
+            }), 400)
+
+        original_utm_poly = Polygon(cleaned_coords)
+        if not original_utm_poly.is_valid:
+            # Attempt minor fix for self-intersections, etc.
+            original_utm_poly = original_utm_poly.buffer(0)
+
+        # ---------------------------------------------------------------------
+        # 3. Simplify the Polygon (in UTM) to Merge Tiny Edges
+        # ---------------------------------------------------------------------
+        # Increase tolerance if you still see too many small edges
+        tolerance_m = 2.0
+        simplified_utm_poly = original_utm_poly.simplify(tolerance_m, preserve_topology=True)
+
+        # ---------------------------------------------------------------------
+        # 4. Round the Corners in UTM Space
+        #    => So the final shape has real arcs in meters
+        # ---------------------------------------------------------------------
+        # corner_radius_m => how big to round corners, in meters
+        corner_radius_m = 5.0
+
+        # The two-step "buffer out, then buffer in" with round joins
+        # creates filleted corners. Increase resolution for smoother arcs
+        out_buffer = simplified_utm_poly.buffer(
+            corner_radius_m, join_style=1, cap_style=1, resolution=8
+        )
+        rounded_utm_poly = out_buffer.buffer(
+            -corner_radius_m, join_style=1, cap_style=1, resolution=8
+        )
+
+        # We'll label each "side" from the *simplified* corners, but measure
+        # along the new *rounded* boundary for correct arc length.
+        rounded_boundary = rounded_utm_poly.exterior
+
+        # ---------------------------------------------------------------------
+        # 5. Build a List of "Simplified" Corners in UTM (No repeated last point)
+        # ---------------------------------------------------------------------
+        simp_corners_utm = list(simplified_utm_poly.exterior.coords)[:-1]
+        num_corners = len(simp_corners_utm)
+        if num_corners < 2:
+            return make_response(jsonify({
+                "status": False,
+                "message": "Simplified polygon has < 2 corners, can't draw.",
+                "url": None
+            }), 400)
+
+        # ---------------------------------------------------------------------
+        # 6. For Drawing: Determine Pixel Transform for the *Rounded* Polygon
+        # ---------------------------------------------------------------------
+        # We'll compute bounding box from the *rounded* shape to ensure it fits
+        minx, miny, maxx, maxy = rounded_utm_poly.bounds
+        dx = maxx - minx
+        dy = maxy - miny
+
+        margin_factor = 0.1  # 10% blank space
+        minx -= margin_factor * dx
+        maxx += margin_factor * dx
+        miny -= margin_factor * dy
+        maxy += margin_factor * dy
+
+        image_size = 800
+        scale_x = image_size / (maxx - minx) if (maxx != minx) else 1
+        scale_y = image_size / (maxy - miny) if (maxy != miny) else 1
+
+        def utm_to_pixel(x_m, y_m):
+            px = (x_m - minx) * scale_x
+            py = image_size - ((y_m - miny) * scale_y)
+            return (px, py)
+
+        # Transform the final *rounded* polygon into pixel space
+        pixel_poly_rounded = transform(utm_to_pixel, rounded_utm_poly)
+        pixel_points_rounded = list(pixel_poly_rounded.exterior.coords)
+
+        # ---------------------------------------------------------------------
+        # 7. Create Pillow Image & Draw the Rounded Polygon
+        # ---------------------------------------------------------------------
+        img = Image.new("RGB", (image_size, image_size), "white")
+        draw = ImageDraw.Draw(img)
+
+        # Draw final shape with arcs
+        draw.polygon(pixel_points_rounded, outline="green", width=3)
+
+        # ---------------------------------------------------------------------
+        # 8. Measure & Label Each Edge (Arc) from Corner i to i+1
+        #    - Using the new *rounded* boundary for correct arc length
+        #    - Place label at midpoint along that arc
+        # ---------------------------------------------------------------------
+        font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+        try:
+            font = ImageFont.truetype(font_path, 20)
+        except IOError:
+            font = ImageFont.load_default()
+
+        # We'll iterate over pairs of corners in the *simplified* polygon,
+        # find their position on the *rounded* boundary, and measure the arc.
+        boundary_length = rounded_boundary.length
+
+        for i in range(num_corners):
+            corner1_utm = Point(simp_corners_utm[i])
+            corner2_utm = Point(simp_corners_utm[(i + 1) % num_corners])
+
+            # Project each corner onto the new boundary
+            s1 = rounded_boundary.project(corner1_utm)
+            s2 = rounded_boundary.project(corner2_utm)
+
+            # If s2 < s1, it means it wrapped around the ring
+            if s2 < s1:
+                s2 += boundary_length
+
+            # Arc length = difference
+            side_arc_len_m = s2 - s1
+
+            # Midpoint along boundary
+            mid_s = s1 + side_arc_len_m / 2.0
+            # Because we might exceed boundary_length if corner2 wraps
+            # => take mod with boundary_length to stay in [0, length)
+            mid_s_mod = mid_s % boundary_length
+
+            # Interpolate that midpoint on the boundary
+            mid_pt_utm = rounded_boundary.interpolate(mid_s_mod)
+            # Convert to pixel coords
+            mid_px, mid_py = utm_to_pixel(mid_pt_utm.x, mid_pt_utm.y)
+
+            # Draw the arc length in meters
+            draw.text((mid_px, mid_py), f"{side_arc_len_m:.2f} m", fill="red", font=font)
+
+        # ---------------------------------------------------------------------
+        # 9. Save & Return the Image
+        # ---------------------------------------------------------------------
+        image_filename = f"shape_{uuid.uuid4()}.png"
+        image_path = os.path.join(UPLOAD_DIR, image_filename)
+        img.save(image_path, "PNG")
+
+        file_url = url_for("static", filename=f"shapes/{image_filename}", _external=True)
+
+        return make_response(jsonify({
+            "status": True,
+            "message": "Rounded shape with true arc-length edges generated successfully",
+            "url": file_url
+        }), 200)
+
+api.add_resource(GenerateShapeDrawing, "/generate-shape-drawing")
