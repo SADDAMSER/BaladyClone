@@ -1,0 +1,169 @@
+
+> rest-express@1.0.0 dev
+> NODE_ENV=development tsx server/index.ts
+
+[dotenv@17.2.2] injecting env (1) from .env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+6:50:08 PM [express] serving on port 5000
+Browserslist: browsers data (caniuse-lite) is 11 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+[🔍 AUTH DEBUG] GET /api/sync/session - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/sync/session: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+6:50:32 PM [express] GET /api/sync/session 200 in 11ms :: {"status":"ok","sessionId":"eb6759e1-2b18-…
+[🔍 AUTH DEBUG] GET /api/sync/tables - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/sync/tables: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+6:50:32 PM [express] GET /api/sync/tables 304 in 8ms :: {"tables":[{"tableName":"plots","allowedOper…
+[🔍 AUTH DEBUG] GET /api/applications - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/applications: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+[GEOGRAPHIC DEBUG] Processing user: 21d6f2e9-2490-435c-8190-76ad83889c2f (dept_manager_01)
+[GEOGRAPHIC DEBUG] Found 1 geographic assignments for user 21d6f2e9-2490-435c-8190-76ad83889c2f
+[GEOGRAPHIC DEBUG] Built geographic context: {
+  governorateId: '6cb4d669-b015-485c-995c-62f0b465705f',
+  districtId: 'a365ac78-2b0a-4347-8fa1-bfb5671500d4',
+  subDistrictId: null,
+  neighborhoodId: null
+}
+[LBAC DEBUG] User geographic scope: {
+  userId: '21d6f2e9-2490-435c-8190-76ad83889c2f',
+  governorateIds: [ '6cb4d669-b015-485c-995c-62f0b465705f' ],
+  districtIds: [ 'a365ac78-2b0a-4347-8fa1-bfb5671500d4' ],
+  subDistrictIds: [],
+  neighborhoodIds: []
+}
+[LBAC DEBUG] Filtered applications count: 5
+6:50:33 PM [express] GET /api/applications 304 in 1048ms :: [{"id":"eb0a46bd-dee9-40b8-92bc-67d56628…
+[🔍 AUTH DEBUG] GET /api/sync/session - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/sync/session: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+6:55:09 PM [express] GET /api/sync/session 200 in 2ms :: {"status":"ok","sessionId":"bf8b219f-b6d2-4…
+Simple login attempt for user: dept_manager_01 mockUser: true
+Mock user found, creating token for: dept_manager_01
+Found 1 roles for user dept_manager_01: [ 'section_head' ]
+6:55:38 PM [express] POST /api/auth/simple-login 200 in 1019ms :: {"token":"eyJhbGciOiJIUzI1NiIsInR5…
+[🔍 AUTH DEBUG] GET /api/sync/tables - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 283,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/sync/tables: {
+  userId: '21d6f2e9...',
+  username: 'dept_manager_01',
+  role: 'section_head'
+}
+[🔍 AUTH DEBUG] GET /api/sync/session - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 283,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/sync/session: {
+  userId: '21d6f2e9...',
+  username: 'dept_manager_01',
+  role: 'section_head'
+}
+6:55:39 PM [express] GET /api/sync/session 200 in 2ms :: {"status":"ok","sessionId":"129f7df0-b09e-4…
+6:55:39 PM [express] GET /api/sync/tables 200 in 5ms :: {"tables":[],"totalTables":0,"userRole":"sec…
+[🔍 AUTH DEBUG] GET /api/applications - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 283,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/applications: {
+  userId: '21d6f2e9...',
+  username: 'dept_manager_01',
+  role: 'section_head'
+}
+[GEOGRAPHIC DEBUG] Processing user: 21d6f2e9-2490-435c-8190-76ad83889c2f (dept_manager_01)
+[GEOGRAPHIC DEBUG] Found 1 geographic assignments for user 21d6f2e9-2490-435c-8190-76ad83889c2f
+[GEOGRAPHIC DEBUG] Built geographic context: {
+  governorateId: '6cb4d669-b015-485c-995c-62f0b465705f',
+  districtId: 'a365ac78-2b0a-4347-8fa1-bfb5671500d4',
+  subDistrictId: null,
+  neighborhoodId: null
+}
+[LBAC DEBUG] User geographic scope: {
+  userId: '21d6f2e9-2490-435c-8190-76ad83889c2f',
+  governorateIds: [ '6cb4d669-b015-485c-995c-62f0b465705f' ],
+  districtIds: [ 'a365ac78-2b0a-4347-8fa1-bfb5671500d4' ],
+  subDistrictIds: [],
+  neighborhoodIds: []
+}
+[LBAC DEBUG] Filtered applications count: 5
+6:55:39 PM [express] GET /api/applications 304 in 267ms :: [{"id":"eb0a46bd-dee9-40b8-92bc-67d56628f…
+[🔍 WORKFLOW AUTH DEBUG] POST /assign-surveyor/eb0a46bd-dee9-40b8-92bc-67d56628f84a - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 283,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ WORKFLOW AUTH SUCCESS] JWT verified for POST /assign-surveyor/eb0a46bd-dee9-40b8-92bc-67d56628f84a: {
+  userId: '21d6f2e9...',
+  username: 'dept_manager_01',
+  role: 'section_head'
+}
+[SECTION HEAD] Assigning surveyor for application eb0a46bd-dee9-40b8-92bc-67d56628f84a
+[SECTION HEAD] Found workflow instance 02a5a989-e2a1-4226-a6a1-82762dade180 for application eb0a46bd-dee9-40b8-92bc-67d56628f84a
+📬 Stage notifications sent for public_service_review
+✅ Transitioned from section_head_assignment to assistant_head_scheduling for instance 02a5a989-e2a1-4226-a6a1-82762dade180
+6:55:56 PM [express] POST /api/workflow/assign-surveyor/eb0a46bd-dee9-40b8-92bc-67d56628f84a 200 in …
+[🔍 AUTH DEBUG] GET /api/applications - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 283,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/applications: {
+  userId: '21d6f2e9...',
+  username: 'dept_manager_01',
+  role: 'section_head'
+}
+[GEOGRAPHIC DEBUG] Processing user: 21d6f2e9-2490-435c-8190-76ad83889c2f (dept_manager_01)
+[GEOGRAPHIC DEBUG] Found 1 geographic assignments for user 21d6f2e9-2490-435c-8190-76ad83889c2f
+[GEOGRAPHIC DEBUG] Built geographic context: {
+  governorateId: '6cb4d669-b015-485c-995c-62f0b465705f',
+  districtId: 'a365ac78-2b0a-4347-8fa1-bfb5671500d4',
+  subDistrictId: null,
+  neighborhoodId: null
+}
+[LBAC DEBUG] User geographic scope: {
+  userId: '21d6f2e9-2490-435c-8190-76ad83889c2f',
+  governorateIds: [ '6cb4d669-b015-485c-995c-62f0b465705f' ],
+  districtIds: [ 'a365ac78-2b0a-4347-8fa1-bfb5671500d4' ],
+  subDistrictIds: [],
+  neighborhoodIds: []
+}
+[LBAC DEBUG] Filtered applications count: 4
+6:55:57 PM [express] GET /api/applications 200 in 213ms :: [{"id":"4e78e12f-e92d-449f-acce-79c332153…
+[🔍 AUTH DEBUG] GET /api/sync/session - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 283,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/sync/session: {
+  userId: '21d6f2e9...',
+  username: 'dept_manager_01',
+  role: 'section_head'
+}
+6:56:09 PM [express] GET /api/sync/session 200 in 1ms :: {"status":"ok","sessionId":"267ff860-eeee-4…
