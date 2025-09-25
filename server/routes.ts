@@ -858,13 +858,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
         
-        const normalizedRoleCodes = normalizeRoleCodes(mockUser.role);
+        // ✅ FIX: Read actual roles from database instead of using mockUser.role
+        let userRoles: any[] = [];
+        let roleCodes: string[] = [];
+        try {
+          userRoles = await storage.getUserActiveRoles(dbUser.id);
+          roleCodes = userRoles.map(role => role.code);
+          console.log(`Found ${userRoles.length} roles for user ${dbUser.username}:`, roleCodes);
+          
+          // Fallback to legacy role if no RBAC roles assigned
+          if (roleCodes.length === 0 && dbUser.role) {
+            roleCodes = [dbUser.role];
+            console.log('Using legacy role as fallback:', dbUser.role);
+          }
+        } catch (error) {
+          console.error('Error fetching user roles:', error);
+          // Fallback to legacy role
+          roleCodes = dbUser.role ? [dbUser.role] : [mockUser.role];
+        }
+        
+        const normalizedRoleCodes = normalizeRoleCodes(roleCodes);
+        const primaryRole = roleCodes[0] || dbUser.role || mockUser.role;
+        
         const token = jwt.sign(
           { 
             id: dbUser.id, // ✅ USE ACTUAL DATABASE USER ID
             username: dbUser.username, 
-            role: dbUser.role,
-            roleCodes: normalizedRoleCodes // ✅ NORMALIZED ROLES
+            role: primaryRole, // ✅ USE ACTUAL PRIMARY ROLE
+            roleCodes: normalizedRoleCodes // ✅ USE ACTUAL ROLES FROM DB
           },
           jwtSecret,
           { expiresIn: '24h' }
@@ -876,9 +897,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             id: `mock-${mockUser.username}`,
             username: mockUser.username,
             fullName: mockUser.fullName,
-            role: mockUser.role,
+            role: primaryRole, // ✅ USE ACTUAL PRIMARY ROLE
             roleCodes: normalizedRoleCodes, // ✅ CONSISTENT WITH TOKEN
-            roles: [{ code: mockUser.role, nameAr: mockUser.fullName }]
+            roles: userRoles.length > 0 ? userRoles.map(r => ({ code: r.code, nameAr: r.nameAr })) : [{ code: primaryRole, nameAr: mockUser.fullName }]
           }
         });
       }

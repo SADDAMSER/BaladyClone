@@ -1,0 +1,166 @@
+🔐 SecureIndexedDB initialized successfully
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj4wv4r4xA.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj41v4o.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscRiyS.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscQyyS4J0.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj4wv4r4xA.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj41v4o.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscQyyS4J0.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscRiyS.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+Console.js:61 🔐 SecureIndexedDB initialized successfully
+injected.js:278  POST https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/api/workflow/assign-surveyor/eb0a46bd-dee9-40b8-92bc-67d56628f84a 403 (Forbidden)
+window.fetch @ Network.js:219
+apply @ injected.js:278
+apiRequest @ queryClient.ts:21
+mutationFn @ SectionHeadDashboard.tsx:244
+fn @ @tanstack_react-query.js?v=a66cf1f0:1189
+run @ @tanstack_react-query.js?v=a66cf1f0:494
+start @ @tanstack_react-query.js?v=a66cf1f0:536
+execute @ @tanstack_react-query.js?v=a66cf1f0:1225
+await in execute
+mutate @ @tanstack_react-query.js?v=a66cf1f0:2630
+(anonymous) @ @tanstack_react-query.js?v=a66cf1f0:3295
+handleAssignSurveyor @ SectionHeadDashboard.tsx:313
+callCallback2 @ chunk-RPCDYKBN.js?v=a66cf1f0:3674
+invokeGuardedCallbackDev @ chunk-RPCDYKBN.js?v=a66cf1f0:3699
+invokeGuardedCallback @ chunk-RPCDYKBN.js?v=a66cf1f0:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-RPCDYKBN.js?v=a66cf1f0:3736
+executeDispatch @ chunk-RPCDYKBN.js?v=a66cf1f0:7014
+processDispatchQueueItemsInOrder @ chunk-RPCDYKBN.js?v=a66cf1f0:7034
+processDispatchQueue @ chunk-RPCDYKBN.js?v=a66cf1f0:7043
+dispatchEventsForPlugins @ chunk-RPCDYKBN.js?v=a66cf1f0:7051
+(anonymous) @ chunk-RPCDYKBN.js?v=a66cf1f0:7174
+batchedUpdates$1 @ chunk-RPCDYKBN.js?v=a66cf1f0:18913
+batchedUpdates @ chunk-RPCDYKBN.js?v=a66cf1f0:3579
+dispatchEventForPluginEventSystem @ chunk-RPCDYKBN.js?v=a66cf1f0:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-RPCDYKBN.js?v=a66cf1f0:5478
+dispatchEvent @ chunk-RPCDYKBN.js?v=a66cf1f0:5472
+dispatchDiscreteEvent @ chunk-RPCDYKBN.js?v=a66cf1f0:5449Understand this error
+Console.js:61 Surveyor assignment error: Error: 403: {"error":"Insufficient permissions","required":["section_head"],"current":"manager"}
+    at throwIfResNotOk (queryClient.ts:6:11)
+    at async apiRequest (queryClient.ts:28:3)
+    at async Object.mutationFn (SectionHeadDashboard.tsx:244:26)
+Mt.forEach.n.<computed> @ Console.js:61
+onError @ SectionHeadDashboard.tsx:287
+execute @ @tanstack_react-query.js?v=a66cf1f0:1254
+await in execute
+mutate @ @tanstack_react-query.js?v=a66cf1f0:2630
+(anonymous) @ @tanstack_react-query.js?v=a66cf1f0:3295
+handleAssignSurveyor @ SectionHeadDashboard.tsx:313
+callCallback2 @ chunk-RPCDYKBN.js?v=a66cf1f0:3674
+invokeGuardedCallbackDev @ chunk-RPCDYKBN.js?v=a66cf1f0:3699
+invokeGuardedCallback @ chunk-RPCDYKBN.js?v=a66cf1f0:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-RPCDYKBN.js?v=a66cf1f0:3736
+executeDispatch @ chunk-RPCDYKBN.js?v=a66cf1f0:7014
+processDispatchQueueItemsInOrder @ chunk-RPCDYKBN.js?v=a66cf1f0:7034
+processDispatchQueue @ chunk-RPCDYKBN.js?v=a66cf1f0:7043
+dispatchEventsForPlugins @ chunk-RPCDYKBN.js?v=a66cf1f0:7051
+(anonymous) @ chunk-RPCDYKBN.js?v=a66cf1f0:7174
+batchedUpdates$1 @ chunk-RPCDYKBN.js?v=a66cf1f0:18913
+batchedUpdates @ chunk-RPCDYKBN.js?v=a66cf1f0:3579
+dispatchEventForPluginEventSystem @ chunk-RPCDYKBN.js?v=a66cf1f0:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-RPCDYKBN.js?v=a66cf1f0:5478
+dispatchEvent @ chunk-RPCDYKBN.js?v=a66cf1f0:5472
+dispatchDiscreteEvent @ chunk-RPCDYKBN.js?v=a66cf1f0:5449Understand this error
+injected.js:278  POST https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/api/workflow/assign-surveyor/eb0a46bd-dee9-40b8-92bc-67d56628f84a 403 (Forbidden)
+window.fetch @ Network.js:219
+apply @ injected.js:278
+apiRequest @ queryClient.ts:21
+mutationFn @ SectionHeadDashboard.tsx:244
+fn @ @tanstack_react-query.js?v=a66cf1f0:1189
+run @ @tanstack_react-query.js?v=a66cf1f0:494
+start @ @tanstack_react-query.js?v=a66cf1f0:536
+execute @ @tanstack_react-query.js?v=a66cf1f0:1225
+await in execute
+mutate @ @tanstack_react-query.js?v=a66cf1f0:2630
+(anonymous) @ @tanstack_react-query.js?v=a66cf1f0:3295
+handleAssignSurveyor @ SectionHeadDashboard.tsx:313
+callCallback2 @ chunk-RPCDYKBN.js?v=a66cf1f0:3674
+invokeGuardedCallbackDev @ chunk-RPCDYKBN.js?v=a66cf1f0:3699
+invokeGuardedCallback @ chunk-RPCDYKBN.js?v=a66cf1f0:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-RPCDYKBN.js?v=a66cf1f0:3736
+executeDispatch @ chunk-RPCDYKBN.js?v=a66cf1f0:7014
+processDispatchQueueItemsInOrder @ chunk-RPCDYKBN.js?v=a66cf1f0:7034
+processDispatchQueue @ chunk-RPCDYKBN.js?v=a66cf1f0:7043
+dispatchEventsForPlugins @ chunk-RPCDYKBN.js?v=a66cf1f0:7051
+(anonymous) @ chunk-RPCDYKBN.js?v=a66cf1f0:7174
+batchedUpdates$1 @ chunk-RPCDYKBN.js?v=a66cf1f0:18913
+batchedUpdates @ chunk-RPCDYKBN.js?v=a66cf1f0:3579
+dispatchEventForPluginEventSystem @ chunk-RPCDYKBN.js?v=a66cf1f0:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-RPCDYKBN.js?v=a66cf1f0:5478
+dispatchEvent @ chunk-RPCDYKBN.js?v=a66cf1f0:5472
+dispatchDiscreteEvent @ chunk-RPCDYKBN.js?v=a66cf1f0:5449Understand this error
+Console.js:61 Surveyor assignment error: Error: 403: {"error":"Insufficient permissions","required":["section_head"],"current":"manager"}
+    at throwIfResNotOk (queryClient.ts:6:11)
+    at async apiRequest (queryClient.ts:28:3)
+    at async Object.mutationFn (SectionHeadDashboard.tsx:244:26)
+Mt.forEach.n.<computed> @ Console.js:61
+onError @ SectionHeadDashboard.tsx:287
+execute @ @tanstack_react-query.js?v=a66cf1f0:1254
+await in execute
+mutate @ @tanstack_react-query.js?v=a66cf1f0:2630
+(anonymous) @ @tanstack_react-query.js?v=a66cf1f0:3295
+handleAssignSurveyor @ SectionHeadDashboard.tsx:313
+callCallback2 @ chunk-RPCDYKBN.js?v=a66cf1f0:3674
+invokeGuardedCallbackDev @ chunk-RPCDYKBN.js?v=a66cf1f0:3699
+invokeGuardedCallback @ chunk-RPCDYKBN.js?v=a66cf1f0:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-RPCDYKBN.js?v=a66cf1f0:3736
+executeDispatch @ chunk-RPCDYKBN.js?v=a66cf1f0:7014
+processDispatchQueueItemsInOrder @ chunk-RPCDYKBN.js?v=a66cf1f0:7034
+processDispatchQueue @ chunk-RPCDYKBN.js?v=a66cf1f0:7043
+dispatchEventsForPlugins @ chunk-RPCDYKBN.js?v=a66cf1f0:7051
+(anonymous) @ chunk-RPCDYKBN.js?v=a66cf1f0:7174
+batchedUpdates$1 @ chunk-RPCDYKBN.js?v=a66cf1f0:18913
+batchedUpdates @ chunk-RPCDYKBN.js?v=a66cf1f0:3579
+dispatchEventForPluginEventSystem @ chunk-RPCDYKBN.js?v=a66cf1f0:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-RPCDYKBN.js?v=a66cf1f0:5478
+dispatchEvent @ chunk-RPCDYKBN.js?v=a66cf1f0:5472
+dispatchDiscreteEvent @ chunk-RPCDYKBN.js?v=a66cf1f0:5449Understand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj41v4o.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj4wv4r4xA.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscRiyS.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj4wv4r4xA.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj41v4o.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscQyyS4J0.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj41v4o.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj4wv4r4xA.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscRiyS.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscQyyS4J0.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj4wv4r4xA.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/notosansarabic/v33/nwpCtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlj41v4o.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscRiyS.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscQyyS4J0.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscQyyS4J0.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap:1  GET https://fonts.gstatic.com/s/cairo/v31/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscRiyS.woff2 net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+injected.js:278  POST https://a4619ae2-2438-4e06-9d1e-598af6ed1654-00-3u0a0b7iug7pu.worf.replit.dev/api/workflow/assign-surveyor/eb0a46bd-dee9-40b8-92bc-67d56628f84a 403 (Forbidden)
+window.fetch @ Network.js:219
+apply @ injected.js:278
+apiRequest @ queryClient.ts:21
+mutationFn @ SectionHeadDashboard.tsx:244
+fn @ @tanstack_react-query.js?v=a66cf1f0:1189
+run @ @tanstack_react-query.js?v=a66cf1f0:494
+start @ @tanstack_react-query.js?v=a66cf1f0:536
+execute @ @tanstack_react-query.js?v=a66cf1f0:1225
+await in execute
+mutate @ @tanstack_react-query.js?v=a66cf1f0:2630
+(anonymous) @ @tanstack_react-query.js?v=a66cf1f0:3295
+handleAssignSurveyor @ SectionHeadDashboard.tsx:313
+callCallback2 @ chunk-RPCDYKBN.js?v=a66cf1f0:3674
+invokeGuardedCallbackDev @ chunk-RPCDYKBN.js?v=a66cf1f0:3699
+invokeGuardedCallback @ chunk-RPCDYKBN.js?v=a66cf1f0:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-RPCDYKBN.js?v=a66cf1f0:3736
+executeDispatch @ chunk-RPCDYKBN.js?v=a66cf1f0:7014
+processDispatchQueueItemsInOrder @ chunk-RPCDYKBN.js?v=a66cf1f0:7034
+processDispatchQueue @ chunk-RPCDYKBN.js?v=a66cf1f0:7043
+dispatchEventsForPlugins @ chunk-RPCDYKBN.js?v=a66cf1f0:7051
+(anonymous) @ chunk-RPCDYKBN.js?v=a66cf1f0:7174
+batchedUpdates$1 @ chunk-RPCDYKBN.js?v=a66cf1f0:18913
+batchedUpdates @ chunk-RPCDYKBN.js?v=a66cf1f0:3579
+dispatchEventForPluginEventSystem @ chunk-RPCDYKBN.js?v=a66cf1f0:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-RPCDYKBN.js?v=a66cf1f0:5478
+dispatchEvent @ chunk-RPCDYKBN.js?v=a66cf1f0:5472
+dispatchDiscreteEvent @ chunk-RPCDYKBN.js?v=a66cf1f0:5449Understand this error
+Console.js:61 Surveyor assignment error: Error: 403: {"error":"Insufficient permissions","required":["section_head"],"current":"manager"}
+    at throwIfResNotOk (queryClient.ts:6:11)
+    at async apiRequest (queryClient.ts:28:3)
+    at async Object.mutationFn (SectionHeadDashboard.tsx:244:26)
