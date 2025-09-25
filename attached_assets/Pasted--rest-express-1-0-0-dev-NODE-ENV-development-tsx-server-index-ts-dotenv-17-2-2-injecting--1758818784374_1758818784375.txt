@@ -1,0 +1,466 @@
+
+> rest-express@1.0.0 dev
+> NODE_ENV=development tsx server/index.ts
+
+[dotenv@17.2.2] injecting env (1) from .env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+3:42:24 PM [express] serving on port 5000
+Browserslist: browsers data (caniuse-lite) is 11 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+[🔍 AUTH DEBUG] GET /api/applications - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/applications: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+[GEOGRAPHIC DEBUG] Processing user: 21d6f2e9-2490-435c-8190-76ad83889c2f (dept_manager_01)
+3:42:45 PM [express] GET /api/sync/session 404 in 2ms :: {"message":"API endpoint not found"}
+[🔍 AUTH DEBUG] GET /api/sync/tables - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/sync/tables: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+3:42:45 PM [express] GET /api/sync/tables 304 in 10ms :: {"tables":[{"tableName":"plots","allowedOpe…
+[GEOGRAPHIC DEBUG] Found 1 geographic assignments for user 21d6f2e9-2490-435c-8190-76ad83889c2f
+[GEOGRAPHIC DEBUG] Built geographic context: {
+  governorateId: '6cb4d669-b015-485c-995c-62f0b465705f',
+  districtId: 'a365ac78-2b0a-4347-8fa1-bfb5671500d4',
+  subDistrictId: null,
+  neighborhoodId: null
+}
+[LBAC DEBUG] User geographic scope: {
+  userId: '21d6f2e9-2490-435c-8190-76ad83889c2f',
+  governorateIds: [ '6cb4d669-b015-485c-995c-62f0b465705f' ],
+  districtIds: [ 'a365ac78-2b0a-4347-8fa1-bfb5671500d4' ],
+  subDistrictIds: [],
+  neighborhoodIds: []
+}
+[LBAC DEBUG] Filtered applications count: 4
+3:42:45 PM [express] GET /api/applications 200 in 564ms :: [{"id":"eb0a46bd-dee9-40b8-92bc-67d56628f…
+[🔍 AUTH DEBUG] GET /api/applications - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/applications: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+[GEOGRAPHIC DEBUG] Processing user: 21d6f2e9-2490-435c-8190-76ad83889c2f (dept_manager_01)
+3:43:15 PM [express] GET /api/sync/session 404 in 4ms :: {"message":"API endpoint not found"}
+[GEOGRAPHIC DEBUG] Found 1 geographic assignments for user 21d6f2e9-2490-435c-8190-76ad83889c2f
+[GEOGRAPHIC DEBUG] Built geographic context: {
+  governorateId: '6cb4d669-b015-485c-995c-62f0b465705f',
+  districtId: 'a365ac78-2b0a-4347-8fa1-bfb5671500d4',
+  subDistrictId: null,
+  neighborhoodId: null
+}
+[LBAC DEBUG] User geographic scope: {
+  userId: '21d6f2e9-2490-435c-8190-76ad83889c2f',
+  governorateIds: [ '6cb4d669-b015-485c-995c-62f0b465705f' ],
+  districtIds: [ 'a365ac78-2b0a-4347-8fa1-bfb5671500d4' ],
+  subDistrictIds: [],
+  neighborhoodIds: []
+}
+[LBAC DEBUG] Filtered applications count: 0
+3:43:16 PM [express] GET /api/applications 304 in 2541ms :: []
+[🔍 AUTH DEBUG] GET /api/treasury-applications - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/treasury-applications: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+3:43:24 PM [express] GET /api/treasury-applications 304 in 105ms :: []
+[🔍 AUTH DEBUG] GET /api/applications - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/applications: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+[GEOGRAPHIC DEBUG] Processing user: 21d6f2e9-2490-435c-8190-76ad83889c2f (dept_manager_01)
+[🔍 AUTH DEBUG] GET /api/appointments - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/appointments: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+[🔍 AUTH DEBUG] GET /api/users - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/users: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+3:43:28 PM [express] GET /api/users 403 in 2ms :: {"message":"Insufficient role permissions","requir…
+[🔍 AUTH DEBUG] GET /api/contact-attempts - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/contact-attempts: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+[GEOGRAPHIC DEBUG] Found 1 geographic assignments for user 21d6f2e9-2490-435c-8190-76ad83889c2f
+[GEOGRAPHIC DEBUG] Built geographic context: {
+  governorateId: '6cb4d669-b015-485c-995c-62f0b465705f',
+  districtId: 'a365ac78-2b0a-4347-8fa1-bfb5671500d4',
+  subDistrictId: null,
+  neighborhoodId: null
+}
+[LBAC DEBUG] User geographic scope: {
+  userId: '21d6f2e9-2490-435c-8190-76ad83889c2f',
+  governorateIds: [ '6cb4d669-b015-485c-995c-62f0b465705f' ],
+  districtIds: [ 'a365ac78-2b0a-4347-8fa1-bfb5671500d4' ],
+  subDistrictIds: [],
+  neighborhoodIds: []
+}
+[LBAC DEBUG] Filtered applications count: 0
+3:43:28 PM [express] GET /api/applications 304 in 222ms :: []
+3:43:28 PM [express] GET /api/appointments 304 in 427ms :: []
+3:43:28 PM [express] GET /api/contact-attempts 304 in 423ms :: []
+3:43:45 PM [express] GET /api/sync/session 404 in 0ms :: {"message":"API endpoint not found"}
+[🔍 AUTH DEBUG] GET /api/applications - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/applications: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+[GEOGRAPHIC DEBUG] Processing user: 21d6f2e9-2490-435c-8190-76ad83889c2f (dept_manager_01)
+3:44:18 PM [express] GET /api/sync/session 404 in 0ms :: {"message":"API endpoint not found"}
+[🔍 AUTH DEBUG] GET /api/sync/tables - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/sync/tables: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+3:44:18 PM [express] GET /api/sync/tables 304 in 2ms :: {"tables":[{"tableName":"plots","allowedOper…
+[GEOGRAPHIC DEBUG] Found 1 geographic assignments for user 21d6f2e9-2490-435c-8190-76ad83889c2f
+[GEOGRAPHIC DEBUG] Built geographic context: {
+  governorateId: '6cb4d669-b015-485c-995c-62f0b465705f',
+  districtId: 'a365ac78-2b0a-4347-8fa1-bfb5671500d4',
+  subDistrictId: null,
+  neighborhoodId: null
+}
+[LBAC DEBUG] User geographic scope: {
+  userId: '21d6f2e9-2490-435c-8190-76ad83889c2f',
+  governorateIds: [ '6cb4d669-b015-485c-995c-62f0b465705f' ],
+  districtIds: [ 'a365ac78-2b0a-4347-8fa1-bfb5671500d4' ],
+  subDistrictIds: [],
+  neighborhoodIds: []
+}
+[LBAC DEBUG] Filtered applications count: 4
+3:44:18 PM [express] GET /api/applications 304 in 526ms :: [{"id":"eb0a46bd-dee9-40b8-92bc-67d56628f…
+[🔍 AUTH DEBUG] POST /api/applications/eb0a46bd-dee9-40b8-92bc-67d56628f84a/assign - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for POST /api/applications/eb0a46bd-dee9-40b8-92bc-67d56628f84a/assign: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+LBAC_AUDIT: {"userId":"21d6f2e9-2490-435c-8190-76ad83889c2f","timestamp":"2025-09-25T15:44:41.058Z","method":"POST","path":"/api/applications/eb0a46bd-dee9-40b8-92bc-67d56628f84a/assign","requiredLevel":"district","accessGranted":false,"denialReason":"missing_geographic_context","userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36","ipAddress":"172.31.79.194"}
+3:44:41 PM [express] POST /api/applications/eb0a46bd-dee9-40b8-92bc-67d56628f84a/assign 403 in 433ms…
+3:44:48 PM [express] GET /api/sync/session 404 in 1ms :: {"message":"API endpoint not found"}
+3:45:18 PM [express] GET /api/sync/session 404 in 1ms :: {"message":"API endpoint not found"}
+[🔍 AUTH DEBUG] POST /api/applications/eb0a46bd-dee9-40b8-92bc-67d56628f84a/assign - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for POST /api/applications/eb0a46bd-dee9-40b8-92bc-67d56628f84a/assign: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+LBAC_AUDIT: {"userId":"21d6f2e9-2490-435c-8190-76ad83889c2f","timestamp":"2025-09-25T15:45:23.135Z","method":"POST","path":"/api/applications/eb0a46bd-dee9-40b8-92bc-67d56628f84a/assign","requiredLevel":"district","accessGranted":false,"denialReason":"missing_geographic_context","userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36","ipAddress":"172.31.79.194"}
+3:45:23 PM [express] POST /api/applications/eb0a46bd-dee9-40b8-92bc-67d56628f84a/assign 403 in 428ms…
+3:45:48 PM [express] GET /api/sync/session 404 in 1ms :: {"message":"API endpoint not found"}
+3:47:49 PM [express] GET /api/sync/session 404 in 0ms :: {"message":"API endpoint not found"}
+3:53:48 PM [express] GET /api/sync/session 404 in 1ms :: {"message":"API endpoint not found"}
+3:59:40 PM [express] GET /api/sync/session 404 in 1ms :: {"message":"API endpoint not found"}
+4:11:52 PM [express] GET /api/sync/session 404 in 1ms :: {"message":"API endpoint not found"}
+4:43:28 PM [express] GET /api/sync/session 404 in 0ms :: {"message":"API endpoint not found"}
+[🔍 AUTH DEBUG] GET /api/sync/tables - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/sync/tables: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+4:43:28 PM [express] GET /api/sync/tables 304 in 2ms :: {"tables":[{"tableName":"plots","allowedOper…
+[🔍 AUTH DEBUG] GET /api/applications - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/applications: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+[GEOGRAPHIC DEBUG] Processing user: 21d6f2e9-2490-435c-8190-76ad83889c2f (dept_manager_01)
+[GEOGRAPHIC DEBUG] Found 1 geographic assignments for user 21d6f2e9-2490-435c-8190-76ad83889c2f
+[GEOGRAPHIC DEBUG] Built geographic context: {
+  governorateId: '6cb4d669-b015-485c-995c-62f0b465705f',
+  districtId: 'a365ac78-2b0a-4347-8fa1-bfb5671500d4',
+  subDistrictId: null,
+  neighborhoodId: null
+}
+[LBAC DEBUG] User geographic scope: {
+  userId: '21d6f2e9-2490-435c-8190-76ad83889c2f',
+  governorateIds: [ '6cb4d669-b015-485c-995c-62f0b465705f' ],
+  districtIds: [ 'a365ac78-2b0a-4347-8fa1-bfb5671500d4' ],
+  subDistrictIds: [],
+  neighborhoodIds: []
+}
+[LBAC DEBUG] Filtered applications count: 0
+4:43:42 PM [express] GET /api/applications 304 in 1016ms :: []
+[🔍 AUTH DEBUG] GET /api/applications - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/applications: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+[GEOGRAPHIC DEBUG] Processing user: 21d6f2e9-2490-435c-8190-76ad83889c2f (dept_manager_01)
+[GEOGRAPHIC DEBUG] Found 1 geographic assignments for user 21d6f2e9-2490-435c-8190-76ad83889c2f
+[GEOGRAPHIC DEBUG] Built geographic context: {
+  governorateId: '6cb4d669-b015-485c-995c-62f0b465705f',
+  districtId: 'a365ac78-2b0a-4347-8fa1-bfb5671500d4',
+  subDistrictId: null,
+  neighborhoodId: null
+}
+[LBAC DEBUG] User geographic scope: {
+  userId: '21d6f2e9-2490-435c-8190-76ad83889c2f',
+  governorateIds: [ '6cb4d669-b015-485c-995c-62f0b465705f' ],
+  districtIds: [ 'a365ac78-2b0a-4347-8fa1-bfb5671500d4' ],
+  subDistrictIds: [],
+  neighborhoodIds: []
+}
+[LBAC DEBUG] Filtered applications count: 51
+4:43:45 PM [express] GET /api/applications 304 in 309ms :: [{"id":"eb0a46bd-dee9-40b8-92bc-67d56628f…
+[🔍 WORKFLOW AUTH DEBUG] POST /start/eb0a46bd-dee9-40b8-92bc-67d56628f84a - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ WORKFLOW AUTH SUCCESS] JWT verified for POST /start/eb0a46bd-dee9-40b8-92bc-67d56628f84a: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+[WORKFLOW] Starting workflow for application eb0a46bd-dee9-40b8-92bc-67d56628f84a
+⚠️ Active workflow instance already exists for application eb0a46bd-dee9-40b8-92bc-67d56628f84a
+4:43:53 PM [express] POST /api/workflow/start/eb0a46bd-dee9-40b8-92bc-67d56628f84a 201 in 325ms :: {…
+[🔍 WORKFLOW AUTH DEBUG] POST /public-service-review/02a5a989-e2a1-4226-a6a1-82762dade180 - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ WORKFLOW AUTH SUCCESS] JWT verified for POST /public-service-review/02a5a989-e2a1-4226-a6a1-82762dade180: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+[WORKFLOW] Public service review for instance 02a5a989-e2a1-4226-a6a1-82762dade180
+📬 Stage notifications sent for public_service_review
+✅ Transitioned from path_determination to public_service_review for instance 02a5a989-e2a1-4226-a6a1-82762dade180
+4:43:54 PM [express] POST /api/workflow/public-service-review/02a5a989-e2a1-4226-a6a1-82762dade180 2…
+[🔍 AUTH DEBUG] GET /api/applications - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/applications: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+[GEOGRAPHIC DEBUG] Processing user: 21d6f2e9-2490-435c-8190-76ad83889c2f (dept_manager_01)
+[GEOGRAPHIC DEBUG] Found 1 geographic assignments for user 21d6f2e9-2490-435c-8190-76ad83889c2f
+[GEOGRAPHIC DEBUG] Built geographic context: {
+  governorateId: '6cb4d669-b015-485c-995c-62f0b465705f',
+  districtId: 'a365ac78-2b0a-4347-8fa1-bfb5671500d4',
+  subDistrictId: null,
+  neighborhoodId: null
+}
+[LBAC DEBUG] User geographic scope: {
+  userId: '21d6f2e9-2490-435c-8190-76ad83889c2f',
+  governorateIds: [ '6cb4d669-b015-485c-995c-62f0b465705f' ],
+  districtIds: [ 'a365ac78-2b0a-4347-8fa1-bfb5671500d4' ],
+  subDistrictIds: [],
+  neighborhoodIds: []
+}
+[LBAC DEBUG] Filtered applications count: 51
+4:43:54 PM [express] GET /api/applications 200 in 306ms :: [{"id":"eb0a46bd-dee9-40b8-92bc-67d56628f…
+[🔍 AUTH DEBUG] POST /api/applications/eb0a46bd-dee9-40b8-92bc-67d56628f84a/generate-invoice - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for POST /api/applications/eb0a46bd-dee9-40b8-92bc-67d56628f84a/generate-invoice: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+4:43:59 PM [express] GET /api/sync/session 404 in 0ms :: {"message":"API endpoint not found"}
+4:43:59 PM [express] POST /api/applications/eb0a46bd-dee9-40b8-92bc-67d56628f84a/generate-invoice 20…
+[🔍 AUTH DEBUG] GET /api/treasury-applications - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/treasury-applications: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+4:44:00 PM [express] GET /api/treasury-applications 200 in 104ms :: [{"id":"eb0a46bd-dee9-40b8-92bc-…
+[🔍 AUTH DEBUG] POST /api/payments/confirm - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for POST /api/payments/confirm: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+4:44:06 PM [express] POST /api/payments/confirm 200 in 424ms :: {"message":"تم تأكيد السداد بنجاح","…
+[🔍 AUTH DEBUG] GET /api/treasury-applications - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/treasury-applications: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+4:44:06 PM [express] GET /api/treasury-applications 200 in 103ms :: []
+[🔍 AUTH DEBUG] GET /api/applications - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/applications: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+[GEOGRAPHIC DEBUG] Processing user: 21d6f2e9-2490-435c-8190-76ad83889c2f (dept_manager_01)
+[GEOGRAPHIC DEBUG] Found 1 geographic assignments for user 21d6f2e9-2490-435c-8190-76ad83889c2f
+[GEOGRAPHIC DEBUG] Built geographic context: {
+  governorateId: '6cb4d669-b015-485c-995c-62f0b465705f',
+  districtId: 'a365ac78-2b0a-4347-8fa1-bfb5671500d4',
+  subDistrictId: null,
+  neighborhoodId: null
+}
+[LBAC DEBUG] User geographic scope: {
+  userId: '21d6f2e9-2490-435c-8190-76ad83889c2f',
+  governorateIds: [ '6cb4d669-b015-485c-995c-62f0b465705f' ],
+  districtIds: [ 'a365ac78-2b0a-4347-8fa1-bfb5671500d4' ],
+  subDistrictIds: [],
+  neighborhoodIds: []
+}
+[LBAC DEBUG] Filtered applications count: 0
+4:44:13 PM [express] GET /api/applications 304 in 225ms :: []
+4:44:29 PM [express] GET /api/sync/session 404 in 1ms :: {"message":"API endpoint not found"}
+[🔍 AUTH DEBUG] GET /api/applications - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/applications: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+[GEOGRAPHIC DEBUG] Processing user: 21d6f2e9-2490-435c-8190-76ad83889c2f (dept_manager_01)
+[GEOGRAPHIC DEBUG] Found 1 geographic assignments for user 21d6f2e9-2490-435c-8190-76ad83889c2f
+[GEOGRAPHIC DEBUG] Built geographic context: {
+  governorateId: '6cb4d669-b015-485c-995c-62f0b465705f',
+  districtId: 'a365ac78-2b0a-4347-8fa1-bfb5671500d4',
+  subDistrictId: null,
+  neighborhoodId: null
+}
+[LBAC DEBUG] User geographic scope: {
+  userId: '21d6f2e9-2490-435c-8190-76ad83889c2f',
+  governorateIds: [ '6cb4d669-b015-485c-995c-62f0b465705f' ],
+  districtIds: [ 'a365ac78-2b0a-4347-8fa1-bfb5671500d4' ],
+  subDistrictIds: [],
+  neighborhoodIds: []
+}
+[🔍 AUTH DEBUG] GET /api/applications - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/applications: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+[GEOGRAPHIC DEBUG] Processing user: 21d6f2e9-2490-435c-8190-76ad83889c2f (dept_manager_01)
+[LBAC DEBUG] Filtered applications count: 9
+[GEOGRAPHIC DEBUG] Found 1 geographic assignments for user 21d6f2e9-2490-435c-8190-76ad83889c2f
+[GEOGRAPHIC DEBUG] Built geographic context: {
+  governorateId: '6cb4d669-b015-485c-995c-62f0b465705f',
+  districtId: 'a365ac78-2b0a-4347-8fa1-bfb5671500d4',
+  subDistrictId: null,
+  neighborhoodId: null
+}
+[LBAC DEBUG] User geographic scope: {
+  userId: '21d6f2e9-2490-435c-8190-76ad83889c2f',
+  governorateIds: [ '6cb4d669-b015-485c-995c-62f0b465705f' ],
+  districtIds: [ 'a365ac78-2b0a-4347-8fa1-bfb5671500d4' ],
+  subDistrictIds: [],
+  neighborhoodIds: []
+}
+[LBAC DEBUG] Filtered applications count: 9
+4:44:40 PM [express] GET /api/applications 304 in 528ms :: [{"id":"1fccc073-e253-4b8f-a2fa-83cfcf913…
+[🔍 AUTH DEBUG] POST /api/payments/confirm - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for POST /api/payments/confirm: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+4:44:52 PM [express] POST /api/payments/confirm 200 in 731ms :: {"message":"تم تأكيد السداد بنجاح","…
+[🔍 AUTH DEBUG] GET /api/applications - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/applications: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+[GEOGRAPHIC DEBUG] Processing user: 21d6f2e9-2490-435c-8190-76ad83889c2f (dept_manager_01)
+[GEOGRAPHIC DEBUG] Found 1 geographic assignments for user 21d6f2e9-2490-435c-8190-76ad83889c2f
+[GEOGRAPHIC DEBUG] Built geographic context: {
+  governorateId: '6cb4d669-b015-485c-995c-62f0b465705f',
+  districtId: 'a365ac78-2b0a-4347-8fa1-bfb5671500d4',
+  subDistrictId: null,
+  neighborhoodId: null
+}
+[LBAC DEBUG] User geographic scope: {
+  userId: '21d6f2e9-2490-435c-8190-76ad83889c2f',
+  governorateIds: [ '6cb4d669-b015-485c-995c-62f0b465705f' ],
+  districtIds: [ 'a365ac78-2b0a-4347-8fa1-bfb5671500d4' ],
+  subDistrictIds: [],
+  neighborhoodIds: []
+}
+[LBAC DEBUG] Filtered applications count: 51
+4:44:52 PM [express] GET /api/applications 200 in 340ms :: [{"id":"eb0a46bd-dee9-40b8-92bc-67d56628f…
+[🔍 AUTH DEBUG] GET /api/sync/tables - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/sync/tables: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+4:45:41 PM [express] GET /api/sync/tables 304 in 5ms :: {"tables":[{"tableName":"plots","allowedOper…
+4:45:41 PM [express] GET /api/sync/session 404 in 1ms :: {"message":"API endpoint not found"}
+Simple login attempt for user: dept_manager_01 mockUser: true
+Mock user found, creating token for: dept_manager_01
+4:45:54 PM [express] POST /api/auth/simple-login 200 in 431ms :: {"token":"eyJhbGciOiJIUzI1NiIsInR5c…
+4:45:55 PM [express] GET /api/sync/session 404 in 1ms :: {"message":"API endpoint not found"}
+[🔍 AUTH DEBUG] GET /api/sync/tables - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/sync/tables: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+4:45:55 PM [express] GET /api/sync/tables 304 in 3ms :: {"tables":[{"tableName":"plots","allowedOper…
+[🔍 AUTH DEBUG] GET /api/applications - Token verification start {
+  hasAuthHeader: true,
+  tokenLength: 289,
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ip: '172.31.79.194'
+}
+[✅ AUTH SUCCESS] JWT verified for GET /api/applications: { userId: '21d6f2e9...', username: 'dept_manager_01', role: 'manager' }
+[GEOGRAPHIC DEBUG] Processing user: 21d6f2e9-2490-435c-8190-76ad83889c2f (dept_manager_01)
+[GEOGRAPHIC DEBUG] Found 1 geographic assignments for user 21d6f2e9-2490-435c-8190-76ad83889c2f
+[GEOGRAPHIC DEBUG] Built geographic context: {
+  governorateId: '6cb4d669-b015-485c-995c-62f0b465705f',
+  districtId: 'a365ac78-2b0a-4347-8fa1-bfb5671500d4',
+  subDistrictId: null,
+  neighborhoodId: null
+}
+[LBAC DEBUG] User geographic scope: {
+  userId: '21d6f2e9-2490-435c-8190-76ad83889c2f',
+  governorateIds: [ '6cb4d669-b015-485c-995c-62f0b465705f' ],
+  districtIds: [ 'a365ac78-2b0a-4347-8fa1-bfb5671500d4' ],
+  subDistrictIds: [],
+  neighborhoodIds: []
+}
+[LBAC DEBUG] Filtered applications count: 0
+4:46:00 PM [express] GET /api/applications 304 in 208ms :: []
