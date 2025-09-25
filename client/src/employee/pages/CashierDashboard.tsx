@@ -62,28 +62,21 @@ export default function CashierDashboard() {
     return paymentDay === today;
   });
 
-  // Process payment mutation - Updated for Task 1.2 Workflow
+  // Process payment mutation - Updated to use standard payment API
   const processPaymentMutation = useMutation({
     mutationFn: async ({ 
       applicationId, 
-      instanceId,
       paymentMethod, 
-      notes,
-      amount,
-      receiptNumber
+      notes
     }: { 
       applicationId: string;
-      instanceId?: string;
       paymentMethod: string; 
       notes: string;
-      amount: number;
-      receiptNumber: string;
     }) => {
-      // Use workflow-based payment processing
-      return apiRequest(`/api/workflow/cashier-payment/${instanceId}`, 'POST', {
+      // Use standard payment confirmation API
+      return apiRequest('/api/payments/confirm', 'POST', {
+        applicationId,
         paymentMethod,
-        amount,
-        receiptNumber,
         notes
       });
     },
