@@ -363,6 +363,7 @@ export interface IStorage {
     status?: string; 
     applicantId?: string; 
     assignedToId?: string;
+    currentStage?: string;
     // LBAC filtering for geographic access control
     userGeographicScope?: {
       userId: string;
