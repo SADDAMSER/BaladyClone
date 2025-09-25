@@ -2286,7 +2286,18 @@ export class DatabaseStorage implements IStorage {
     return sector || undefined;
   }
   async getSectorsByGovernorateId(governorateId: string): Promise<Sector[]> { 
-    return await db.select().from(sectors).where(eq(sectors.governorateId, sql<string>`${governorateId}::uuid`));
+    // Get sectors through sub-districts that belong to the governorate
+    const sectorsWithDistricts = await db.select({
+      sector: sectors,
+      subDistrict: subDistricts,
+      district: districts
+    })
+    .from(sectors)
+    .innerJoin(subDistricts, eq(sectors.subDistrictId, subDistricts.id))
+    .innerJoin(districts, eq(subDistricts.districtId, districts.id))
+    .where(eq(districts.governorateId, sql<string>`${governorateId}::uuid`));
+    
+    return sectorsWithDistricts.map(row => row.sector);
   }
   async getSectorsByDistrictId(districtId: string): Promise<Sector[]> {
     // Get the district to find its governorate
@@ -2294,8 +2305,17 @@ export class DatabaseStorage implements IStorage {
     if (!district) {
       return [];
     }
-    // Return all sectors in the same governorate
-    return await db.select().from(sectors).where(eq(sectors.governorateId, district.governorateId));
+    // Get all sub-districts in the same governorate, then get their sectors
+    const subDistrictsInGov = await db.select().from(subDistricts)
+      .innerJoin(districts, eq(subDistricts.districtId, districts.id))
+      .where(eq(districts.governorateId, district.governorateId));
+    
+    const subDistrictIds = subDistrictsInGov.map(row => row.subDistricts.id);
+    
+    if (subDistrictIds.length === 0) return [];
+    
+    return await db.select().from(sectors)
+      .where(sql`${sectors.subDistrictId} IN (${sql.join(subDistrictIds.map(id => sql`${id}`), sql`, `)})`);
   }
   async getSectorsBySubDistrictId(subDistrictId: string): Promise<Sector[]> {
     // Return sectors that belong to the specific sub-district
@@ -6995,11 +7015,7 @@ export class DatabaseStorage implements IStorage {
       userId?: string;
       deviceId?: string;
       sessionId?: string;
-      plotId?: string;
-      visitStatus?: 'started' | 'in_progress' | 'completed' | 'cancelled';
-      governorateId?: string;
-      districtId?: string;
-      visitDate?: Date;
+      visitStatus?: 'active' | 'completed' | 'interrupted';
       startDate?: Date;
       endDate?: Date;
     },
@@ -7011,12 +7027,9 @@ export class DatabaseStorage implements IStorage {
       if (filters?.userId) conditions.push(eq(mobileFieldVisits.surveyorId, filters.userId));
       if (filters?.deviceId) conditions.push(eq(mobileFieldVisits.deviceId, filters.deviceId));
       if (filters?.sessionId) conditions.push(eq(mobileFieldVisits.sessionId, filters.sessionId));
-      if (filters?.plotId) conditions.push(eq(mobileFieldVisits.plotId, filters.plotId));
       if (filters?.visitStatus) conditions.push(eq(mobileFieldVisits.visitStatus, filters.visitStatus));
-      if (filters?.governorateId) conditions.push(eq(mobileFieldVisits.governorateId, filters.governorateId));
-      if (filters?.districtId) conditions.push(eq(mobileFieldVisits.districtId, filters.districtId));
-      if (filters?.startDate) conditions.push(sql`${mobileFieldVisits.visitDate} >= ${filters.startDate}`);
-      if (filters?.endDate) conditions.push(sql`${mobileFieldVisits.visitDate} <= ${filters.endDate}`);
+      if (filters?.startDate) conditions.push(sql`${mobileFieldVisits.startTime} >= ${filters.startDate}`);
+      if (filters?.endDate) conditions.push(sql`${mobileFieldVisits.endTime} <= ${filters.endDate}`);
 
       let query = db.select().from(mobileFieldVisits);
       
