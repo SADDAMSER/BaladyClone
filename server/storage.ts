@@ -2310,7 +2310,7 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(districts, eq(subDistricts.districtId, districts.id))
       .where(eq(districts.governorateId, district.governorateId));
     
-    const subDistrictIds = subDistrictsInGov.map(row => row.subDistricts.id);
+    const subDistrictIds = subDistrictsInGov.map(row => row.sub_districts.id);
     
     if (subDistrictIds.length === 0) return [];
     
@@ -6507,10 +6507,10 @@ export class DatabaseStorage implements IStorage {
   async createMobileSurveySession(
     session: InsertMobileSurveySession,
     metadata: {
-      userId: string;
+      surveyorId: string;
       deviceId: string;
       clientChangeId?: string;
-      geographic: { governorateId?: string; districtId?: string; plotId?: string };
+      geographic: { governorateId?: string; districtId?: string };
     }
   ): Promise<{ session: MobileSurveySession; changeEntry: ChangeTracking }> {
     try {
@@ -6519,7 +6519,7 @@ export class DatabaseStorage implements IStorage {
         'mobile_survey_sessions',
         session,
         {
-          userId: metadata.userId,
+          userId: metadata.surveyorId,
           deviceId: metadata.deviceId,
           sessionId: randomUUID(),
           clientChangeId: metadata.clientChangeId,
@@ -6542,7 +6542,7 @@ export class DatabaseStorage implements IStorage {
     id: string,
     updates: Partial<InsertMobileSurveySession>,
     metadata: {
-      userId: string;
+      surveyorId: string;
       deviceId: string;
       clientChangeId?: string;
       geographic?: { governorateId?: string; districtId?: string };
@@ -6554,7 +6554,7 @@ export class DatabaseStorage implements IStorage {
         id,
         updates,
         {
-          userId: metadata.userId,
+          userId: metadata.surveyorId,
           deviceId: metadata.deviceId,
           clientChangeId: metadata.clientChangeId,
           changeSource: 'mobile_app',
@@ -6574,7 +6574,7 @@ export class DatabaseStorage implements IStorage {
 
   async submitMobileSurveySession(
     id: string,
-    metadata: { userId: string; deviceId: string; clientChangeId?: string }
+    metadata: { surveyorId: string; deviceId: string; clientChangeId?: string }
   ): Promise<MobileSurveySession> {
     try {
       const [session] = await db
@@ -6591,7 +6591,7 @@ export class DatabaseStorage implements IStorage {
         tableName: 'mobile_survey_sessions',
         recordId: id,
         operationType: 'update',
-        changedById: metadata.userId,
+        changedById: metadata.surveyorId,
         changeSource: 'mobile_app',
         deviceId: metadata.deviceId,
         clientChangeId: metadata.clientChangeId,
@@ -6676,11 +6676,11 @@ export class DatabaseStorage implements IStorage {
   async createMobileSurveyPoint(
     point: InsertMobileSurveyPoint,
     metadata: {
-      userId: string;
+      surveyorId: string;
       deviceId: string;
       sessionId: string;
       clientChangeId?: string;
-      geographic: { plotId?: string; governorateId?: string };
+      geographic: { governorateId?: string };
     }
   ): Promise<{ point: MobileSurveyPoint; changeEntry: ChangeTracking }> {
     try {
@@ -6688,7 +6688,7 @@ export class DatabaseStorage implements IStorage {
         'mobile_survey_points',
         point,
         {
-          userId: metadata.userId,
+          userId: metadata.surveyorId,
           deviceId: metadata.deviceId,
           sessionId: metadata.sessionId,
           clientChangeId: metadata.clientChangeId,
@@ -6711,7 +6711,7 @@ export class DatabaseStorage implements IStorage {
     id: string,
     updates: Partial<InsertMobileSurveyPoint>,
     metadata: {
-      userId: string;
+      surveyorId: string;
       deviceId: string;
       clientChangeId?: string;
     }
@@ -6722,7 +6722,7 @@ export class DatabaseStorage implements IStorage {
         id,
         updates,
         {
-          userId: metadata.userId,
+          userId: metadata.surveyorId,
           deviceId: metadata.deviceId,
           clientChangeId: metadata.clientChangeId,
           changeSource: 'mobile_app'
