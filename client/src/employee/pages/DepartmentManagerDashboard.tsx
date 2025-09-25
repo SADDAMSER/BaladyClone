@@ -51,13 +51,13 @@ export default function DepartmentManagerDashboard() {
 
   // Get paid applications awaiting assignment
   const { data: pendingAssignment = [], isLoading } = useQuery({
-    queryKey: ['/api/manager-applications'],
+    queryKey: ['/api/applications', { currentStage: 'assigned' }],
     queryFn: async () => {
       const token = localStorage.getItem('employee_token');
       localStorage.setItem("auth-token", token || '');
       
       try {
-        const response = await apiRequest('GET', '/api/manager-applications');
+        const response = await apiRequest('GET', '/api/applications?currentStage=assigned');
         const applications = await response.json();
         return applications;
       } finally {
@@ -120,7 +120,7 @@ export default function DepartmentManagerDashboard() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/manager-applications'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/applications', { currentStage: 'assigned' }] });
       toast({
         title: "تم تعيين الطلب بنجاح",
         description: `تم تعيين الطلب رقم ${selectedApplication?.applicationNumber} للمهندس المختص مع جميع التفاصيل`,

@@ -91,7 +91,7 @@ function AuthenticatedRouter() {
         <Route path="/employee/manager" component={DepartmentManagerDashboard} />
         <Route path="/employee/invoice/:id" component={PaymentInvoice} />
         <Route path="/employee/unified-form/:id" component={UnifiedFormPrint} />
-        <Route path="/employee/department-manager" component={DepartmentManagerDashboard} />
+{/* <Route path="/employee/department-manager" component={DepartmentManagerDashboard} /> */}
         <Route path="/employee/assistant-manager" component={AssistantManagerDashboard} />
         <Route path="/employee/assignment-form" component={AssignmentFormPage} />
         <Route path="/employee/engineer" component={EngineerDashboard} />

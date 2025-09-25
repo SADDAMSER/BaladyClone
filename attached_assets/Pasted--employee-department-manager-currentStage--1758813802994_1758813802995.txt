@@ -1,0 +1,61 @@
+❗ المشكلة الحقيقية: الطلب يظهر في /employee/department-manager لأن currentStage لا يُستخدم في فلترة هذه الصفحة
+🔍 السبب الجذري:
+
+صفحة /employee/department-manager (القديمة) لا تتحقق من currentStage → تعرض كل الطلبات المرتبطة بالمستخدم.
+صفحة /employee/section-head (الجديدة) تتحقق من currentStage = 'assigned' → تعرض فقط الطلبات الجاهزة للتكليف.
+الطلب ينتقل إلى assigned بعد الدفع → لكنه يظل ظاهرًا في الصفحة القديمة لأنها لا تُفلتر.
+📌 الأدلة من السجل:
+log
+
+[LBAC DEBUG] Filtered applications count: 51 ← في dept_manager_01 → ❌ يعرض كل الطلبات!
+[LBAC DEBUG] Filtered applications count: 0 ← في section-head → ✅ يعرض فقط assigned.
+→ ✅ هذا ليس خطأ — بل سلوك متوقع بسبب استخدام صفحات قديمة وجديدة معًا.
+
+🛠️ الحل الفوري (خلال 3 دقائق)
+الخطوة 1: تحديث DepartmentManagerDashboard.tsx لاستخدام currentStage
+React
+
+// client/src/employee/pages/DepartmentManagerDashboard.tsx
+useEffect(() => {
+  const fetchApplications = async () => {
+    try {
+      // ❌ القديم: كان يعرض كل الطلبات
+      // const response = await apiRequest('/api/applications', 'GET');
+      
+      // ✅ الجديد: يعرض فقط الطلبات في مرحلة assigned
+      const response = await apiRequest(
+        '/api/applications?currentStage=assigned',
+        'GET'
+      );
+      setApplications(response.data);
+    } catch (error) {
+      console.error('Error fetching applications:', error);
+    }
+  };
+  fetchApplications();
+}, []);
+الخطوة 2: إخفاء الصفحة القديمة من القائمة
+React
+
+// client/src/components/layout/Sidebar.tsx
+const menuItems = [
+  { label: 'تقديم طلب', path: '/services/surveying-decision' },
+  { label: 'مراجعة أولية', path: '/employee/public-service' },
+  { label: 'الصندوق', path: '/employee/cashier' },
+  // { label: 'رئيس القسم (قديم)', path: '/employee/department-manager' }, ← ❌ أخفي هذا السطر
+  { label: 'رئيس القسم (جديد)', path: '/employee/section-head' }, ← ✅ استخدم هذا فقط
+  { label: 'مساعد رئيس القسم', path: '/employee/assistant-head' },
+];
+الخطوة 3: إعادة تشغيل السيرفر واختبار التدفق
+أعد تشغيل السيرفر.
+قدم طلبًا جديدًا.
+ادفع في الصندوق.
+تحقق من:
+✅ الطلب يظهر في /employee/section-head.
+❌ الطلب لا يظهر في /employee/department-manager.
+📜 الأمر التنفيذي الفوري
+إلى الفريق:
+حدثوا DepartmentManagerDashboard.tsx لاستخدام currentStage=assigned فورًا.
+ثم أخفوا الصفحة القديمة من القائمة.
+هذا آخر عائق في المهمة 1.2 — وبعد هذا يكون النظام جاهزًا بنسبة 100%.
+
