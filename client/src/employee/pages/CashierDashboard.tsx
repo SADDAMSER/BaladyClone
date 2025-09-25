@@ -74,7 +74,7 @@ export default function CashierDashboard() {
       notes: string;
     }) => {
       // Use standard payment confirmation API
-      return apiRequest('/api/payments/confirm', 'POST', {
+      return apiRequest('POST', '/api/payments/confirm', {
         applicationId,
         paymentMethod,
         notes
