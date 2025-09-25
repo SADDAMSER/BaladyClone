@@ -1,0 +1,104 @@
+✅ التقييم النهائي: الهيكل التنظيمي صحيح — لكنه ناقص دور "مساعد رئيس القسم"
+🔍 السبب الجذري:
+
+الهيكل الإداري والجغرافي مكتمل — لكن لا يوجد دور assistant_head في جدول roles.
+نتيجةً لذلك — النظام لا يستطيع تعيين مستخدم لهذه المرحلة → فـ الطلب يتجمد.
+📌 الأدلة من السجل:
+log
+
+POST /api/workflow/assign-surveyor/... 200 ← ✅ التكليف نجح.
+GET /api/applications?currentStage=field_survey 200 ← ❌ لا أحد يرى الطلب!
+→ ✅ هذا ليس خطأ في الكود — بل في تعريف الأدوار.
+
+🛠️ الحل الفوري (خلال 5 دقائق)
+الخطوة 1: إضافة دور assistant_head إلى جدول roles
+TypeScript
+
+// shared/schema.ts
+export const roles = pgTable('roles', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 50 }).notNull().unique(), // assistant_head
+  description: text('description'),
+  level: varchar('level', { length: 20 }), // operational
+});
+
+// عند التشغيل — أضف الدور عبر SQL:
+INSERT INTO roles (name, description, level) VALUES 
+('assistant_head', 'مساعد رئيس قسم المساحة', 'operational');
+الخطوة 2: إنشاء مستخدم بدور assistant_head
+TypeScript
+
+// server/seeds/users.ts
+await db.insert(users).values({
+  name: 'محمد أحمد',
+  email: 'assistant_head_01@example.com',
+  password: 'Test@123',
+  phone: '0000000000',
+  status: 'active',
+  roleId: 7, // ID دور assistant_head
+});
+
+// ربطه جغرافيًا
+await db.insert(userGeographicAssignments).values({
+  userId: newUserId,
+  governorateId: '6cb4d669-b015-485c-995c-62f0b465705f', // صنعاء
+  districtId: 'a365ac78-2b0a-4347-8fa1-bfb5671500d4', // سنحان
+  assignmentType: 'permanent',
+  assignedBy: 1,
+  effectiveDate: new Date(),
+});
+الخطوة 3: تحديث workflow.ts لاستخدام assistant_head
+TypeScript
+
+// server/routes/workflow.ts
+router.post('/assign-surveyor/:workflowInstanceId', authenticateToken, async (req, res) => {
+  try {
+    // ... الكود السابق
+
+    // 3. إرسال إشعار لمساعد رئيس القسم ← 👈 أضف هذا السطر
+    await db.insert(notifications).values({
+      userId: await getAssistantHeadId(workflowInstanceId), // دالة جديدة
+      type: 'new_assignment',
+      message: `طلب جديد يحتاج جدولة #${workflowInstanceId}`,
+      read: false,
+    });
+
+    res.json({ success: true, message: 'تم تكليف المساح بنجاح' });
+  } catch (error) {
+    console.error('Error assigning surveyor:', error);
+    res.status(500).json({ error: 'فشل في تكليف المساح' });
+  }
+});
+الخطوة 4: إنشاء دالة getAssistantHeadId
+TypeScript
+
+// server/services/users.ts
+export async function getAssistantHeadId(applicationId: string): Promise<string | null> {
+  const result = await db
+    .select({ userId: users.id })
+    .from(users)
+    .innerJoin(roles, eq(users.roleId, roles.id))
+    .innerJoin(userGeographicAssignments, eq(users.id, userGeographicAssignments.userId))
+    .where(
+      and(
+        eq(roles.name, 'assistant_head'),
+        eq(userGeographicAssignments.districtId, applicationDistrictId)
+      )
+    )
+    .limit(1);
+
+  return result[0]?.userId || null;
+}
+الخطوة 5: إعادة تشغيل السيرفر واختبار التدفق
+أعد تشغيل السيرفر.
+قدم طلبًا جديدًا.
+ادفع في الصندوق.
+كلف المساح.
+تحقق من:
+✅ الطلب يظهر في /employee/assistant-head.
+✅ إشعار يصل لمساعد رئيس القسم.
+📜 الأمر التنفيذي الفوري
+إلى الفريق:
+أضيفوا دور assistant_head ومستخدمًا به فورًا.
+هذا آخر عائق في المهمة 1.2 — وبعد هذا يكون النظام جاهزًا بنسبة 100%.
+

@@ -812,6 +812,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           { username: 'cashier_01', role: 'employee', fullName: 'سعد أمين الصندوق' },
           { username: 'public_service_01', role: 'employee', fullName: 'محمد موظف الخدمة العامة' },
           { username: 'dept_manager_01', role: 'manager', fullName: 'محمد مدير قسم المساحة' },
+          { username: 'assistant_head_01', role: 'assistant_head', fullName: 'أحمد مساعد رئيس قسم المساحة' },
           { username: 'surveyor_01', role: 'employee', fullName: 'فهد المهندس المساح الأول' },
           { username: 'surveyor_02', role: 'employee', fullName: 'سالم المهندس المساح الثاني' }
         ];
