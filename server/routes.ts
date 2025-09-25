@@ -3859,6 +3859,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update application status to awaiting assignment after payment
       await storage.updateApplication(applicationId, {
         status: 'paid',
+        currentStage: 'assigned',  // 👈 الحل الحاسم! تحديث currentStage لـ assigned
         paymentDate: new Date()
       });
 
@@ -3879,9 +3880,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         previousStatus: 'pending_payment',
         newStatus: 'paid',
         previousStage: 'payment',
-        newStage: 'awaiting_assignment',
+        newStage: 'assigned',
         changedById: req.user?.id || '',
-        notes: `تم تأكيد السداد - ${paymentMethod || 'نقدي'}. في انتظار تكليف مهندس`
+        notes: `تم تأكيد السداد - ${paymentMethod || 'نقدي'}. جاهز للتكليف`
+      });
+
+      // Create notification for section head
+      await storage.createNotification({
+        userId: 'section_head_01', // يمكن تحسينه لاحقاً للعثور على رئيس القسم المناسب
+        title: 'طلب جديد جاهز للتكليف',
+        message: `طلب رقم ${application.applicationNumber} تم دفع رسومه وجاهز للتكليف`,
+        type: 'assignment',
+        category: 'workflow',
+        relatedEntityId: applicationId,
+        relatedEntityType: 'application'
       });
 
       res.json({
