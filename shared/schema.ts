@@ -3905,6 +3905,427 @@ export const mobileSyncCursors = pgTable("mobile_sync_cursors", {
   )`
 }));
 
+// =============================================
+// TECHNICAL REVIEW SYSTEM
+// =============================================
+
+// Technical Review Cases - Link applications to reviewers and track status
+export const technicalReviewCases = pgTable("technical_review_cases", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  applicationId: uuid("application_id")
+    .references(() => applications.id, { onDelete: "cascade" })
+    .notNull(),
+  reviewerId: uuid("reviewer_id")
+    .references(() => users.id, { onDelete: "set null" }),
+  assignedById: uuid("assigned_by_id")
+    .references(() => users.id, { onDelete: "set null" }),
+  
+  // Review status and workflow
+  status: text("status").notNull().default("pending"), // pending, in_progress, completed, approved, rejected, needs_modification
+  priority: text("priority").default("medium"), // high, medium, low
+  reviewType: text("review_type").notNull().default("technical"), // technical, legal, administrative
+  
+  // Review metadata
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  dueDate: timestamp("due_date"),
+  estimatedHours: decimal("estimated_hours", { precision: 5, scale: 2 }),
+  actualHours: decimal("actual_hours", { precision: 5, scale: 2 }),
+  
+  // Decision and notes
+  decision: text("decision"), // approve, reject, modify, return
+  reviewNotes: text("review_notes"),
+  internalNotes: text("internal_notes"),
+  recommendedActions: jsonb("recommended_actions"), // Array of action items
+  
+  // Version control for review iterations
+  reviewVersion: integer("review_version").default(1),
+  previousReviewId: uuid("previous_review_id"),
+  
+  // Workflow integration
+  workflowStage: text("workflow_stage").default("technical_review_pending"),
+  nextStage: text("next_stage"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  // Status validation
+  statusValidation: sql`CONSTRAINT status_validation CHECK (
+    status IN ('pending', 'in_progress', 'completed', 'approved', 'rejected', 'needs_modification')
+  )`,
+  
+  // Priority validation
+  priorityValidation: sql`CONSTRAINT priority_validation CHECK (
+    priority IN ('high', 'medium', 'low')
+  )`,
+  
+  // Review type validation
+  reviewTypeValidation: sql`CONSTRAINT review_type_validation CHECK (
+    review_type IN ('technical', 'legal', 'administrative')
+  )`,
+  
+  // Decision validation
+  decisionValidation: sql`CONSTRAINT decision_validation CHECK (
+    decision IS NULL OR decision IN ('approve', 'reject', 'modify', 'return')
+  )`,
+  
+  // Completed reviews must have decision
+  completedReviewCheck: sql`CONSTRAINT completed_review_check CHECK (
+    status != 'completed' OR decision IS NOT NULL
+  )`,
+  
+  // Started reviews must have start time
+  startedReviewCheck: sql`CONSTRAINT started_review_check CHECK (
+    status = 'pending' OR started_at IS NOT NULL
+  )`,
+  
+  // Due date must be in future when created
+  dueDateValidation: sql`CONSTRAINT due_date_validation CHECK (
+    due_date IS NULL OR due_date > created_at
+  )`,
+  
+  // Indexes
+  applicationReviewIndex: index("idx_tech_review_application").on(table.applicationId),
+  reviewerStatusIndex: index("idx_tech_review_reviewer_status").on(table.reviewerId, table.status),
+  statusIndex: index("idx_tech_review_status").on(table.status),
+  workflowStageIndex: index("idx_tech_review_workflow_stage").on(table.workflowStage)
+}));
+
+// Review Artifacts - Geometric and data artifacts from different ingestion sources
+export const reviewArtifacts = pgTable("review_artifacts", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  reviewCaseId: uuid("review_case_id")
+    .references(() => technicalReviewCases.id, { onDelete: "cascade" })
+    .notNull(),
+  ingestionJobId: uuid("ingestion_job_id")
+    .references(() => ingestionJobs.id, { onDelete: "set null" }),
+  
+  // Artifact metadata
+  artifactName: text("artifact_name").notNull(),
+  artifactType: text("artifact_type").notNull(), // geometry, raster, document, calculation
+  sourceType: text("source_type").notNull(), // mobile_sync, csv_upload, shapefile_upload, manual_entry
+  
+  // Geometric data (GeoJSON format)
+  geometryType: text("geometry_type"), // Point, LineString, Polygon, MultiPolygon
+  coordinates: jsonb("coordinates"), // GeoJSON coordinates
+  properties: jsonb("properties"), // GeoJSON properties
+  crs: text("crs").default("EPSG:4326"), // Coordinate Reference System
+  
+  // Layer management
+  layerName: text("layer_name"),
+  layerOrder: integer("layer_order").default(1),
+  isVisible: boolean("is_visible").default(true),
+  strokeColor: text("stroke_color").default("#3388ff"),
+  fillColor: text("fill_color").default("#3388ff33"),
+  strokeWidth: integer("stroke_width").default(3),
+  
+  // Quality and validation
+  qualityScore: decimal("quality_score", { precision: 5, scale: 2 }),
+  validationStatus: text("validation_status").default("pending"), // pending, valid, invalid, warning
+  validationErrors: jsonb("validation_errors"), // Array of validation issues
+  
+  // Geometric calculations
+  area: decimal("area", { precision: 12, scale: 3 }), // Square meters
+  perimeter: decimal("perimeter", { precision: 10, scale: 3 }), // Meters
+  length: decimal("length", { precision: 10, scale: 3 }), // Meters
+  centroid: jsonb("centroid"), // {lat, lng}
+  
+  // Version control and comparison
+  artifactVersion: integer("artifact_version").default(1),
+  parentArtifactId: uuid("parent_artifact_id"),
+  isDerived: boolean("is_derived").default(false), // Calculated from other artifacts
+  
+  // Status tracking
+  status: text("status").default("active"), // active, archived, deleted, superseded
+  notes: text("notes"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  // Artifact type validation
+  artifactTypeValidation: sql`CONSTRAINT artifact_type_validation CHECK (
+    artifact_type IN ('geometry', 'raster', 'document', 'calculation', 'annotation')
+  )`,
+  
+  // Source type validation
+  sourceTypeValidation: sql`CONSTRAINT source_type_validation CHECK (
+    source_type IN ('mobile_sync', 'csv_upload', 'shapefile_upload', 'manual_entry', 'georaster_upload')
+  )`,
+  
+  // Geometry type validation
+  geometryTypeValidation: sql`CONSTRAINT geometry_type_validation CHECK (
+    geometry_type IS NULL OR geometry_type IN ('Point', 'LineString', 'Polygon', 'MultiPolygon')
+  )`,
+  
+  // CRS validation
+  crsValidation: sql`CONSTRAINT crs_validation CHECK (
+    crs IN ('EPSG:4326', 'EPSG:3857', 'EPSG:32638')
+  )`,
+  
+  // Validation status check
+  validationStatusCheck: sql`CONSTRAINT validation_status_check CHECK (
+    validation_status IN ('pending', 'valid', 'invalid', 'warning')
+  )`,
+  
+  // Status validation
+  statusValidation: sql`CONSTRAINT status_validation CHECK (
+    status IN ('active', 'archived', 'deleted', 'superseded')
+  )`,
+  
+  // Geometric artifacts must have coordinates
+  geometryArtifactCheck: sql`CONSTRAINT geometry_artifact_check CHECK (
+    artifact_type != 'geometry' OR coordinates IS NOT NULL
+  )`,
+  
+  // Area/perimeter/length must be positive
+  positiveMetricsCheck: sql`CONSTRAINT positive_metrics_check CHECK (
+    area IS NULL OR area >= 0 AND
+    perimeter IS NULL OR perimeter >= 0 AND
+    length IS NULL OR length >= 0
+  )`,
+  
+  // Indexes
+  reviewCaseArtifactsIndex: index("idx_artifacts_review_case").on(table.reviewCaseId),
+  sourceTypeIndex: index("idx_artifacts_source_type").on(table.sourceType),
+  artifactTypeIndex: index("idx_artifacts_artifact_type").on(table.artifactType),
+  statusIndex: index("idx_artifacts_status").on(table.status),
+  layerIndex: index("idx_artifacts_layer").on(table.layerName, table.layerOrder)
+}));
+
+// Ingestion Jobs - Track processing of uploaded files and data sources
+export const ingestionJobs = pgTable("ingestion_jobs", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  reviewCaseId: uuid("review_case_id")
+    .references(() => technicalReviewCases.id, { onDelete: "cascade" })
+    .notNull(),
+  
+  // Job metadata
+  jobType: text("job_type").notNull(), // mobile_sync, csv_processing, shapefile_processing, georaster_processing
+  jobName: text("job_name").notNull(),
+  description: text("description"),
+  
+  // Source data
+  sourcePath: text("source_path"), // Original file path or source identifier
+  sourceFormat: text("source_format"), // csv, shp, tif, zip, geojson
+  sourceSize: integer("source_size"), // File size in bytes
+  payloadHash: text("payload_hash"), // MD5/SHA256 hash for deduplication
+  
+  // Processing configuration
+  processingConfig: jsonb("processing_config"), // Job-specific configuration
+  outputFormat: text("output_format").default("geojson"), // Target output format
+  
+  // Processing status
+  status: text("status").default("pending"), // pending, running, completed, failed, cancelled
+  processingStage: text("processing_stage"), // validation, parsing, transformation, storage
+  progress: decimal("progress", { precision: 5, scale: 2 }).default("0"), // Percentage 0-100
+  
+  // Timing
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  estimatedDuration: integer("estimated_duration"), // Seconds
+  actualDuration: integer("actual_duration"), // Seconds
+  
+  // Results and errors
+  outputPath: text("output_path"), // Path to processed output
+  recordsProcessed: integer("records_processed").default(0),
+  recordsValid: integer("records_valid").default(0),
+  recordsInvalid: integer("records_invalid").default(0),
+  artifactsCreated: integer("artifacts_created").default(0),
+  
+  // Error handling
+  errorLog: jsonb("error_log"), // Array of error messages and details
+  warningLog: jsonb("warning_log"), // Array of warnings
+  lastError: text("last_error"),
+  retryCount: integer("retry_count").default(0),
+  maxRetries: integer("max_retries").default(3),
+  
+  // Worker information
+  workerId: text("worker_id"), // Processing worker identifier
+  workerHost: text("worker_host"), // Worker machine/container
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  // Job type validation
+  jobTypeValidation: sql`CONSTRAINT job_type_validation CHECK (
+    job_type IN ('mobile_sync', 'csv_processing', 'shapefile_processing', 'georaster_processing')
+  )`,
+  
+  // Source format validation
+  sourceFormatValidation: sql`CONSTRAINT source_format_validation CHECK (
+    source_format IS NULL OR source_format IN ('csv', 'shp', 'tif', 'tiff', 'zip', 'geojson', 'kml')
+  )`,
+  
+  // Output format validation
+  outputFormatValidation: sql`CONSTRAINT output_format_validation CHECK (
+    output_format IN ('geojson', 'postgis', 'shapefile', 'png')
+  )`,
+  
+  // Status validation
+  statusValidation: sql`CONSTRAINT status_validation CHECK (
+    status IN ('pending', 'running', 'completed', 'failed', 'cancelled')
+  )`,
+  
+  // Progress validation
+  progressValidation: sql`CONSTRAINT progress_validation CHECK (
+    progress >= 0 AND progress <= 100
+  )`,
+  
+  // Completed jobs must have completion time
+  completedJobCheck: sql`CONSTRAINT completed_job_check CHECK (
+    status != 'completed' OR completed_at IS NOT NULL
+  )`,
+  
+  // Started jobs must have start time
+  startedJobCheck: sql`CONSTRAINT started_job_check CHECK (
+    status = 'pending' OR started_at IS NOT NULL
+  )`,
+  
+  // Record counts validation
+  recordCountsValidation: sql`CONSTRAINT record_counts_validation CHECK (
+    records_processed >= 0 AND
+    records_valid >= 0 AND
+    records_invalid >= 0 AND
+    records_valid + records_invalid <= records_processed
+  )`,
+  
+  // Retry count validation
+  retryCountValidation: sql`CONSTRAINT retry_count_validation CHECK (
+    retry_count >= 0 AND retry_count <= max_retries
+  )`,
+  
+  // Indexes
+  reviewCaseJobsIndex: index("idx_ingestion_jobs_review_case").on(table.reviewCaseId),
+  statusIndex: index("idx_ingestion_jobs_status").on(table.status),
+  jobTypeIndex: index("idx_ingestion_jobs_job_type").on(table.jobType),
+  payloadHashIndex: index("idx_ingestion_jobs_payload_hash").on(table.payloadHash),
+  createdAtIndex: index("idx_ingestion_jobs_created_at").on(table.createdAt)
+}));
+
+// Raster Products - Georeferenced imagery products and their metadata
+export const rasterProducts = pgTable("raster_products", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  reviewCaseId: uuid("review_case_id")
+    .references(() => technicalReviewCases.id, { onDelete: "cascade" })
+    .notNull(),
+  ingestionJobId: uuid("ingestion_job_id")
+    .references(() => ingestionJobs.id, { onDelete: "set null" }),
+  
+  // Product metadata
+  productName: text("product_name").notNull(),
+  productType: text("product_type").notNull(), // basemap, overlay, orthophoto, dem, classification
+  description: text("description"),
+  
+  // File references
+  imageUrl: text("image_url").notNull(), // PNG/JPEG image URL
+  worldFileUrl: text("world_file_url"), // .pgw/.jgw world file URL
+  projectionFileUrl: text("projection_file_url"), // .prj projection file URL
+  originalFileUrl: text("original_file_url"), // Original TIFF/source file URL
+  
+  // Spatial reference and bounds
+  crs: text("crs").default("EPSG:4326"), // Coordinate Reference System
+  bounds: jsonb("bounds").notNull(), // [[minLng, minLat], [maxLng, maxLat]]
+  centroid: jsonb("centroid"), // {lat, lng}
+  
+  // Raster properties
+  width: integer("width").notNull(), // Image width in pixels
+  height: integer("height").notNull(), // Image height in pixels
+  pixelSizeX: decimal("pixel_size_x", { precision: 15, scale: 10 }), // Pixel size in X direction
+  pixelSizeY: decimal("pixel_size_y", { precision: 15, scale: 10 }), // Pixel size in Y direction
+  resolution: decimal("resolution", { precision: 10, scale: 3 }), // Ground resolution in meters
+  
+  // Data characteristics
+  bandCount: integer("band_count").default(3), // Number of bands (RGB = 3, RGBA = 4)
+  dataType: text("data_type").default("uint8"), // uint8, uint16, float32
+  compressionType: text("compression_type"), // jpeg, png, lzw, none
+  
+  // Quality and processing
+  qualityScore: decimal("quality_score", { precision: 5, scale: 2 }),
+  processingLevel: text("processing_level").default("raw"), // raw, processed, orthorectified
+  acquisitionDate: timestamp("acquisition_date"),
+  processingDate: timestamp("processing_date").default(sql`CURRENT_TIMESTAMP`),
+  
+  // Display properties
+  minZoomLevel: integer("min_zoom_level").default(0),
+  maxZoomLevel: integer("max_zoom_level").default(18),
+  opacity: decimal("opacity", { precision: 3, scale: 2 }).default("1.0"), // 0.0 to 1.0
+  isVisible: boolean("is_visible").default(true),
+  displayOrder: integer("display_order").default(1),
+  
+  // Status and validation
+  status: text("status").default("processing"), // processing, ready, error, archived
+  validationStatus: text("validation_status").default("pending"), // pending, valid, invalid
+  validationErrors: jsonb("validation_errors"),
+  
+  // Usage tracking
+  accessCount: integer("access_count").default(0),
+  lastAccessedAt: timestamp("last_accessed_at"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  // Product type validation
+  productTypeValidation: sql`CONSTRAINT product_type_validation CHECK (
+    product_type IN ('basemap', 'overlay', 'orthophoto', 'dem', 'classification', 'satellite')
+  )`,
+  
+  // CRS validation
+  crsValidation: sql`CONSTRAINT crs_validation CHECK (
+    crs IN ('EPSG:4326', 'EPSG:3857', 'EPSG:32638')
+  )`,
+  
+  // Data type validation
+  dataTypeValidation: sql`CONSTRAINT data_type_validation CHECK (
+    data_type IN ('uint8', 'uint16', 'uint32', 'float32', 'float64')
+  )`,
+  
+  // Processing level validation
+  processingLevelValidation: sql`CONSTRAINT processing_level_validation CHECK (
+    processing_level IN ('raw', 'processed', 'orthorectified', 'mosaic')
+  )`,
+  
+  // Status validation
+  statusValidation: sql`CONSTRAINT status_validation CHECK (
+    status IN ('processing', 'ready', 'error', 'archived')
+  )`,
+  
+  // Validation status check
+  validationStatusCheck: sql`CONSTRAINT validation_status_check CHECK (
+    validation_status IN ('pending', 'valid', 'invalid')
+  )`,
+  
+  // Dimension validation
+  dimensionValidation: sql`CONSTRAINT dimension_validation CHECK (
+    width > 0 AND height > 0
+  )`,
+  
+  // Band count validation
+  bandCountValidation: sql`CONSTRAINT band_count_validation CHECK (
+    band_count > 0 AND band_count <= 10
+  )`,
+  
+  // Zoom level validation
+  zoomLevelValidation: sql`CONSTRAINT zoom_level_validation CHECK (
+    min_zoom_level >= 0 AND max_zoom_level <= 22 AND min_zoom_level <= max_zoom_level
+  )`,
+  
+  // Opacity validation
+  opacityValidation: sql`CONSTRAINT opacity_validation CHECK (
+    opacity >= 0.0 AND opacity <= 1.0
+  )`,
+  
+  // Resolution must be positive
+  resolutionValidation: sql`CONSTRAINT resolution_validation CHECK (
+    resolution IS NULL OR resolution > 0
+  )`,
+  
+  // Indexes
+  reviewCaseRastersIndex: index("idx_raster_products_review_case").on(table.reviewCaseId),
+  productTypeIndex: index("idx_raster_products_product_type").on(table.productType),
+  statusIndex: index("idx_raster_products_status").on(table.status),
+  displayOrderIndex: index("idx_raster_products_display_order").on(table.displayOrder),
+  acquisitionDateIndex: index("idx_raster_products_acquisition_date").on(table.acquisitionDate)
+}));
 
 // =============================================
 // MOBILE SURVEY SYSTEM - RELATIONS
@@ -4015,6 +4436,63 @@ export const mobileSyncCursorsRelations = relations(mobileSyncCursors, ({ one })
   device: one(mobileDeviceRegistrations, {
     fields: [mobileSyncCursors.deviceId],
     references: [mobileDeviceRegistrations.id],
+  }),
+}));
+
+// =============================================
+// TECHNICAL REVIEW SYSTEM - RELATIONS
+// =============================================
+
+// Technical Review Cases Relations
+export const technicalReviewCasesRelations = relations(technicalReviewCases, ({ one, many }) => ({
+  application: one(applications, {
+    fields: [technicalReviewCases.applicationId],
+    references: [applications.id],
+  }),
+  reviewer: one(users, {
+    fields: [technicalReviewCases.reviewerId],
+    references: [users.id],
+  }),
+  assignedBy: one(users, {
+    fields: [technicalReviewCases.assignedById],
+    references: [users.id],
+  }),
+  reviewArtifacts: many(reviewArtifacts),
+  ingestionJobs: many(ingestionJobs),
+  rasterProducts: many(rasterProducts),
+}));
+
+// Review Artifacts Relations
+export const reviewArtifactsRelations = relations(reviewArtifacts, ({ one }) => ({
+  reviewCase: one(technicalReviewCases, {
+    fields: [reviewArtifacts.reviewCaseId],
+    references: [technicalReviewCases.id],
+  }),
+  ingestionJob: one(ingestionJobs, {
+    fields: [reviewArtifacts.ingestionJobId],
+    references: [ingestionJobs.id],
+  }),
+}));
+
+// Ingestion Jobs Relations
+export const ingestionJobsRelations = relations(ingestionJobs, ({ one, many }) => ({
+  reviewCase: one(technicalReviewCases, {
+    fields: [ingestionJobs.reviewCaseId],
+    references: [technicalReviewCases.id],
+  }),
+  reviewArtifacts: many(reviewArtifacts),
+  rasterProducts: many(rasterProducts),
+}));
+
+// Raster Products Relations
+export const rasterProductsRelations = relations(rasterProducts, ({ one }) => ({
+  reviewCase: one(technicalReviewCases, {
+    fields: [rasterProducts.reviewCaseId],
+    references: [technicalReviewCases.id],
+  }),
+  ingestionJob: one(ingestionJobs, {
+    fields: [rasterProducts.ingestionJobId],
+    references: [ingestionJobs.id],
   }),
 }));
 
@@ -4386,5 +4864,96 @@ export type GeoJob = typeof geoJobs.$inferSelect;
 export type InsertGeoJob = z.infer<typeof insertGeoJobSchema>;
 export type GeoJobEvent = typeof geoJobEvents.$inferSelect;
 export type InsertGeoJobEvent = z.infer<typeof insertGeoJobEventSchema>;
+
+// =============================================
+// TECHNICAL REVIEW SYSTEM - ZOD SCHEMAS
+// =============================================
+
+// Technical Review Cases Schemas
+export const insertTechnicalReviewCaseSchema = createInsertSchema(technicalReviewCases).omit({
+  id: true,
+  reviewVersion: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  status: z.enum(["pending", "in_progress", "completed", "approved", "rejected", "needs_modification"]).default("pending"),
+  priority: z.enum(["high", "medium", "low"]).default("medium"),
+  reviewType: z.enum(["technical", "legal", "administrative"]).default("technical"),
+  decision: z.enum(["approve", "reject", "modify", "return"]).optional(),
+  workflowStage: z.string().default("technical_review_pending"),
+});
+
+export type TechnicalReviewCase = typeof technicalReviewCases.$inferSelect;
+export type InsertTechnicalReviewCase = z.infer<typeof insertTechnicalReviewCaseSchema>;
+
+// Review Artifacts Schemas
+export const insertReviewArtifactSchema = createInsertSchema(reviewArtifacts).omit({
+  id: true,
+  artifactVersion: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  artifactType: z.enum(["geometry", "raster", "document", "calculation", "annotation"]),
+  sourceType: z.enum(["mobile_sync", "csv_upload", "shapefile_upload", "manual_entry", "georaster_upload"]),
+  geometryType: z.enum(["Point", "LineString", "Polygon", "MultiPolygon"]).optional(),
+  crs: z.enum(["EPSG:4326", "EPSG:3857", "EPSG:32638"]).default("EPSG:4326"),
+  validationStatus: z.enum(["pending", "valid", "invalid", "warning"]).default("pending"),
+  status: z.enum(["active", "archived", "deleted", "superseded"]).default("active"),
+  isVisible: z.boolean().default(true),
+  layerOrder: z.number().int().min(1).default(1),
+  strokeWidth: z.number().int().min(1).max(10).default(3),
+});
+
+export type ReviewArtifact = typeof reviewArtifacts.$inferSelect;
+export type InsertReviewArtifact = z.infer<typeof insertReviewArtifactSchema>;
+
+// Ingestion Jobs Schemas
+export const insertIngestionJobSchema = createInsertSchema(ingestionJobs).omit({
+  id: true,
+  recordsProcessed: true,
+  recordsValid: true,
+  recordsInvalid: true,
+  artifactsCreated: true,
+  retryCount: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  jobType: z.enum(["mobile_sync", "csv_processing", "shapefile_processing", "georaster_processing"]),
+  sourceFormat: z.enum(["csv", "shp", "tif", "tiff", "zip", "geojson", "kml"]).optional(),
+  outputFormat: z.enum(["geojson", "postgis", "shapefile", "png"]).default("geojson"),
+  status: z.enum(["pending", "running", "completed", "failed", "cancelled"]).default("pending"),
+  progress: z.number().min(0).max(100).default(0),
+  maxRetries: z.number().int().min(0).max(10).default(3),
+});
+
+export type IngestionJob = typeof ingestionJobs.$inferSelect;
+export type InsertIngestionJob = z.infer<typeof insertIngestionJobSchema>;
+
+// Raster Products Schemas
+export const insertRasterProductSchema = createInsertSchema(rasterProducts).omit({
+  id: true,
+  accessCount: true,
+  lastAccessedAt: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  productType: z.enum(["basemap", "overlay", "orthophoto", "dem", "classification", "satellite"]),
+  crs: z.enum(["EPSG:4326", "EPSG:3857", "EPSG:32638"]).default("EPSG:4326"),
+  dataType: z.enum(["uint8", "uint16", "uint32", "float32", "float64"]).default("uint8"),
+  processingLevel: z.enum(["raw", "processed", "orthorectified", "mosaic"]).default("raw"),
+  status: z.enum(["processing", "ready", "error", "archived"]).default("processing"),
+  validationStatus: z.enum(["pending", "valid", "invalid"]).default("pending"),
+  width: z.number().int().min(1),
+  height: z.number().int().min(1),
+  bandCount: z.number().int().min(1).max(10).default(3),
+  minZoomLevel: z.number().int().min(0).max(22).default(0),
+  maxZoomLevel: z.number().int().min(0).max(22).default(18),
+  opacity: z.number().min(0).max(1).default(1),
+  isVisible: z.boolean().default(true),
+  displayOrder: z.number().int().min(1).default(1),
+});
+
+export type RasterProduct = typeof rasterProducts.$inferSelect;
+export type InsertRasterProduct = z.infer<typeof insertRasterProductSchema>;
 
 
