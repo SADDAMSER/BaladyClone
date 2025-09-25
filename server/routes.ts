@@ -3887,7 +3887,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create notification for section head
       await storage.createNotification({
-        userId: 'section_head_01', // يمكن تحسينه لاحقاً للعثور على رئيس القسم المناسب
+        userId: '30000000-0000-4000-8000-000000000004', // UUID صحيح لرئيس قسم الإشراف الفني
         title: 'طلب جديد جاهز للتكليف',
         message: `طلب رقم ${application.applicationNumber} تم دفع رسومه وجاهز للتكليف`,
         type: 'assignment',
