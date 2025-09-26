@@ -7,7 +7,7 @@ import { sql, eq, desc, and, or, isNull, lte, gte, gt, inArray, asc } from "driz
 import { 
   applications, userGeographicAssignments, mobileSurveyPoints, mobileSurveyGeometries,
   mobileSurveyAttachments, mobileSurveySessions, changeTracking, deletionTombstones, fieldVisits,
-  users
+  users, technicalReviewCases, reviewArtifacts, ingestionJobs, rasterProducts
 } from "@shared/schema";
 import {
   insertUserSchema, insertDepartmentSchema, insertPositionSchema,
@@ -34,6 +34,7 @@ import {
 import { DEFAULT_PERMISSIONS } from "@shared/defaults";
 import { PaginationParams, validatePaginationParams } from "./pagination";
 import workflowRoutes from './routes/workflowRoutes';
+import { technicalReviewService } from './services/technicalReviewService';
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
@@ -2614,6 +2615,135 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(application);
     } catch (error) {
       res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // =================================================================
+  // Technical Review Routes - Phase 1 Task 1.2
+  // =================================================================
+
+  /**
+   * المسار الأول: المزامنة المباشرة من mobile_survey_geometries
+   * GET /api/applications/:id/technical-review
+   * ينشئ حالة مراجعة فنية ويستورد بيانات المسح الميداني مباشرة
+   */
+  app.get("/api/applications/:id/technical-review", 
+    authenticateToken, 
+    requireRole(['employee', 'manager', 'admin']), 
+    basicSecurityProtection, 
+    async (req, res) => {
+    try {
+      // Validate UUID format
+      const idSchema = z.string().uuid('معرف الطلب يجب أن يكون UUID صحيح');
+      const validatedId = idSchema.safeParse(req.params.id);
+      
+      if (!validatedId.success) {
+        return res.status(400).json({
+          message: "Invalid application ID format",
+          error: validatedId.error.errors[0].message
+        });
+      }
+
+      const applicationId = validatedId.data;
+      const user = (req as any).user;
+      
+      if (!user?.id) {
+        return res.status(401).json({ message: "User not authenticated" });
+      }
+
+      console.log(`🔍 Starting technical review for application ${applicationId} by user ${user.id}`);
+
+      // التحقق من وجود الطلب
+      const application = await storage.getApplication(applicationId);
+      if (!application) {
+        return res.status(404).json({ message: "Application not found" });
+      }
+
+      // إنشاء أو الحصول على حالة مراجعة فنية موجودة
+      let reviewCase;
+      try {
+        reviewCase = await technicalReviewService.createReviewCase(
+          applicationId,
+          user.id, // reviewerId  
+          user.id, // assignedById
+          'medium',
+          'technical'
+        );
+        console.log(`✅ Review case created/retrieved: ${reviewCase.id}`);
+      } catch (error) {
+        console.error('Error creating review case:', error);
+        return res.status(500).json({ 
+          message: "Failed to create technical review case",
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+
+      // استيراد بيانات المسح الميداني (المسار الأول)
+      let importResult;
+      try {
+        importResult = await technicalReviewService.importFromMobileSurvey(
+          reviewCase.id,
+          applicationId
+        );
+        console.log(`📊 Mobile survey import completed: ${importResult.job.recordsProcessed} records`);
+      } catch (error) {
+        console.error('Error importing mobile survey data:', error);
+        return res.status(500).json({ 
+          message: "Failed to import mobile survey data",
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+
+      // الحصول على تفاصيل شاملة للحالة مع البيانات المستوردة
+      let caseDetails;
+      try {
+        caseDetails = await technicalReviewService.getReviewCaseDetails(reviewCase.id);
+        console.log(`📋 Retrieved case details with ${caseDetails.artifacts?.length || 0} artifacts`);
+      } catch (error) {
+        console.error('Error getting case details:', error);
+        return res.status(500).json({ 
+          message: "Failed to retrieve case details",
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+
+      // تنسيق الاستجابة
+      const response = {
+        reviewCase: {
+          id: reviewCase.id,
+          applicationId,
+          status: reviewCase.status,
+          reviewType: reviewCase.reviewType,
+          priority: reviewCase.priority,
+          workflowStage: reviewCase.workflowStage,
+          createdAt: reviewCase.createdAt
+        },
+        importJob: {
+          id: importResult.job.id,
+          status: importResult.job.status,
+          recordsProcessed: importResult.job.recordsProcessed,
+          recordsValid: importResult.job.recordsValid,
+          recordsInvalid: importResult.job.recordsInvalid,
+          progress: importResult.job.progress
+        },
+        artifacts: caseDetails.artifacts || [],
+        application: {
+          id: application.id,
+          applicationNumber: application.applicationNumber,
+          serviceId: application.serviceId,
+          status: application.status,
+          currentStage: application.currentStage
+        }
+      };
+
+      res.json(response);
+      
+    } catch (error) {
+      console.error('❌ Technical review endpoint error:', error);
+      res.status(500).json({ 
+        message: "Internal server error during technical review",
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   });
 
