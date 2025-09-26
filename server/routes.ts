@@ -2747,6 +2747,304 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  /**
+   * المسار الثاني: تحميل ومعالجة ملفات CSV
+   * POST /api/technical-review/:id/upload-csv
+   * يتلقى ملف CSV ويحوله إلى GeoJSON مع PostGIS validation
+   */
+  app.post("/api/technical-review/:id/upload-csv", 
+    authenticateToken, 
+    requireRole(['employee', 'manager', 'admin']), 
+    uploadRateLimit,
+    requireMultipart,
+    async (req, res) => {
+    try {
+      // Validate review case ID
+      const idSchema = z.string().uuid('معرف حالة المراجعة يجب أن يكون UUID صحيح');
+      const validatedId = idSchema.safeParse(req.params.id);
+      
+      if (!validatedId.success) {
+        return res.status(400).json({
+          message: "Invalid review case ID format",
+          error: validatedId.error.errors[0].message
+        });
+      }
+
+      const reviewCaseId = validatedId.data;
+      const user = (req as any).user;
+      
+      if (!user?.id) {
+        return res.status(401).json({ message: "User not authenticated" });
+      }
+
+      // التحقق من وجود الملف المرفوع
+      const files = (req as any).files;
+      if (!files || !files.csvFile || files.csvFile.length === 0) {
+        return res.status(400).json({ 
+          message: "CSV file is required",
+          field: "csvFile"
+        });
+      }
+
+      const csvFile = files.csvFile[0];
+      
+      // التحقق من نوع الملف
+      if (!csvFile.originalname.toLowerCase().endsWith('.csv')) {
+        return res.status(400).json({ 
+          message: "File must be a CSV file",
+          uploadedType: csvFile.mimetype,
+          fileName: csvFile.originalname
+        });
+      }
+
+      // التحقق من حجم الملف (محدود بـ 10MB)
+      const maxFileSize = 10 * 1024 * 1024; // 10MB
+      if (csvFile.size > maxFileSize) {
+        return res.status(400).json({ 
+          message: "File size exceeds maximum limit",
+          maxSize: "10MB",
+          fileSize: `${Math.round(csvFile.size / 1024 / 1024 * 100) / 100}MB`
+        });
+      }
+
+      console.log(`📄 Processing CSV upload for review case ${reviewCaseId}`, {
+        fileName: csvFile.originalname,
+        fileSize: csvFile.size,
+        userId: user.id
+      });
+
+      // التحقق من وجود حالة المراجعة
+      let reviewCase;
+      try {
+        reviewCase = await technicalReviewService.getReviewCaseDetails(reviewCaseId);
+        if (!reviewCase) {
+          return res.status(404).json({ message: "Review case not found" });
+        }
+      } catch (error) {
+        console.error('Error getting review case:', error);
+        return res.status(404).json({ message: "Review case not found" });
+      }
+
+      // معالجة ملف CSV (المسار الثاني)
+      let processingResult;
+      try {
+        processingResult = await technicalReviewService.processCsvUpload(
+          reviewCaseId,
+          csvFile.buffer,
+          csvFile.originalname,
+          'EPSG:4326' // Default CRS, يمكن جعله قابل للتخصيص
+        );
+        console.log(`📊 CSV processing completed: ${processingResult.job.recordsProcessed} records`);
+      } catch (error) {
+        console.error('Error processing CSV file:', error);
+        return res.status(500).json({ 
+          message: "Failed to process CSV file",
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+
+      // الحصول على تفاصيل محدثة للحالة
+      let updatedCaseDetails;
+      try {
+        updatedCaseDetails = await technicalReviewService.getReviewCaseDetails(reviewCaseId);
+      } catch (error) {
+        console.error('Error getting updated case details:', error);
+        return res.status(500).json({ 
+          message: "Failed to retrieve updated case details",
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+
+      // تنسيق الاستجابة
+      const response = {
+        reviewCaseId,
+        uploadInfo: {
+          fileName: csvFile.originalname,
+          fileSize: csvFile.size,
+          uploadedAt: new Date().toISOString(),
+          uploadedBy: user.id
+        },
+        processingJob: {
+          id: processingResult.job.id,
+          status: processingResult.job.status,
+          recordsProcessed: processingResult.job.recordsProcessed,
+          recordsValid: processingResult.job.recordsValid,
+          recordsInvalid: processingResult.job.recordsInvalid,
+          progress: processingResult.job.progress,
+          validationErrors: processingResult.job.validationErrors || []
+        },
+        artifacts: updatedCaseDetails.artifacts || [],
+        summary: {
+          totalArtifacts: updatedCaseDetails.artifacts?.length || 0,
+          validGeometries: processingResult.job.recordsValid,
+          invalidGeometries: processingResult.job.recordsInvalid,
+          processingCompleted: processingResult.job.status === 'completed'
+        }
+      };
+
+      res.json(response);
+      
+    } catch (error) {
+      console.error('❌ CSV upload endpoint error:', error);
+      res.status(500).json({ 
+        message: "Internal server error during CSV processing",
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  /**
+   * المسار الثالث: تحميل ومعالجة ملفات Shapefile
+   * POST /api/technical-review/:id/upload-shapefile
+   * يتلقى ملف ZIP يحتوي على Shapefile ويحوله إلى GeoJSON مع ogr2ogr
+   */
+  app.post("/api/technical-review/:id/upload-shapefile", 
+    authenticateToken, 
+    requireRole(['employee', 'manager', 'admin']), 
+    uploadRateLimit,
+    requireMultipart,
+    async (req, res) => {
+    try {
+      // Validate review case ID
+      const idSchema = z.string().uuid('معرف حالة المراجعة يجب أن يكون UUID صحيح');
+      const validatedId = idSchema.safeParse(req.params.id);
+      
+      if (!validatedId.success) {
+        return res.status(400).json({
+          message: "Invalid review case ID format",
+          error: validatedId.error.errors[0].message
+        });
+      }
+
+      const reviewCaseId = validatedId.data;
+      const user = (req as any).user;
+      
+      if (!user?.id) {
+        return res.status(401).json({ message: "User not authenticated" });
+      }
+
+      // التحقق من وجود الملف المرفوع
+      const files = (req as any).files;
+      if (!files || !files.shapefileZip || files.shapefileZip.length === 0) {
+        return res.status(400).json({ 
+          message: "Shapefile ZIP file is required",
+          field: "shapefileZip"
+        });
+      }
+
+      const shapefileZip = files.shapefileZip[0];
+      
+      // التحقق من نوع الملف
+      const allowedExtensions = ['.zip', '.shp'];
+      const fileExtension = shapefileZip.originalname.toLowerCase();
+      const isValidFile = allowedExtensions.some(ext => fileExtension.endsWith(ext));
+      
+      if (!isValidFile) {
+        return res.status(400).json({ 
+          message: "File must be a ZIP archive containing Shapefile or a .shp file",
+          uploadedType: shapefileZip.mimetype,
+          fileName: shapefileZip.originalname,
+          allowedTypes: allowedExtensions
+        });
+      }
+
+      // التحقق من حجم الملف (محدود بـ 50MB للـ Shapefiles)
+      const maxFileSize = 50 * 1024 * 1024; // 50MB
+      if (shapefileZip.size > maxFileSize) {
+        return res.status(400).json({ 
+          message: "File size exceeds maximum limit",
+          maxSize: "50MB",
+          fileSize: `${Math.round(shapefileZip.size / 1024 / 1024 * 100) / 100}MB`
+        });
+      }
+
+      console.log(`🗺️ Processing Shapefile upload for review case ${reviewCaseId}`, {
+        fileName: shapefileZip.originalname,
+        fileSize: shapefileZip.size,
+        userId: user.id
+      });
+
+      // التحقق من وجود حالة المراجعة
+      let reviewCase;
+      try {
+        reviewCase = await technicalReviewService.getReviewCaseDetails(reviewCaseId);
+        if (!reviewCase) {
+          return res.status(404).json({ message: "Review case not found" });
+        }
+      } catch (error) {
+        console.error('Error getting review case:', error);
+        return res.status(404).json({ message: "Review case not found" });
+      }
+
+      // معالجة ملف Shapefile (المسار الثالث)
+      let processingResult;
+      try {
+        processingResult = await technicalReviewService.processShapefileUpload(
+          reviewCaseId,
+          shapefileZip.buffer,
+          shapefileZip.originalname,
+          'EPSG:4326' // Default CRS, يمكن جعله قابل للتخصيص
+        );
+        console.log(`🗺️ Shapefile processing completed: ${processingResult.job.recordsProcessed} features`);
+      } catch (error) {
+        console.error('Error processing Shapefile:', error);
+        return res.status(500).json({ 
+          message: "Failed to process Shapefile",
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+
+      // الحصول على تفاصيل محدثة للحالة
+      let updatedCaseDetails;
+      try {
+        updatedCaseDetails = await technicalReviewService.getReviewCaseDetails(reviewCaseId);
+      } catch (error) {
+        console.error('Error getting updated case details:', error);
+        return res.status(500).json({ 
+          message: "Failed to retrieve updated case details",
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+
+      // تنسيق الاستجابة
+      const response = {
+        reviewCaseId,
+        uploadInfo: {
+          fileName: shapefileZip.originalname,
+          fileSize: shapefileZip.size,
+          fileType: 'shapefile',
+          uploadedAt: new Date().toISOString(),
+          uploadedBy: user.id
+        },
+        processingJob: {
+          id: processingResult.job.id,
+          status: processingResult.job.status,
+          recordsProcessed: processingResult.job.recordsProcessed,
+          recordsValid: processingResult.job.recordsValid,
+          recordsInvalid: processingResult.job.recordsInvalid,
+          progress: processingResult.job.progress,
+          validationErrors: processingResult.job.validationErrors || []
+        },
+        artifacts: updatedCaseDetails.artifacts || [],
+        summary: {
+          totalArtifacts: updatedCaseDetails.artifacts?.length || 0,
+          validFeatures: processingResult.job.recordsValid,
+          invalidFeatures: processingResult.job.recordsInvalid,
+          processingCompleted: processingResult.job.status === 'completed'
+        }
+      };
+
+      res.json(response);
+      
+    } catch (error) {
+      console.error('❌ Shapefile upload endpoint error:', error);
+      res.status(500).json({ 
+        message: "Internal server error during Shapefile processing",
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   // Surveying decisions routes - LBAC applied in storage layer  
   app.get("/api/surveying-decisions", authenticateToken, requireRole(['employee', 'manager', 'admin']), basicSecurityProtection, async (req, res) => {
     try {
