@@ -93,12 +93,14 @@ interface LayerData {
 }
 
 interface TechnicalReviewWizardProps {
-  reviewCaseId: string;
+  applicationId?: string;
+  reviewCaseId?: string;
   onComplete?: (decision: 'approved' | 'rejected', notes: string) => void;
   onClose?: () => void;
 }
 
 export default function TechnicalReviewWizard({
+  applicationId,
   reviewCaseId,
   onComplete,
   onClose
@@ -120,10 +122,12 @@ export default function TechnicalReviewWizard({
   const [reviewDecision, setReviewDecision] = useState<'approved' | 'rejected' | null>(null);
   const [reviewNotes, setReviewNotes] = useState('');
 
-  // Get review case details
+  // Get review case details - use reviewCaseId if provided, otherwise use applicationId
   const { data: reviewCase, isLoading, error, refetch } = useQuery({
-    queryKey: ['/api/applications', reviewCaseId, 'technical-review'],
-    enabled: !!reviewCaseId,
+    queryKey: reviewCaseId 
+      ? ['/api/applications', reviewCaseId, 'technical-review']
+      : ['/api/applications', applicationId, 'technical-review'],
+    enabled: !!(reviewCaseId || applicationId),
     refetchInterval: (data: any) => {
       // Refresh more frequently if there are processing jobs
       const reviewData = data as TechnicalReviewCase | undefined;
@@ -134,13 +138,16 @@ export default function TechnicalReviewWizard({
     }
   });
 
+  // Dynamic reviewCaseId - use the provided one or get it from the review case data
+  const effectiveReviewCaseId = reviewCaseId || (reviewCase as TechnicalReviewCase)?.id;
+
   // Upload mutations for different data types
   const csvUploadMutation = useMutation({
     mutationFn: async (file: File) => {
       const formData = new FormData();
       formData.append('csvFile', file);
       
-      const response = await fetch(`/api/technical-review/${reviewCaseId}/upload-csv`, {
+      const response = await fetch(`/api/technical-review/${effectiveReviewCaseId}/upload-csv`, {
         method: 'POST',
         body: formData,
       });
@@ -153,7 +160,7 @@ export default function TechnicalReviewWizard({
     },
     onSuccess: () => {
       toast({ title: "تم رفع ملف CSV بنجاح", description: "جاري معالجة البيانات..." });
-      queryClient.invalidateQueries({ queryKey: ['/api/applications', reviewCaseId, 'technical-review'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/applications', effectiveReviewCaseId, 'technical-review'] });
     },
     onError: (error: any) => {
       toast({ 
@@ -169,7 +176,7 @@ export default function TechnicalReviewWizard({
       const formData = new FormData();
       formData.append('shapefileArchive', file);
       
-      const response = await fetch(`/api/technical-review/${reviewCaseId}/upload-shapefile`, {
+      const response = await fetch(`/api/technical-review/${effectiveReviewCaseId}/upload-shapefile`, {
         method: 'POST',
         body: formData,
       });
@@ -182,7 +189,7 @@ export default function TechnicalReviewWizard({
     },
     onSuccess: () => {
       toast({ title: "تم رفع ملف Shapefile بنجاح", description: "جاري معالجة البيانات..." });
-      queryClient.invalidateQueries({ queryKey: ['/api/applications', reviewCaseId, 'technical-review'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/applications', effectiveReviewCaseId, 'technical-review'] });
     },
     onError: (error: any) => {
       toast({ 
@@ -198,7 +205,7 @@ export default function TechnicalReviewWizard({
       const formData = new FormData();
       formData.append('geotiffFile', file);
       
-      const response = await fetch(`/api/technical-review/${reviewCaseId}/upload-geotiff`, {
+      const response = await fetch(`/api/technical-review/${effectiveReviewCaseId}/upload-geotiff`, {
         method: 'POST',
         body: formData,
       });
@@ -211,7 +218,7 @@ export default function TechnicalReviewWizard({
     },
     onSuccess: () => {
       toast({ title: "تم رفع ملف GeoTIFF بنجاح", description: "جاري معالجة الصورة الجغرافية..." });
-      queryClient.invalidateQueries({ queryKey: ['/api/applications', reviewCaseId, 'technical-review'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/applications', effectiveReviewCaseId, 'technical-review'] });
     },
     onError: (error: any) => {
       toast({ 
@@ -328,7 +335,7 @@ export default function TechnicalReviewWizard({
       setIsUploading(false);
       setUploadProgress(0);
     }
-  }, [csvUploadMutation, shapefileUploadMutation, geotiffUploadMutation, reviewCaseId]);
+  }, [csvUploadMutation, shapefileUploadMutation, geotiffUploadMutation, effectiveReviewCaseId]);
 
   const toggleLayerVisibility = useCallback((layerId: string) => {
     setLayers(prev => prev.map(layer => 
@@ -341,7 +348,7 @@ export default function TechnicalReviewWizard({
   // Review decision submission mutation
   const reviewSubmissionMutation = useMutation({
     mutationFn: async (data: { decision: 'approved' | 'rejected'; notes: string }) => {
-      const response = await fetch(`/api/applications/${reviewCaseId}/technical-review`, {
+      const response = await fetch(`/api/applications/${effectiveReviewCaseId}/technical-review`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -349,7 +356,7 @@ export default function TechnicalReviewWizard({
         body: JSON.stringify({
           decision: data.decision,
           notes: data.notes,
-          reviewCaseId: (reviewCase as TechnicalReviewCase)?.id
+          reviewCaseId: effectiveReviewCaseId
         }),
       });
       
@@ -367,7 +374,7 @@ export default function TechnicalReviewWizard({
       });
       
       // Invalidate queries to refresh data
-      queryClient.invalidateQueries({ queryKey: ['/api/applications', reviewCaseId, 'technical-review'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/applications', effectiveReviewCaseId, 'technical-review'] });
       
       // Call onComplete if provided
       if (onComplete) {

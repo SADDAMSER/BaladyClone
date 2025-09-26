@@ -42,6 +42,7 @@ import AssignmentFormPage from "@/employee/pages/AssignmentFormPage";
 import SurveyorDashboard from "@/employee/pages/SurveyorDashboard";
 import SectionHeadDashboard from "@/employee/pages/SectionHeadDashboard";
 import AssistantHeadDashboard from "@/employee/pages/AssistantHeadDashboard";
+import TechnicalReviewerDashboard from "@/employee/pages/TechnicalReviewerDashboard";
 import UnifiedFormPrint from "@/employee/pages/UnifiedFormPrint";
 import ApplicationStatus from "@/citizen/pages/ApplicationStatus";
 import ApplicationTracking from "@/citizen/pages/ApplicationTracking";
@@ -95,6 +96,7 @@ function AuthenticatedRouter() {
         <Route path="/employee/assistant-manager" component={AssistantManagerDashboard} />
         <Route path="/employee/assignment-form" component={AssignmentFormPage} />
         <Route path="/employee/engineer" component={EngineerDashboard} />
+        <Route path="/employee/technical-reviewer" component={TechnicalReviewerDashboard} />
         <Route path="/employee/surveyor" component={SurveyorDashboard} />
         <Route component={NotFound} />
         </Switch>
