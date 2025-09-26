@@ -338,6 +338,52 @@ export default function TechnicalReviewWizard({
     ));
   }, []);
 
+  // Review decision submission mutation
+  const reviewSubmissionMutation = useMutation({
+    mutationFn: async (data: { decision: 'approved' | 'rejected'; notes: string }) => {
+      const response = await fetch(`/api/applications/${reviewCaseId}/technical-review`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          decision: data.decision,
+          notes: data.notes,
+          reviewCaseId: (reviewCase as TechnicalReviewCase)?.id
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.text();
+        throw new Error(errorData || 'Failed to submit review decision');
+      }
+      
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "تم إرسال قرار المراجعة بنجاح",
+        description: `تم ${data.decision === 'approved' ? 'قبول' : 'رفض'} الطلب وتحديث حالة المراجعة`
+      });
+      
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['/api/applications', reviewCaseId, 'technical-review'] });
+      
+      // Call onComplete if provided
+      if (onComplete) {
+        onComplete(data.decision, data.notes);
+      }
+    },
+    onError: (error: any) => {
+      const errorMessage = error.message || 'حدث خطأ أثناء إرسال قرار المراجعة';
+      toast({
+        title: "خطأ في إرسال قرار المراجعة",
+        description: errorMessage,
+        variant: "destructive"
+      });
+    }
+  });
+
   const handleReviewSubmit = useCallback(() => {
     if (!reviewDecision) {
       toast({
@@ -348,10 +394,20 @@ export default function TechnicalReviewWizard({
       return;
     }
 
-    if (onComplete) {
-      onComplete(reviewDecision, reviewNotes);
+    if (!reviewNotes.trim()) {
+      toast({
+        title: "ملاحظات المراجعة مطلوبة",
+        description: "يرجى إضافة ملاحظات المراجعة قبل الإرسال",
+        variant: "destructive"
+      });
+      return;
     }
-  }, [reviewDecision, reviewNotes, onComplete]);
+
+    reviewSubmissionMutation.mutate({
+      decision: reviewDecision,
+      notes: reviewNotes
+    });
+  }, [reviewDecision, reviewNotes, reviewSubmissionMutation]);
 
   if (isLoading) {
     return (
@@ -454,6 +510,7 @@ export default function TechnicalReviewWizard({
                 onDecisionChange={setReviewDecision}
                 onNotesChange={setReviewNotes}
                 onSubmit={handleReviewSubmit}
+                isSubmitting={reviewSubmissionMutation.isPending}
               />
             </TabsContent>
           </div>
@@ -821,7 +878,8 @@ function ReviewDecisionPanel({
   notes,
   onDecisionChange,
   onNotesChange,
-  onSubmit
+  onSubmit,
+  isSubmitting = false
 }: {
   reviewCase: TechnicalReviewCase;
   decision: 'approved' | 'rejected' | null;
@@ -829,6 +887,7 @@ function ReviewDecisionPanel({
   onDecisionChange: (decision: 'approved' | 'rejected' | null) => void;
   onNotesChange: (notes: string) => void;
   onSubmit: () => void;
+  isSubmitting?: boolean;
 }) {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -881,6 +940,7 @@ function ReviewDecisionPanel({
                 onClick={() => onDecisionChange('approved')}
                 className="flex items-center space-x-2"
                 data-testid="button-approve-review"
+                disabled={isSubmitting}
               >
                 <Check className="h-4 w-4" />
                 <span>الموافقة</span>
@@ -890,6 +950,7 @@ function ReviewDecisionPanel({
                 onClick={() => onDecisionChange('rejected')}
                 className="flex items-center space-x-2"
                 data-testid="button-reject-review"
+                disabled={isSubmitting}
               >
                 <X className="h-4 w-4" />
                 <span>الرفض</span>
@@ -908,17 +969,25 @@ function ReviewDecisionPanel({
               placeholder="أدخل ملاحظاتك حول المراجعة الفنية..."
               className="mt-2 min-h-32"
               data-testid="textarea-review-notes"
+              disabled={isSubmitting}
             />
           </div>
 
           <Button
             onClick={onSubmit}
-            disabled={!decision}
+            disabled={!decision || isSubmitting}
             className="w-full"
             size="lg"
             data-testid="button-submit-review"
           >
-            إرسال قرار المراجعة
+            {isSubmitting ? (
+              <>
+                <RefreshCw className="h-4 w-4 animate-spin ml-2" />
+                جاري إرسال القرار...
+              </>
+            ) : (
+              'إرسال قرار المراجعة'
+            )}
           </Button>
         </CardContent>
       </Card>

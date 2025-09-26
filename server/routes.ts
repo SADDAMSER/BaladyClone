@@ -3217,6 +3217,193 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  /**
+   * POST /api/applications/:id/technical-review
+   * حفظ قرار المراجعة الفنية النهائي وربطه بالـ workflow
+   */
+  app.post("/api/applications/:id/technical-review", 
+    authenticateToken, 
+    requireRole(['employee', 'manager', 'admin']), 
+    basicSecurityProtection, 
+    async (req, res) => {
+    try {
+      // Validate application ID format
+      const idSchema = z.string().uuid('معرف الطلب يجب أن يكون UUID صحيح');
+      const validatedId = idSchema.safeParse(req.params.id);
+      
+      if (!validatedId.success) {
+        return res.status(400).json({
+          message: "Invalid application ID format",
+          error: validatedId.error.errors[0].message
+        });
+      }
+
+      // Validate request body
+      const reviewDecisionSchema = z.object({
+        decision: z.enum(['approved', 'rejected'], {
+          errorMap: () => ({ message: "القرار يجب أن يكون 'approved' أو 'rejected'" })
+        }),
+        notes: z.string().min(1, "ملاحظات المراجعة مطلوبة").max(1000, "الملاحظات لا يجب أن تزيد عن 1000 حرف"),
+        reviewCaseId: z.string().uuid('معرف حالة المراجعة يجب أن يكون UUID صحيح').optional()
+      });
+
+      const validatedBody = reviewDecisionSchema.safeParse(req.body);
+      if (!validatedBody.success) {
+        return res.status(400).json({
+          message: "Invalid request data",
+          errors: validatedBody.error.errors.map(err => ({
+            field: err.path.join('.'),
+            message: err.message
+          }))
+        });
+      }
+
+      const applicationId = validatedId.data;
+      const { decision, notes, reviewCaseId } = validatedBody.data;
+      const user = (req as any).user;
+      
+      if (!user?.id) {
+        return res.status(401).json({ message: "User not authenticated" });
+      }
+
+      console.log(`📋 Submitting technical review decision for application ${applicationId} by user ${user.id}: ${decision}`);
+
+      // التحقق من وجود الطلب
+      const application = await storage.getApplication(applicationId);
+      if (!application) {
+        return res.status(404).json({ message: "Application not found" });
+      }
+
+      // التحقق من وجود حالة المراجعة الفنية
+      let existingReviewCase;
+      if (reviewCaseId) {
+        try {
+          existingReviewCase = await technicalReviewService.getReviewCaseDetails(reviewCaseId);
+        } catch (error) {
+          console.error('Review case not found:', error);
+          return res.status(404).json({ message: "Review case not found" });
+        }
+      } else {
+        // البحث عن حالة مراجعة موجودة للطلب
+        try {
+          existingReviewCase = await technicalReviewService.getReviewCaseByApplication(applicationId);
+        } catch (error) {
+          console.error('No existing review case found:', error);
+          return res.status(404).json({ 
+            message: "No technical review case found for this application. Please start the review process first." 
+          });
+        }
+      }
+
+      if (!existingReviewCase) {
+        return res.status(404).json({ 
+          message: "Technical review case not found" 
+        });
+      }
+
+      // التحقق من صلاحية حفظ القرار (التأكد أن المراجع هو نفسه أو يملك صلاحية)
+      if (existingReviewCase.reviewerId !== user.id && !['manager', 'admin'].includes(user.role)) {
+        return res.status(403).json({ 
+          message: "You are not authorized to submit a decision for this review case" 
+        });
+      }
+
+      // حفظ قرار المراجعة
+      let reviewResult;
+      try {
+        reviewResult = await technicalReviewService.submitReviewDecision(
+          existingReviewCase.id,
+          decision,
+          notes,
+          user.id
+        );
+        console.log(`✅ Technical review decision saved: ${reviewResult.decision}`);
+      } catch (error) {
+        console.error('Error saving review decision:', error);
+        return res.status(500).json({ 
+          message: "Failed to save review decision",
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+
+      // تحديث حالة الطلب وربطه بالـ workflow
+      try {
+        await storage.updateApplication(applicationId, {
+          status: decision === 'approved' ? 'under_review' : 'rejected',
+          lastModifiedAt: new Date(),
+          lastModifiedBy: user.id
+        });
+
+        // تشغيل الخطوة التالية في الـ workflow
+        if (decision === 'approved') {
+          // تحديد الخطوة التالية حسب نوع الطلب
+          const nextStepType = application.applicationType === 'building_license' ? 
+            'legal_review' : 'surveying_decision';
+          
+          await workflowService.createTask(applicationId, {
+            taskType: nextStepType,
+            assignedTo: null, // سيتم تعيينه لاحقاً
+            priority: 'medium',
+            status: 'pending',
+            metadata: {
+              previousStep: 'technical_review',
+              technicalReviewResult: decision,
+              reviewCaseId: existingReviewCase.id
+            }
+          });
+          
+          console.log(`🔄 Next workflow step created: ${nextStepType}`);
+        }
+      } catch (error) {
+        console.error('Error updating application status or workflow:', error);
+        // لا نفشل العملية إذا فشل تحديث الـ workflow، فقط نسجل الخطأ
+      }
+
+      // الحصول على تفاصيل محدثة
+      let updatedCaseDetails;
+      try {
+        updatedCaseDetails = await technicalReviewService.getReviewCaseDetails(existingReviewCase.id);
+      } catch (error) {
+        console.error('Error getting updated case details:', error);
+        // استخدام البيانات الموجودة إذا فشل جلب التحديث
+        updatedCaseDetails = existingReviewCase;
+      }
+
+      // تكوين الاستجابة
+      const response = {
+        applicationId,
+        reviewCaseId: existingReviewCase.id,
+        decision: reviewResult.decision,
+        submittedAt: reviewResult.submittedAt,
+        submittedBy: {
+          id: user.id,
+          name: user.name,
+          role: user.role
+        },
+        reviewSummary: {
+          totalArtifacts: updatedCaseDetails.artifacts?.length || 0,
+          rasterProducts: updatedCaseDetails.rasterProducts?.length || 0,
+          processingJobs: updatedCaseDetails.processingJobs?.filter(j => j.status === 'completed').length || 0,
+          finalStatus: updatedCaseDetails.status,
+          completedAt: updatedCaseDetails.completedAt
+        },
+        nextSteps: decision === 'approved' ? 
+          [`سيتم تحويل الطلب إلى ${application.applicationType === 'building_license' ? 'المراجعة القانونية' : 'قرار المساحة'}`] :
+          ['تم رفض الطلب. يمكن للمتقدم تصحيح البيانات وإعادة التقديم'],
+        notes: notes
+      };
+
+      res.json(response);
+      
+    } catch (error) {
+      console.error('❌ Technical review decision submission error:', error);
+      res.status(500).json({ 
+        message: "Internal server error during review decision submission",
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   // Surveying decisions routes - LBAC applied in storage layer  
   app.get("/api/surveying-decisions", authenticateToken, requireRole(['employee', 'manager', 'admin']), basicSecurityProtection, async (req, res) => {
     try {

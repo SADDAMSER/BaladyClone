@@ -10,7 +10,7 @@ import {
   users,
   geoJobs
 } from '@shared/schema';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, desc } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { storage } from '../storage';
 import { ObjectStorageService } from '../objectStorage';
@@ -869,6 +869,84 @@ export class TechnicalReviewService {
       return updatedProduct[0];
     } catch (error) {
       console.error('Error updating raster product from geo job:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * البحث عن حالة مراجعة فنية بواسطة معرف الطلب
+   */
+  async getReviewCaseByApplication(applicationId: string): Promise<any> {
+    const reviewCases = await db
+      .select()
+      .from(technicalReviewCases)
+      .where(eq(technicalReviewCases.applicationId, applicationId))
+      .orderBy(desc(technicalReviewCases.createdAt))
+      .limit(1);
+
+    if (reviewCases.length === 0) {
+      throw new Error('No technical review case found for this application');
+    }
+
+    // الحصول على التفاصيل الكاملة
+    return await this.getReviewCaseDetails(reviewCases[0].id);
+  }
+
+  /**
+   * حفظ قرار المراجعة الفنية النهائي
+   */
+  async submitReviewDecision(
+    reviewCaseId: string,
+    decision: 'approved' | 'rejected',
+    notes: string,
+    submittedBy: string
+  ): Promise<{
+    decision: string;
+    submittedAt: Date;
+    reviewCaseId: string;
+  }> {
+    try {
+      const submittedAt = new Date();
+      
+      // تحديث حالة المراجعة
+      const updatedCase = await db
+        .update(technicalReviewCases)
+        .set({
+          status: decision === 'approved' ? 'approved' : 'rejected',
+          decision: decision,
+          decisionNotes: notes,
+          completedAt: submittedAt,
+          completedBy: submittedBy,
+          lastModifiedAt: submittedAt,
+          lastModifiedBy: submittedBy
+        })
+        .where(eq(technicalReviewCases.id, reviewCaseId))
+        .returning();
+
+      if (updatedCase.length === 0) {
+        throw new Error('Review case not found or could not be updated');
+      }
+
+      // تحديث جميع ingestion jobs المرتبطة
+      await db
+        .update(ingestionJobs)
+        .set({
+          status: decision === 'approved' ? 'completed' : 'cancelled',
+          completedAt: submittedAt,
+          lastModifiedAt: submittedAt
+        })
+        .where(eq(ingestionJobs.reviewCaseId, reviewCaseId));
+
+      console.log(`✅ Technical review decision saved for case ${reviewCaseId}: ${decision}`);
+      
+      return {
+        decision,
+        submittedAt,
+        reviewCaseId
+      };
+
+    } catch (error) {
+      console.error('Error submitting review decision:', error);
       throw error;
     }
   }
