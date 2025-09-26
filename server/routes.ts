@@ -3045,6 +3045,178 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  /**
+   * المسار الرابع: تحميل ومعالجة ملفات GeoTIFF
+   * POST /api/technical-review/:id/upload-geotiff
+   * يرفع ملف GeoTIFF إلى Object Storage ويقوم بمعالجته عبر Python worker
+   */
+  app.post("/api/technical-review/:id/upload-geotiff", 
+    authenticateToken, 
+    requireRole(['employee', 'manager', 'admin']), 
+    uploadRateLimit,
+    requireMultipart,
+    async (req, res) => {
+    try {
+      // Validate review case ID
+      const idSchema = z.string().uuid('معرف حالة المراجعة يجب أن يكون UUID صحيح');
+      const validatedId = idSchema.safeParse(req.params.id);
+      
+      if (!validatedId.success) {
+        return res.status(400).json({
+          message: "Invalid review case ID format",
+          error: validatedId.error.errors[0].message
+        });
+      }
+
+      const reviewCaseId = validatedId.data;
+      const user = (req as any).user;
+      
+      if (!user?.id) {
+        return res.status(401).json({ message: "User not authenticated" });
+      }
+
+      // التحقق من وجود الملف المرفوع
+      const files = (req as any).files;
+      if (!files || !files.geotiffFile || files.geotiffFile.length === 0) {
+        return res.status(400).json({ 
+          message: "GeoTIFF file is required",
+          field: "geotiffFile"
+        });
+      }
+
+      const geotiffFile = files.geotiffFile[0];
+      
+      // التحقق من نوع الملف
+      const allowedExtensions = ['.tif', '.tiff', '.geotiff'];
+      const fileExtension = geotiffFile.originalname.toLowerCase();
+      const isValidFile = allowedExtensions.some(ext => fileExtension.endsWith(ext));
+      
+      if (!isValidFile) {
+        return res.status(400).json({ 
+          message: "File must be a GeoTIFF file (.tif, .tiff, .geotiff)",
+          uploadedType: geotiffFile.mimetype,
+          fileName: geotiffFile.originalname,
+          allowedTypes: allowedExtensions
+        });
+      }
+
+      // التحقق من حجم الملف (محدود بـ 100MB للـ GeoTIFF)
+      const maxFileSize = 100 * 1024 * 1024; // 100MB
+      if (geotiffFile.size > maxFileSize) {
+        return res.status(400).json({ 
+          message: "File size exceeds maximum limit",
+          maxSize: "100MB",
+          fileSize: `${Math.round(geotiffFile.size / 1024 / 1024 * 100) / 100}MB`
+        });
+      }
+
+      console.log(`🖼️ Processing GeoTIFF upload for review case ${reviewCaseId}`, {
+        fileName: geotiffFile.originalname,
+        fileSize: geotiffFile.size,
+        userId: user.id
+      });
+
+      // التحقق من وجود حالة المراجعة
+      let reviewCase;
+      try {
+        reviewCase = await technicalReviewService.getReviewCaseDetails(reviewCaseId);
+        if (!reviewCase) {
+          return res.status(404).json({ message: "Review case not found" });
+        }
+      } catch (error) {
+        console.error('Error getting review case:', error);
+        return res.status(404).json({ message: "Review case not found" });
+      }
+
+      // استخراج metadata من request body (اختياري)
+      const rasterMetadata = {
+        width: req.body.width ? parseInt(req.body.width) : undefined,
+        height: req.body.height ? parseInt(req.body.height) : undefined,
+        crs: req.body.crs || 'EPSG:4326',
+        bounds: req.body.bounds ? JSON.parse(req.body.bounds) : undefined,
+        productType: req.body.productType || 'orthophoto',
+        bandCount: req.body.bandCount ? parseInt(req.body.bandCount) : 3,
+        dataType: req.body.dataType || 'uint8'
+      };
+
+      // معالجة ملف GeoTIFF (المسار الرابع - التكامل مع geo_jobs)
+      let processingResult;
+      try {
+        processingResult = await technicalReviewService.processGeoRasterUpload(
+          reviewCaseId,
+          geotiffFile.buffer,
+          geotiffFile.originalname,
+          rasterMetadata
+        );
+        console.log(`🖼️ GeoTIFF processing queued: ${processingResult.geoJob.id}`);
+      } catch (error) {
+        console.error('Error processing GeoTIFF file:', error);
+        return res.status(500).json({ 
+          message: "Failed to process GeoTIFF file",
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+
+      // الحصول على تفاصيل محدثة للحالة
+      let updatedCaseDetails;
+      try {
+        updatedCaseDetails = await technicalReviewService.getReviewCaseDetails(reviewCaseId);
+      } catch (error) {
+        console.error('Error getting updated case details:', error);
+        return res.status(500).json({ 
+          message: "Failed to retrieve updated case details",
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+
+      // تنسيق الاستجابة
+      const response = {
+        reviewCaseId,
+        uploadInfo: {
+          fileName: geotiffFile.originalname,
+          fileSize: geotiffFile.size,
+          fileType: 'geotiff',
+          uploadedAt: new Date().toISOString(),
+          uploadedBy: user.id
+        },
+        processingJob: {
+          id: processingResult.ingestionJob.id,
+          status: 'queued',
+          progress: 25,
+          geoJobId: processingResult.geoJob.id
+        },
+        geoJob: {
+          id: processingResult.geoJob.id,
+          status: processingResult.geoJob.status,
+          taskType: processingResult.geoJob.taskType,
+          estimatedCompletion: processingResult.estimatedCompletion
+        },
+        rasterProduct: {
+          id: processingResult.rasterProduct.id,
+          productName: processingResult.rasterProduct.productName,
+          status: processingResult.rasterProduct.status,
+          processingLevel: processingResult.rasterProduct.processingLevel
+        },
+        artifacts: updatedCaseDetails.artifacts || [],
+        summary: {
+          totalArtifacts: updatedCaseDetails.artifacts?.length || 0,
+          rasterProcessingStatus: processingResult.processingStatus,
+          workerProcessing: true,
+          processingNotes: "GeoTIFF processing has been queued for Python worker. Check status with geo job ID."
+        }
+      };
+
+      res.json(response);
+      
+    } catch (error) {
+      console.error('❌ GeoTIFF upload endpoint error:', error);
+      res.status(500).json({ 
+        message: "Internal server error during GeoTIFF processing",
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   // Surveying decisions routes - LBAC applied in storage layer  
   app.get("/api/surveying-decisions", authenticateToken, requireRole(['employee', 'manager', 'admin']), basicSecurityProtection, async (req, res) => {
     try {

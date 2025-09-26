@@ -7,10 +7,13 @@ import {
   applications,
   mobileSurveyGeometries,
   mobileSurveySessions,
-  users
+  users,
+  geoJobs
 } from '@shared/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
+import { storage } from '../storage';
+import { ObjectStorageService } from '../objectStorage';
 
 /**
  * خدمة المراجعة الفنية - المهمة 1.2
@@ -384,6 +387,7 @@ export class TechnicalReviewService {
 
   /**
    * معالجة الصور الجغرافية المرجعة (GeoTIFF)
+   * التكامل مع نظام geo_jobs للمعالجة بواسطة Python worker
    */
   async processGeoRasterUpload(
     reviewCaseId: string,
@@ -394,7 +398,7 @@ export class TechnicalReviewService {
     try {
       console.log(`🖼️ Processing GeoTIFF: ${fileName}`);
 
-      // إنشاء مهمة معالجة raster
+      // إنشاء مهمة معالجة raster للتتبع الداخلي
       const [ingestionJob] = await db
         .insert(ingestionJobs)
         .values({
@@ -414,10 +418,10 @@ export class TechnicalReviewService {
         })
         .returning();
 
-      // تحليل البيانات الraster باستخدام PostGIS RASTER
+      // تحليل البيانات الraster للمعاينة السريعة
       const rasterInfo = await this.analyzeGeoRaster(rasterBuffer, rasterMetadata);
 
-      // إنشاء منتج raster
+      // إنشاء منتج raster مع حالة "processing"
       const [rasterProduct] = await db
         .insert(rasterProducts)
         .values({
@@ -426,7 +430,7 @@ export class TechnicalReviewService {
           productName: `${fileName} - Processed`,
           productType: rasterInfo.productType,
           description: `Processed GeoTIFF from technical review`,
-          imageUrl: `/raster/${fileName}.png`, // Placeholder URL
+          imageUrl: `/raster/${fileName}.png`, // سيتم تحديثه بعد المعالجة
           crs: rasterInfo.crs,
           bounds: rasterInfo.bounds,
           centroid: rasterInfo.centroid,
@@ -437,38 +441,83 @@ export class TechnicalReviewService {
           resolution: rasterInfo.resolution,
           bandCount: rasterInfo.bandCount,
           dataType: rasterInfo.dataType,
-          processingLevel: 'processed',
+          processingLevel: 'processing',
           status: 'processing'
         })
         .returning();
 
+      // رفع الملف إلى Object Storage للمعالجة بواسطة Python worker
+      const objectStorageService = new ObjectStorageService();
+      const inputFileName = `technical-review/${reviewCaseId}/raster-input-${Date.now()}-${fileName}`;
+      
+      await objectStorageService.uploadFile(
+        inputFileName,
+        rasterBuffer,
+        {
+          contentType: 'image/tiff',
+          metadata: {
+            originalName: fileName,
+            reviewCaseId: reviewCaseId,
+            rasterProductId: rasterProduct.id,
+            uploadedAt: new Date().toISOString()
+          }
+        }
+      );
+
+      console.log(`📤 Uploaded raster file to Object Storage: ${inputFileName}`);
+
+      // إنشاء geo_job للمعالجة بواسطة Python worker
+      const geoJobData = {
+        taskType: 'geotiff_processing',
+        targetType: 'technical_review_case',
+        targetId: reviewCaseId,
+        payloadData: {
+          fileName: fileName,
+          inputFileKey: inputFileName,
+          rasterProductId: rasterProduct.id,
+          ingestionJobId: ingestionJob.id,
+          processingConfig: {
+            outputFormat: 'png',
+            generateThumbnails: true,
+            createWorldFile: true,
+            targetCRS: 'EPSG:4326',
+            compressionQuality: 85
+          },
+          metadata: rasterInfo
+        },
+        priority: 5, // Medium priority
+        ownerId: 'system', // Technical review system user
+        estimatedDuration: 300 // 5 minutes estimated
+      };
+
+      // استخدام storage layer لإنشاء geo_job
+      const geoJob = await storage.createGeoJob(geoJobData);
+      console.log(`🔄 Created geo_job for Python worker processing: ${geoJob.id}`);
+
       // تحديث التقدم
-      await this.updateJobProgress(ingestionJob.id, '50');
+      await this.updateJobProgress(ingestionJob.id, '25');
 
-      // إنشاء tiles للعرض (هذا سيتم عبر نظام queue منفصل)
-      const tilesGenerated = await this.queueTileGeneration(rasterProduct.id, rasterBuffer);
-
-      // إنهاء المهمة
+      // ربط geo_job مع ingestion_job
       await db
         .update(ingestionJobs)
         .set({
-          status: 'completed',
-          progress: '100',
-          completedAt: new Date()
+          processingConfig: {
+            ...ingestionJob.processingConfig,
+            geoJobId: geoJob.id,
+            inputFileKey: inputFileName
+          },
+          progress: '25'
         })
         .where(eq(ingestionJobs.id, ingestionJob.id));
 
-      // تحديث حالة منتج الraster
-      await db
-        .update(rasterProducts)
-        .set({
-          status: 'ready',
-          processingDate: new Date()
-        })
-        .where(eq(rasterProducts.id, rasterProduct.id));
-
-      console.log(`✅ GeoTIFF processing completed: ${rasterProduct.id}`);
-      return { ingestionJob, rasterProduct, tilesGenerated };
+      console.log(`✅ GeoTIFF upload and queueing completed. Processing will continue asynchronously.`);
+      return { 
+        ingestionJob: { ...ingestionJob, geoJobId: geoJob.id }, 
+        rasterProduct, 
+        geoJob,
+        processingStatus: 'queued',
+        estimatedCompletion: new Date(Date.now() + 5 * 60 * 1000) // 5 minutes from now
+      };
 
     } catch (error) {
       console.error('❌ Error processing georaster upload:', error);
@@ -742,26 +791,85 @@ export class TechnicalReviewService {
     }
   }
 
-  private async queueTileGeneration(rasterProductId: string, buffer: Buffer): Promise<number> {
+  /**
+   * فحص حالة معالجة GeoTIFF بواسطة Python worker
+   */
+  async checkGeoJobStatus(geoJobId: string): Promise<any> {
     try {
-      // في البيئة الحقيقية، سنستخدم نظام geo_jobs
-      console.log('⚠️ Tile generation is a stub - needs integration with geo_jobs queue system');
-      
-      // محاكاة توليد tiles بمستويات zoom مختلفة
-      const zoomLevels = [10, 11, 12, 13, 14, 15, 16, 17, 18];
-      let tilesGenerated = 0;
-      
-      for (const zoom of zoomLevels) {
-        // حساب عدد tiles المطلوبة لهذا المستوى
-        const tilesAtZoom = Math.pow(4, zoom - 10); // تقدير بسيط
-        tilesGenerated += tilesAtZoom;
+      const geoJob = await storage.getGeoJob(geoJobId);
+      if (!geoJob) {
+        throw new Error(`Geo job not found: ${geoJobId}`);
       }
       
-      console.log(`📊 Estimated tiles to generate: ${tilesGenerated} for raster ${rasterProductId}`);
-      return tilesGenerated;
+      return {
+        id: geoJob.id,
+        status: geoJob.status,
+        progress: geoJob.progress,
+        taskType: geoJob.taskType,
+        startedAt: geoJob.startedAt,
+        completedAt: geoJob.completedAt,
+        errorMessage: geoJob.errorMessage,
+        outputKeys: geoJob.outputKeys,
+        outputPayload: geoJob.outputPayload
+      };
     } catch (error) {
-      console.error('Tile generation queueing error:', error);
-      return 0;
+      console.error('Error checking geo job status:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * تحديث raster product عند اكتمال المعالجة
+   */
+  async updateRasterProductFromGeoJob(geoJobId: string): Promise<any> {
+    try {
+      const geoJob = await storage.getGeoJob(geoJobId);
+      if (!geoJob || geoJob.status !== 'completed') {
+        throw new Error(`Geo job not completed: ${geoJobId}`);
+      }
+
+      const rasterProductId = geoJob.payloadData?.rasterProductId;
+      if (!rasterProductId) {
+        throw new Error('Raster product ID not found in geo job payload');
+      }
+
+      // الحصول على URLs للملفات المعالجة
+      const objectStorageService = new ObjectStorageService();
+      const outputKeys = geoJob.outputKeys || [];
+      
+      let imageUrl = null;
+      let worldFileUrl = null;
+      let projectionFileUrl = null;
+      
+      for (const key of outputKeys) {
+        if (key.endsWith('.png')) {
+          imageUrl = await objectStorageService.generateDownloadUrl(key, 24 * 60 * 60); // 24h expiry
+        } else if (key.endsWith('.pgw') || key.endsWith('.pngw')) {
+          worldFileUrl = await objectStorageService.generateDownloadUrl(key, 24 * 60 * 60);
+        } else if (key.endsWith('.prj')) {
+          projectionFileUrl = await objectStorageService.generateDownloadUrl(key, 24 * 60 * 60);
+        }
+      }
+
+      // تحديث raster product بالنتائج
+      const updatedProduct = await db
+        .update(rasterProducts)
+        .set({
+          status: 'ready',
+          imageUrl: imageUrl || `/raster/processed-${rasterProductId}.png`,
+          worldFileUrl,
+          projectionFileUrl,
+          processingDate: new Date(),
+          processingLevel: 'processed'
+        })
+        .where(eq(rasterProducts.id, rasterProductId))
+        .returning();
+
+      console.log(`✅ Updated raster product ${rasterProductId} with processing results`);
+      return updatedProduct[0];
+    } catch (error) {
+      console.error('Error updating raster product from geo job:', error);
+      throw error;
     }
   }
 }
