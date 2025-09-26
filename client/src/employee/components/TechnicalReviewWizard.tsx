@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import InteractiveDrawingMap from '@/components/gis/InteractiveDrawingMap';
+import MeasurementPanel, { GeometryMeasurement } from '@/components/gis/MeasurementPanel';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 
@@ -665,6 +666,7 @@ function MapReviewPanel({
   reviewCase: TechnicalReviewCase;
 }) {
   const [drawnFeatures, setDrawnFeatures] = useState<any[]>([]);
+  const [selectedGeometry, setSelectedGeometry] = useState<string>();
 
   const handleFeatureDrawn = useCallback((feature: any) => {
     setDrawnFeatures(prev => [...prev, feature]);
@@ -674,10 +676,43 @@ function MapReviewPanel({
     setDrawnFeatures(prev => prev.filter(f => f.id !== featureId));
   }, []);
 
+  // Convert drawn features and layer data to GeometryMeasurement format
+  const geometryMeasurements = useMemo(() => {
+    const measurements: GeometryMeasurement[] = [];
+    
+    // Add drawn features
+    drawnFeatures.forEach((feature, index) => {
+      measurements.push({
+        id: feature.id || `drawn-${index}`,
+        type: feature.type,
+        name: `${getGeometryTypeArabic(feature.type)} مرسوم ${index + 1}`,
+        coordinates: feature.coordinates
+      });
+    });
+    
+    // Add layer geometries (from uploaded data)
+    layers.forEach(layer => {
+      if (layer.data && Array.isArray(layer.data)) {
+        layer.data.forEach((item: any, index: number) => {
+          if (item.geometry && item.geometry.coordinates) {
+            measurements.push({
+              id: `${layer.id}-${index}`,
+              type: getGeometryTypeFromGeoJSON(item.geometry.type),
+              name: `${layer.name} - عنصر ${index + 1}`,
+              coordinates: item.geometry.coordinates
+            });
+          }
+        });
+      }
+    });
+    
+    return measurements;
+  }, [drawnFeatures, layers]);
+
   return (
     <div className="flex h-full gap-4">
-      {/* Layer Control Sidebar */}
-      <div className="w-80 space-y-4 overflow-y-auto">
+      {/* Sidebar with Layer Controls and Measurements */}
+      <div className="w-96 space-y-4 overflow-y-auto">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">طبقات الخريطة</CardTitle>
@@ -716,6 +751,14 @@ function MapReviewPanel({
           </CardContent>
         </Card>
 
+        {/* Measurement Panel */}
+        <MeasurementPanel
+          geometries={geometryMeasurements}
+          selectedGeometry={selectedGeometry}
+          onGeometrySelect={setSelectedGeometry}
+          showCoordinates={true}
+        />
+        
         {/* Drawing Tools Info */}
         <Card>
           <CardHeader className="pb-3">
@@ -745,6 +788,30 @@ function MapReviewPanel({
       </div>
     </div>
   );
+}
+
+// Helper functions for geometry type conversion
+function getGeometryTypeArabic(type: string): string {
+  switch (type) {
+    case 'point': return 'نقطة';
+    case 'line': return 'خط';
+    case 'polygon': return 'مضلع';
+    case 'rectangle': return 'مستطيل';
+    case 'circle': return 'دائرة';
+    default: return 'شكل';
+  }
+}
+
+function getGeometryTypeFromGeoJSON(geoJsonType: string): 'point' | 'line' | 'polygon' | 'rectangle' | 'circle' {
+  switch (geoJsonType.toLowerCase()) {
+    case 'point': return 'point';
+    case 'linestring': return 'line';
+    case 'polygon': return 'polygon';
+    case 'multipoint': return 'point';
+    case 'multilinestring': return 'line';
+    case 'multipolygon': return 'polygon';
+    default: return 'polygon';
+  }
 }
 
 // Review Decision Panel Component
