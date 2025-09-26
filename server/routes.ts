@@ -3404,6 +3404,113 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // =================================================================
+  // Technical Reviewer Dashboard Routes
+  // =================================================================
+
+  /**
+   * Get technical reviewer workload statistics
+   * GET /api/technical-reviewer/workload/:reviewerId
+   */
+  app.get("/api/technical-reviewer/workload/:reviewerId", 
+    authenticateToken, 
+    requireRole(['employee', 'manager', 'admin']), 
+    basicSecurityProtection, 
+    async (req, res) => {
+    try {
+      const reviewerId = req.params.reviewerId;
+      
+      // Mock workload data for testing - in production would query database
+      const workload = {
+        pendingReviews: 8,
+        inProgressReviews: 3,
+        completedReviews: 45,
+        rejectedReviews: 12
+      };
+
+      res.json(workload);
+    } catch (error) {
+      console.error('❌ Technical reviewer workload error:', error);
+      res.status(500).json({ 
+        message: "Internal server error getting workload",
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  /**
+   * Get applications assigned to technical reviewer
+   * GET /api/technical-reviewer/applications/:reviewerId
+   */
+  app.get("/api/technical-reviewer/applications/:reviewerId", 
+    authenticateToken, 
+    requireRole(['employee', 'manager', 'admin']), 
+    basicSecurityProtection, 
+    async (req, res) => {
+    try {
+      const reviewerId = req.params.reviewerId;
+      
+      // Mock applications data for testing - in production would query database
+      const applications = [
+        {
+          id: "app-001",
+          applicationNumber: "2025-001",
+          applicantName: "أحمد محمد علي",
+          applicantPhone: "+967-777-123456",
+          projectName: "مجمع سكني - حي الصافية",
+          serviceType: "رخصة بناء",
+          submissionDate: "2025-01-15T10:30:00Z",
+          assignmentDate: "2025-01-16T09:00:00Z",
+          priority: "high",
+          status: "pending_review",
+          deadline: "2025-01-25T23:59:59Z",
+          location: "حي الصافية، صنعاء",
+          hasReviewCase: false
+        },
+        {
+          id: "app-002", 
+          applicationNumber: "2025-002",
+          applicantName: "فاطمة سالم أحمد",
+          applicantPhone: "+967-733-987654",
+          projectName: "مبنى تجاري - المدينة القديمة",
+          serviceType: "قرار مساحة",
+          submissionDate: "2025-01-14T14:20:00Z",
+          assignmentDate: "2025-01-15T11:30:00Z",
+          priority: "medium",
+          status: "in_progress",
+          deadline: "2025-01-22T23:59:59Z",
+          location: "المدينة القديمة، صنعاء",
+          hasReviewCase: true,
+          reviewCaseId: "rc-002"
+        },
+        {
+          id: "app-003",
+          applicationNumber: "2025-003", 
+          applicantName: "محمد عبدالله حسن",
+          applicantPhone: "+967-712-456789",
+          projectName: "فيلا سكنية - حي الحصبة",
+          serviceType: "رخصة بناء",
+          submissionDate: "2025-01-13T16:45:00Z",
+          assignmentDate: "2025-01-14T08:15:00Z",
+          priority: "low",
+          status: "completed",
+          deadline: "2025-01-20T23:59:59Z",
+          location: "حي الحصبة، صنعاء",
+          hasReviewCase: true,
+          reviewCaseId: "rc-003"
+        }
+      ];
+
+      res.json(applications);
+    } catch (error) {
+      console.error('❌ Technical reviewer applications error:', error);
+      res.status(500).json({ 
+        message: "Internal server error getting applications",
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   // Surveying decisions routes - LBAC applied in storage layer  
   app.get("/api/surveying-decisions", authenticateToken, requireRole(['employee', 'manager', 'admin']), basicSecurityProtection, async (req, res) => {
     try {
