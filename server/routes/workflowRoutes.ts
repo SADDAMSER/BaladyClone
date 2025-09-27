@@ -480,13 +480,13 @@ router.post('/assign-surveyor/:applicationId', authenticateToken, requireRole(['
 
     console.log(`[SECTION HEAD] Assigning surveyor for application ${applicationId}`);
 
-    // البحث عن workflow instance للطلب
-    const workflowInstance = await workflowService.getWorkflowInstanceByApplication(applicationId);
+    // البحث عن workflow instance للطلب أو إنشاءه إذا لم يوجد
+    let workflowInstance = await workflowService.getWorkflowInstanceByApplication(applicationId);
     if (!workflowInstance) {
-      return res.status(404).json({
-        success: false,
-        message: 'لم يتم العثور على workflow instance للطلب'
-      });
+      console.log(`[SECTION HEAD] No workflow instance found for application ${applicationId}, creating one...`);
+      // إنشاء workflow instance جديد للطلب
+      workflowInstance = await workflowService.startWorkflowInstance(applicationId);
+      console.log(`[SECTION HEAD] Created workflow instance ${workflowInstance.id} for application ${applicationId}`);
     }
 
     console.log(`[SECTION HEAD] Found workflow instance ${workflowInstance.id} for application ${applicationId}`);
