@@ -29,12 +29,15 @@ import {
   insertGeographicRoleTemplatesSchema, insertUserGeographicAssignmentHistorySchema,
   insertLbacAccessAuditLogSchema,
   // Geoprocessing Queue System schemas - Phase 1
-  insertGeoJobSchema, insertGeoJobEventSchema
+  insertGeoJobSchema, insertGeoJobEventSchema,
+  // Missing surveying decision schema
+  insertSurveyingDecisionSchema
 } from "@shared/schema";
 import { DEFAULT_PERMISSIONS } from "@shared/defaults";
 import { PaginationParams, validatePaginationParams } from "./pagination";
 import workflowRoutes from './routes/workflowRoutes';
 import { technicalReviewService } from './services/technicalReviewService';
+import { workflowService } from './services/workflowService';
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
