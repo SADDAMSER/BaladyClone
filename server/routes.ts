@@ -3424,12 +3424,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const reviewerId = req.params.reviewerId;
       
-      // Mock workload data for testing - in production would query database
+      // استعلام حقيقي من قاعدة البيانات للحصول على إحصائيات العمل للمراجع الفني
+      const [
+        pendingCount,
+        inProgressCount,
+        completedCount,
+        rejectedCount
+      ] = await Promise.all([
+        db.select({ count: sql<number>`count(*)` })
+          .from(technicalReviewCases)
+          .where(and(
+            eq(technicalReviewCases.reviewerId, reviewerId),
+            eq(technicalReviewCases.status, 'pending')
+          )),
+        db.select({ count: sql<number>`count(*)` })
+          .from(technicalReviewCases)
+          .where(and(
+            eq(technicalReviewCases.reviewerId, reviewerId),
+            eq(technicalReviewCases.status, 'in_progress')
+          )),
+        db.select({ count: sql<number>`count(*)` })
+          .from(technicalReviewCases)
+          .where(and(
+            eq(technicalReviewCases.reviewerId, reviewerId),
+            or(
+              eq(technicalReviewCases.status, 'completed'),
+              eq(technicalReviewCases.status, 'approved')
+            )
+          )),
+        db.select({ count: sql<number>`count(*)` })
+          .from(technicalReviewCases)
+          .where(and(
+            eq(technicalReviewCases.reviewerId, reviewerId),
+            eq(technicalReviewCases.status, 'rejected')
+          ))
+      ]);
+
       const workload = {
-        pendingReviews: 8,
-        inProgressReviews: 3,
-        completedReviews: 45,
-        rejectedReviews: 12
+        pendingReviews: pendingCount[0]?.count || 0,
+        inProgressReviews: inProgressCount[0]?.count || 0,
+        completedReviews: completedCount[0]?.count || 0,
+        rejectedReviews: rejectedCount[0]?.count || 0
       };
 
       res.json(workload);
@@ -3454,58 +3489,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const reviewerId = req.params.reviewerId;
       
-      // Mock applications data for testing - in production would query database
-      const applications = [
-        {
-          id: "app-001",
-          applicationNumber: "2025-001",
-          applicantName: "أحمد محمد علي",
-          applicantPhone: "+967-777-123456",
-          projectName: "مجمع سكني - حي الصافية",
-          serviceType: "رخصة بناء",
-          submissionDate: "2025-01-15T10:30:00Z",
-          assignmentDate: "2025-01-16T09:00:00Z",
-          priority: "high",
-          status: "pending_review",
-          deadline: "2025-01-25T23:59:59Z",
-          location: "حي الصافية، صنعاء",
-          hasReviewCase: false
-        },
-        {
-          id: "app-002", 
-          applicationNumber: "2025-002",
-          applicantName: "فاطمة سالم أحمد",
-          applicantPhone: "+967-733-987654",
-          projectName: "مبنى تجاري - المدينة القديمة",
-          serviceType: "قرار مساحة",
-          submissionDate: "2025-01-14T14:20:00Z",
-          assignmentDate: "2025-01-15T11:30:00Z",
-          priority: "medium",
-          status: "in_progress",
-          deadline: "2025-01-22T23:59:59Z",
-          location: "المدينة القديمة، صنعاء",
-          hasReviewCase: true,
-          reviewCaseId: "rc-002"
-        },
-        {
-          id: "app-003",
-          applicationNumber: "2025-003", 
-          applicantName: "محمد عبدالله حسن",
-          applicantPhone: "+967-712-456789",
-          projectName: "فيلا سكنية - حي الحصبة",
-          serviceType: "رخصة بناء",
-          submissionDate: "2025-01-13T16:45:00Z",
-          assignmentDate: "2025-01-14T08:15:00Z",
-          priority: "low",
-          status: "completed",
-          deadline: "2025-01-20T23:59:59Z",
-          location: "حي الحصبة، صنعاء",
-          hasReviewCase: true,
-          reviewCaseId: "rc-003"
-        }
-      ];
+      // استعلام حقيقي للحصول على الطلبات المكلف بمراجعتها من قاعدة البيانات
+      const reviewCases = await db
+        .select({
+          // Review case info
+          reviewCaseId: technicalReviewCases.id,
+          status: technicalReviewCases.status,
+          priority: technicalReviewCases.priority,
+          assignmentDate: technicalReviewCases.createdAt,
+          deadline: technicalReviewCases.dueDate,
+          // Application info
+          applicationId: applications.id,
+          applicationNumber: applications.applicationNumber,
+          submissionDate: applications.createdAt,
+          // Applicant info (assuming from applicationData JSON)
+          applicationData: applications.applicationData,
+        })
+        .from(technicalReviewCases)
+        .innerJoin(applications, eq(technicalReviewCases.applicationId, applications.id))
+        .where(eq(technicalReviewCases.reviewerId, reviewerId))
+        .orderBy(desc(technicalReviewCases.createdAt));
 
-      res.json(applications);
+      // تحويل البيانات لتطابق format المطلوب
+      const transformedApplications = reviewCases.map(reviewCase => {
+        const appData = reviewCase.applicationData as any || {};
+        
+        return {
+          id: reviewCase.applicationId,
+          applicationNumber: reviewCase.applicationNumber || '',
+          applicantName: appData.applicantName || appData.fullName || 'غير محدد',
+          applicantPhone: appData.phoneNumber || appData.contactPhone || '',
+          projectName: appData.projectName || appData.description || 'مشروع غير محدد',
+          serviceType: appData.serviceType || 'خدمة غير محددة',
+          submissionDate: reviewCase.submissionDate?.toISOString() || new Date().toISOString(),
+          assignmentDate: reviewCase.assignmentDate?.toISOString() || new Date().toISOString(),
+          priority: reviewCase.priority || 'medium',
+          status: reviewCase.status,
+          deadline: reviewCase.deadline?.toISOString() || null,
+          location: `${appData.governorate || 'غير محدد'}, ${appData.district || 'غير محدد'}`,
+          hasReviewCase: true,
+          reviewCaseId: reviewCase.reviewCaseId
+        };
+      });
+
+      res.json(transformedApplications);
     } catch (error) {
       console.error('❌ Technical reviewer applications error:', error);
       res.status(500).json({ 
