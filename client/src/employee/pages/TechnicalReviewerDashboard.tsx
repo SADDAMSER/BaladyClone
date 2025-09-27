@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/auth/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -47,9 +48,10 @@ interface ApplicationForReview {
 
 export default function TechnicalReviewerDashboard() {
   const { toast } = useToast();
+  const { user } = useAuth();
   
-  // Mock reviewer ID - في التطبيق الحقيقي سيأتي من الـ authentication context
-  const reviewerId = "reviewer-123"; 
+  // استخدام معرف المستخدم الحقيقي بدلاً من القيمة الوهمية
+  const reviewerId = user?.id; 
   
   const [selectedTab, setSelectedTab] = useState('overview');
   const [selectedApplication, setSelectedApplication] = useState<ApplicationForReview | null>(null);
