@@ -7035,7 +7035,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Metadata for change tracking  
       const metadata = {
-        userId: user.id, // Use userId as expected by storage interface
+        surveyorId: user.id, // تصحيح: استخدام surveyorId بدلاً من userId
         deviceId,
         clientChangeId: req.headers['x-idempotency-key'] as string,
         geographic: {
@@ -7152,7 +7152,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Metadata for submission
       const metadata = {
-        userId: user.id, // Use userId instead of surveyorId
+        surveyorId: user.id, // تصحيح: استخدام surveyorId بدلاً من userId
         deviceId,
         clientChangeId: req.headers['x-idempotency-key'] as string
       };
@@ -7709,7 +7709,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Apply the change based on operation
           let result: any;
           const metadata = {
-            userId: user.id,
+            surveyorId: user.id, // تصحيح: استخدام surveyorId بدلاً من userId
             deviceId,
             clientChangeId: itemKey,
             geographic: {
