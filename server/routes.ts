@@ -815,7 +815,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           { username: 'dept_manager_01', role: 'manager', fullName: 'محمد مدير قسم المساحة' },
           { username: 'assistant_head_01', role: 'assistant_head', fullName: 'أحمد مساعد رئيس قسم المساحة' },
           { username: 'surveyor_01', role: 'employee', fullName: 'فهد المهندس المساح الأول' },
-          { username: 'surveyor_02', role: 'employee', fullName: 'سالم المهندس المساح الثاني' }
+          { username: 'surveyor_02', role: 'employee', fullName: 'سالم المهندس المساح الثاني' },
+          { username: 'technical_reviewer_01', role: 'technical_reviewer', fullName: 'خالد المراجع الفني' }
         ];
 
         const mockUser = mockUsers.find(u => u.username === username);

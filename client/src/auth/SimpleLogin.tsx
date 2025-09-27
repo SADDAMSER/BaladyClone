@@ -65,6 +65,20 @@ export default function SimpleLogin({ onLogin }: LoginProps) {
       fullName: 'سالم المهندس المساح الثاني',
       role: 'employee',
       description: 'مهندس مساح - إجراء المسح الميداني'
+    },
+    {
+      id: '550e8400-e29b-41d4-a716-446655440060',
+      username: 'assistant_head_01',
+      fullName: 'أحمد نائب رئيس قسم المساحة',
+      role: 'assistant_head',
+      description: 'نائب رئيس القسم - إدارة المهام التشغيلية'
+    },
+    {
+      id: '550e8400-e29b-41d4-a716-446655440070',
+      username: 'technical_reviewer_01',
+      fullName: 'خالد المراجع الفني',
+      role: 'technical_reviewer',
+      description: 'المراجع الفني - مراجعة البيانات المساحية'
     }
   ];
 
