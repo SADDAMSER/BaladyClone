@@ -146,61 +146,28 @@ export default function AssistantHeadDashboard() {
         const originalToken = localStorage.getItem("auth-token");
         localStorage.setItem("auth-token", authToken);
         
-        // Mock data for now - represents applications after surveyor assignment
-        const mockApplications: ApplicationDetails[] = [
-          {
-            id: 'app-1',
-            applicationNumber: 'SUR-2025-001',
-            serviceType: 'قرار مساحي',
-            status: 'under_review',
-            currentStage: 'assistant_head_scheduling',
-            submittedAt: '2025-01-15T10:00:00Z',
-            applicantName: 'علي محمد الشامي',
-            applicantId: '01-01-12-1234567',
-            contactPhone: '777123456',
-            assignedSurveyor: {
-              id: 'surveyor-1',
-              fullName: 'أحمد محمد الحداد',
-              phone: '771234567'
-            },
-            applicationData: {
-              governorate: 'صنعاء',
-              district: 'الصافية',
-              area: '500',
-              location: 'شارع الستين - بجوار مسجد النور'
-            }
-          },
-          {
-            id: 'app-2',
-            applicationNumber: 'SUR-2025-002',
-            serviceType: 'قرار مساحي',
-            status: 'under_review',
-            currentStage: 'assistant_head_scheduling',
-            submittedAt: '2025-01-16T14:30:00Z',
-            applicantName: 'فاطمة أحمد القاضي',
-            applicantId: '01-01-12-9876543',
-            contactPhone: '733987654',
-            assignedSurveyor: {
-              id: 'surveyor-2',
-              fullName: 'فاطمة علي السلامي',
-              phone: '770987654'
-            },
-            applicationData: {
-              governorate: 'صنعاء',
-              district: 'شعوب',
-              area: '750',
-              location: 'حي السبعين - خلف مجمع الألف'
-            }
+        // استعلام حقيقي للحصول على الطلبات في مرحلة جدولة نائب رئيس القسم
+        const response = await fetch('/api/applications?currentStage=assistant_head_scheduling', {
+          headers: {
+            'Authorization': `Bearer ${authToken || ''}`,
+            'Content-Type': 'application/json'
           }
-        ];
+        });
+        
+        if (!response.ok) {
+          console.error('Failed to fetch applications:', response.status);
+          // إذا فشل الاستعلام، إرجاع مصفوفة فارغة
+          return [];
+        }
+        
+        const applications = await response.json();
+        return applications as ApplicationDetails[];
         
         if (originalToken) {
           localStorage.setItem("auth-token", originalToken);
         } else {
           localStorage.removeItem("auth-token");
         }
-        
-        return mockApplications;
       } catch (error) {
         console.error('Error fetching pending applications:', error);
         return [];
