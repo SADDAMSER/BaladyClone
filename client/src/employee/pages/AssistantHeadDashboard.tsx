@@ -109,7 +109,8 @@ export default function AssistantHeadDashboard() {
 
   // Check for existing login
   useEffect(() => {
-    const token = localStorage.getItem('employee_token');
+    // التحقق من جميع أسماء tokens الممكنة
+    const token = localStorage.getItem('auth-token') || localStorage.getItem('employee_token');
     const user = localStorage.getItem('employee_user');
     
     if (token && user) {
@@ -120,12 +121,24 @@ export default function AssistantHeadDashboard() {
   }, []);
 
   const handleLoginSuccess = (token: string, user: any) => {
+    console.log('🔐 Assistant head login success:', { token: token.substring(0, 20) + '...', user: user.username });
+    
+    // تخزين token بصيغة موحدة
+    localStorage.setItem('auth-token', token);
+    localStorage.setItem('employee_token', token); // backup
+    localStorage.setItem('employee_user', JSON.stringify(user));
+    
     setAuthToken(token);
     setCurrentUser(user);
     setIsLoggedIn(true);
+    
+    // Force refetch applications
+    queryClient.invalidateQueries({ queryKey: ['/api/applications'] });
   };
 
   const handleLogout = () => {
+    // تنظيف جميع tokens الممكنة
+    localStorage.removeItem('auth-token');
     localStorage.removeItem('employee_token');
     localStorage.removeItem('employee_user');
     setAuthToken("");
@@ -143,8 +156,7 @@ export default function AssistantHeadDashboard() {
     queryKey: ['/api/applications', { currentStage: 'assistant_head_scheduling' }],
     queryFn: async () => {
       try {
-        const originalToken = localStorage.getItem("auth-token");
-        localStorage.setItem("auth-token", authToken);
+        console.log('🔍 Fetching applications for assistant head scheduling...');
         
         // استعلام حقيقي للحصول على الطلبات في مرحلة جدولة نائب رئيس القسم
         const response = await fetch('/api/applications?currentStage=assistant_head_scheduling', {
@@ -155,27 +167,23 @@ export default function AssistantHeadDashboard() {
         });
         
         if (!response.ok) {
-          console.error('Failed to fetch applications:', response.status);
-          // إذا فشل الاستعلام، إرجاع مصفوفة فارغة
+          console.error('❌ Failed to fetch applications:', response.status, response.statusText);
           return [];
         }
         
         const applications = await response.json();
+        console.log(`✅ Fetched ${applications.length} applications for scheduling`);
         return applications as ApplicationDetails[];
         
-        if (originalToken) {
-          localStorage.setItem("auth-token", originalToken);
-        } else {
-          localStorage.removeItem("auth-token");
-        }
       } catch (error) {
-        console.error('Error fetching pending applications:', error);
+        console.error('❌ Error fetching pending applications:', error);
         return [];
       }
     },
-    enabled: isLoggedIn,
-    retry: false,
-    refetchOnWindowFocus: false
+    enabled: isLoggedIn && !!authToken,
+    retry: 2,
+    refetchOnWindowFocus: true,
+    refetchInterval: 30000, // تحديث كل 30 ثانية
   });
 
   // Schedule appointment mutation
