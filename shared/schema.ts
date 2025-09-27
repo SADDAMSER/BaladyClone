@@ -1635,8 +1635,16 @@ export type ServiceRequirement = typeof serviceRequirements.$inferSelect;
 export type Application = typeof applications.$inferSelect;
 export type InsertApplication = z.infer<typeof insertApplicationSchema>;
 
+// Surveying Decision Schema
+export const insertSurveyingDecisionSchema = createInsertSchema(surveyingDecisions).omit({
+  id: true,
+  decisionNumber: true,
+  createdAt: true,
+  updatedAt: true
+});
+
 export type SurveyingDecision = typeof surveyingDecisions.$inferSelect;
-export type InsertSurveyingDecision = typeof surveyingDecisions.$inferInsert;
+export type InsertSurveyingDecision = z.infer<typeof insertSurveyingDecisionSchema>;
 
 export type Task = typeof tasks.$inferSelect;
 export type InsertTask = z.infer<typeof insertTaskSchema>;
